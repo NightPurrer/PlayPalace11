@@ -46,3 +46,7 @@ chaosbear-status-bear = The bear is at square { $position } with { $energy } ene
 # End game
 chaosbear-winner = { $player } survived and wins! They reached square { $position }!
 chaosbear-tie = It's a tie at square { $position }!
+
+# Disabled action reasons
+chaosbear-you-are-caught = You have been caught by the bear.
+chaosbear-not-on-multiple = You can only draw cards on multiples of 5.

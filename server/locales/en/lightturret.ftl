@@ -40,3 +40,6 @@ lightturret-option-changed-power = Starting power set to { $power }.
 lightturret-set-max-rounds = Max rounds: { $rounds }
 lightturret-enter-max-rounds = Enter max rounds:
 lightturret-option-changed-rounds = Max rounds set to { $rounds }.
+
+# Disabled action reasons
+lightturret-you-are-eliminated = You have been eliminated.

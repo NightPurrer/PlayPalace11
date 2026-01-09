@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from ..base import Game, Player
 from ..registry import register_game
 from ...game_utils.bot_helper import BotHelper
-from ...game_utils.actions import Action, ActionSet
+from ...game_utils.actions import Action, ActionSet, Visibility
 from ...ui.keybinds import KeybindState
 from ...messages.localization import Localization
 
@@ -85,6 +85,8 @@ class ChaosBearGame(Game):
                 id="roll_dice",
                 label=Localization.get(locale, "chaosbear-roll-dice"),
                 handler="_action_roll_dice",
+                is_enabled="_is_roll_dice_enabled",
+                is_hidden="_is_roll_dice_hidden",
             )
         )
 
@@ -93,6 +95,8 @@ class ChaosBearGame(Game):
                 id="draw_card",
                 label=Localization.get(locale, "chaosbear-draw-card"),
                 handler="_action_draw_card",
+                is_enabled="_is_draw_card_enabled",
+                is_hidden="_is_draw_card_hidden",
             )
         )
 
@@ -101,7 +105,8 @@ class ChaosBearGame(Game):
                 id="check_status",
                 label=Localization.get(locale, "chaosbear-check-status"),
                 handler="_action_check_status",
-                hidden=False,
+                is_enabled="_is_check_status_enabled",
+                is_hidden="_is_check_status_hidden",
             )
         )
 
@@ -119,43 +124,71 @@ class ChaosBearGame(Game):
             include_spectators=True,
         )
 
-    def update_turn_actions(self, player: ChaosBearPlayer) -> None:
-        """Update turn action availability for a player."""
-        turn_set = self.get_action_set(player, "turn")
-        if not turn_set:
-            return
+    # ==========================================================================
+    # Declarative Action Callbacks
+    # ==========================================================================
 
-        is_current = self.current_player == player
-        is_playing = self.status == "playing"
-        is_alive = player.alive
-        can_draw = player.position % 5 == 0 and player.position > 0
+    def _is_roll_dice_enabled(self, player: Player) -> str | None:
+        """Check if roll dice action is enabled."""
+        if self.status != "playing":
+            return "action-not-playing"
+        if self.current_player != player:
+            return "action-not-your-turn"
+        cb_player: ChaosBearPlayer = player  # type: ignore
+        if not cb_player.alive:
+            return "chaosbear-you-are-caught"
+        return None
 
-        # Roll dice - always available on your turn if alive
-        if is_playing and is_current and is_alive:
-            turn_set.enable("roll_dice")
-            turn_set.show("roll_dice")
-        else:
-            turn_set.disable("roll_dice")
-            turn_set.hide("roll_dice")
+    def _is_roll_dice_hidden(self, player: Player) -> Visibility:
+        """Check if roll dice is hidden."""
+        if self.status != "playing":
+            return Visibility.HIDDEN
+        if self.current_player != player:
+            return Visibility.HIDDEN
+        cb_player: ChaosBearPlayer = player  # type: ignore
+        if not cb_player.alive:
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
 
-        # Draw card - only on multiples of 5
-        if is_playing and is_current and is_alive and can_draw:
-            turn_set.enable("draw_card")
-            turn_set.show("draw_card")
-        else:
-            turn_set.disable("draw_card")
-            turn_set.hide("draw_card")
+    def _is_draw_card_enabled(self, player: Player) -> str | None:
+        """Check if draw card action is enabled."""
+        if self.status != "playing":
+            return "action-not-playing"
+        if self.current_player != player:
+            return "action-not-your-turn"
+        cb_player: ChaosBearPlayer = player  # type: ignore
+        if not cb_player.alive:
+            return "chaosbear-you-are-caught"
+        can_draw = cb_player.position % 5 == 0 and cb_player.position > 0
+        if not can_draw:
+            return "chaosbear-not-on-multiple"
+        return None
 
-        # Status always available during play
-        if is_playing:
-            turn_set.enable("check_status")
-        else:
-            turn_set.disable("check_status")
+    def _is_draw_card_hidden(self, player: Player) -> Visibility:
+        """Check if draw card is hidden."""
+        if self.status != "playing":
+            return Visibility.HIDDEN
+        if self.current_player != player:
+            return Visibility.HIDDEN
+        cb_player: ChaosBearPlayer = player  # type: ignore
+        if not cb_player.alive:
+            return Visibility.HIDDEN
+        can_draw = cb_player.position % 5 == 0 and cb_player.position > 0
+        if not can_draw:
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
 
-    def update_all_turn_actions(self) -> None:
-        """Update turn actions for all players."""
-        for player in self.players:
-            self.update_turn_actions(player)
+    def _is_check_status_enabled(self, player: Player) -> str | None:
+        """Check if check status action is enabled."""
+        if self.status != "playing":
+            return "action-not-playing"
+        return None
+
+    def _is_check_status_hidden(self, player: Player) -> Visibility:
+        """Check status is visible to all during play."""
+        if self.status != "playing":
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
 
     # ==========================================================================
     # Game Flow
@@ -189,9 +222,7 @@ class ChaosBearGame(Game):
         self.broadcast_l("chaosbear-intro-2")
         self.broadcast_l("chaosbear-intro-3")
 
-        # Update actions and announce first turn
-        self.update_all_lobby_actions()
-        self.update_all_turn_actions()
+        # Rebuild menus and announce first turn
         self.rebuild_all_menus()
 
         self._announce_turn()
@@ -261,7 +292,6 @@ class ChaosBearGame(Game):
         self.advance_turn(announce=False)
         self._announce_turn()
 
-        self.update_all_turn_actions()
         self.rebuild_all_menus()
 
         # Jolt bots
@@ -377,7 +407,6 @@ class ChaosBearGame(Game):
             "chaosbear-winner", player=winner.name, position=winner.position
         )
 
-        self.update_all_turn_actions()
         self.rebuild_all_menus()
 
     def _end_game_tie(self, position: int) -> None:
@@ -387,7 +416,6 @@ class ChaosBearGame(Game):
 
         self.broadcast_l("chaosbear-tie", position=position)
 
-        self.update_all_turn_actions()
         self.rebuild_all_menus()
 
     # ==========================================================================

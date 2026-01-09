@@ -108,6 +108,8 @@ class IntOption(OptionMeta):
             id=f"set_{option_name}",
             label=label,
             handler="_action_set_option",  # Generic handler extracts option_name from action_id
+            is_enabled="_is_option_enabled",
+            is_hidden="_is_option_hidden",
             input_request=EditboxInput(
                 prompt=self.prompt,
                 default=str(current_value),
@@ -154,6 +156,8 @@ class MenuOption(OptionMeta):
             id=f"set_{option_name}",
             label=label,
             handler="_action_set_option",  # Generic handler extracts option_name from action_id
+            is_enabled="_is_option_enabled",
+            is_hidden="_is_option_hidden",
             input_request=MenuInput(
                 prompt=self.prompt,
                 options=f"_options_for_{option_name}",
@@ -197,6 +201,8 @@ class BoolOption(OptionMeta):
             id=f"toggle_{option_name}",
             label=label,
             handler="_action_toggle_option",  # Generic handler extracts option_name from action_id
+            is_enabled="_is_option_enabled",
+            is_hidden="_is_option_hidden",
             # No input_request - toggles directly
         )
 
@@ -267,33 +273,14 @@ class GameOptions(DataClassJSONMixin):
         return action_set
 
     def update_options_labels(self, game: "Game") -> None:
-        """Update all option labels to reflect current values."""
+        """Recreate options action sets for all players to reflect current values.
+
+        This replaces each player's options action set with a fresh one
+        containing the current option values in the labels.
+        """
         for player in game.players:
-            options_set = game.get_action_set(player, "options")
-            if not options_set:
-                continue
-
-            user = game.get_user(player)
-            locale = user.locale if user else "en"
-
-            for name, meta in self.get_option_metas().items():
-                current_value = getattr(self, name)
-                action_id = (
-                    f"set_{name}"
-                    if not isinstance(meta, BoolOption)
-                    else f"toggle_{name}"
-                )
-
-                # For bool options, get localized on/off value
-                if isinstance(meta, BoolOption):
-                    on_off_key = "option-on" if current_value else "option-off"
-                    on_off = Localization.get(locale, on_off_key)
-                    label = Localization.get(
-                        locale, meta.label, **{meta.value_key: on_off}
-                    )
-                else:
-                    label = Localization.get(
-                        locale, meta.label, **meta.get_label_kwargs(current_value)
-                    )
-
-                options_set.set_label(action_id, label)
+            # Remove old options action set
+            game.remove_action_set(player, "options")
+            # Create fresh one with current values
+            new_options_set = self.create_options_action_set(game, player)
+            game.add_action_set(player, new_options_set)

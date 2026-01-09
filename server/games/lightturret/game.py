@@ -9,7 +9,7 @@ import random
 
 from ..base import Game, Player
 from ..registry import register_game
-from ...game_utils.actions import Action, ActionSet
+from ...game_utils.actions import Action, ActionSet, Visibility
 from ...game_utils.bot_helper import BotHelper
 from ...game_utils.options import IntOption, option_field, GameOptions
 from ...messages.localization import Localization
@@ -110,6 +110,8 @@ class LightTurretGame(Game):
                 id="shoot",
                 label=Localization.get(locale, "lightturret-shoot"),
                 handler="_action_shoot",
+                is_enabled="_is_turn_action_enabled",
+                is_hidden="_is_turn_action_hidden",
             )
         )
         action_set.add(
@@ -117,6 +119,8 @@ class LightTurretGame(Game):
                 id="upgrade",
                 label=Localization.get(locale, "lightturret-upgrade"),
                 handler="_action_upgrade",
+                is_enabled="_is_turn_action_enabled",
+                is_hidden="_is_turn_action_hidden",
             )
         )
         action_set.add(
@@ -124,7 +128,8 @@ class LightTurretGame(Game):
                 id="check_stats",
                 label=Localization.get(locale, "lightturret-check-stats"),
                 handler="_action_check_stats",
-                hidden=True,  # Accessed via keybind only
+                is_enabled="_is_check_stats_enabled",
+                is_hidden="_is_check_stats_hidden",
             )
         )
         return action_set
@@ -146,35 +151,43 @@ class LightTurretGame(Game):
             include_spectators=True,
         )
 
-    def update_turn_actions(self, player: LightTurretPlayer) -> None:
-        """Update turn action availability for a player."""
-        turn_set = self.get_action_set(player, "turn")
-        if not turn_set:
-            return
+    # ==========================================================================
+    # Declarative Action Callbacks
+    # ==========================================================================
 
-        is_playing = self.status == "playing"
-        is_spectator = player.is_spectator
-        is_current = self.current_player == player
-        is_alive = player.alive
+    def _is_turn_action_enabled(self, player: Player) -> str | None:
+        """Check if turn actions (shoot/upgrade) are enabled."""
+        if self.status != "playing":
+            return "action-not-playing"
+        if self.current_player != player:
+            return "action-not-your-turn"
+        if player.is_spectator:
+            return "action-spectator"
+        lt_player: LightTurretPlayer = player  # type: ignore
+        if not lt_player.alive:
+            return "lightturret-you-are-eliminated"
+        return None
 
-        # Turn actions only for current alive player
-        if is_playing and is_current and not is_spectator and is_alive:
-            turn_set.enable("shoot", "upgrade")
-        else:
-            turn_set.disable("shoot", "upgrade")
+    def _is_turn_action_hidden(self, player: Player) -> Visibility:
+        """Check if turn actions are hidden."""
+        if self.status != "playing":
+            return Visibility.HIDDEN
+        if self.current_player != player:
+            return Visibility.HIDDEN
+        lt_player: LightTurretPlayer = player  # type: ignore
+        if not lt_player.alive:
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
 
-        # Check stats always available during play
-        if is_playing:
-            turn_set.enable("check_stats")
-        else:
-            turn_set.disable("check_stats")
+    def _is_check_stats_enabled(self, player: Player) -> str | None:
+        """Check if check stats action is enabled."""
+        if self.status != "playing":
+            return "action-not-playing"
+        return None
 
-        self.update_standard_actions(player)
-
-    def update_all_turn_actions(self) -> None:
-        """Update turn actions for all players."""
-        for player in self.players:
-            self.update_turn_actions(player)
+    def _is_check_stats_hidden(self, player: Player) -> Visibility:
+        """Check stats is always hidden (keybind only)."""
+        return Visibility.HIDDEN
 
     def _action_shoot(self, player: Player, action_id: str) -> None:
         """Handle shooting the turret."""
@@ -301,11 +314,6 @@ class LightTurretGame(Game):
         # Initialize turn order
         self.set_turn_players(active_players)
 
-        # Update actions
-        self.update_all_lobby_actions()
-        self.update_all_options_actions()
-        self.update_all_turn_actions()
-
         # Play music and intro sound
         self.play_music("game_lightturret/music.ogg")
         self.play_sound("game_3cardpoker/roundstart.ogg")
@@ -349,7 +357,6 @@ class LightTurretGame(Game):
         if player.is_bot:
             BotHelper.jolt_bot(player, ticks=random.randint(12, 20))
 
-        self.update_all_turn_actions()
         self.rebuild_all_menus()
 
     def on_tick(self) -> None:
@@ -466,7 +473,7 @@ class LightTurretGame(Game):
             )
 
         # Update actions to reflect game ended state
-        self.update_all_turn_actions()
+        self.rebuild_all_menus()
 
         # Show final menu first (before potential destruction)
         self._show_game_end()

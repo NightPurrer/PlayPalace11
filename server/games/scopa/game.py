@@ -9,7 +9,7 @@ import random
 
 from ..base import Game, Player, GameOptions
 from ..registry import register_game
-from ...game_utils.actions import Action, ActionSet
+from ...game_utils.actions import Action, ActionSet, Visibility
 from ...game_utils.bot_helper import BotHelper
 from ...game_utils.cards import (
     Card,
@@ -223,7 +223,8 @@ class ScopaGame(Game):
                 id="view_table",
                 label=Localization.get(locale, "scopa-view-table"),
                 handler="_action_view_table",
-                hidden=True,
+                is_enabled="_is_view_enabled",
+                is_hidden="_is_view_hidden",
             )
         )
         action_set.add(
@@ -231,7 +232,8 @@ class ScopaGame(Game):
                 id="view_captured",
                 label=Localization.get(locale, "scopa-view-captured"),
                 handler="_action_view_captured",
-                hidden=True,
+                is_enabled="_is_view_enabled",
+                is_hidden="_is_view_hidden",
             )
         )
         # Note: whose_turn, check_scores, check_scores_detailed are in base class standard set
@@ -243,7 +245,8 @@ class ScopaGame(Game):
                     id=f"view_table_card_{i}",
                     label=f"View table card {i if i > 0 else 10}",
                     handler="_action_view_table_card",
-                    hidden=True,
+                    is_enabled="_is_view_enabled",
+                    is_hidden="_is_view_hidden",
                 )
             )
 
@@ -253,9 +256,10 @@ class ScopaGame(Game):
                 id="pause_timer",
                 label="Pause timer",
                 handler="_action_pause_timer",
+                is_enabled="_is_pause_timer_enabled",
+                is_hidden="_is_pause_timer_hidden",
             )
         )
-        action_set.hide("pause_timer")
 
         return action_set
 
@@ -306,11 +310,51 @@ class ScopaGame(Game):
         )
 
     # ==========================================================================
-    # Update Actions
+    # Declarative Action Callbacks
     # ==========================================================================
 
-    def update_turn_actions(self, player: ScopaPlayer) -> None:
-        """Update turn action availability for a player."""
+    def _is_view_enabled(self, player: Player) -> str | None:
+        """View actions are enabled during play."""
+        if self.status != "playing":
+            return "action-not-playing"
+        return None
+
+    def _is_view_hidden(self, player: Player) -> Visibility:
+        """View actions are always hidden (keybind only)."""
+        return Visibility.HIDDEN
+
+    def _is_pause_timer_enabled(self, player: Player) -> str | None:
+        """Pause timer is enabled for host when timer is active."""
+        if player.name != self.host:
+            return "action-not-host"
+        if not self._round_timer.is_active:
+            return "scopa-timer-not-active"
+        return None
+
+    def _is_pause_timer_hidden(self, player: Player) -> Visibility:
+        """Pause timer is always hidden (keybind only)."""
+        return Visibility.HIDDEN
+
+    def _is_card_action_enabled(self, player: Player) -> str | None:
+        """Card actions are enabled for current player during play."""
+        if self.status != "playing":
+            return "action-not-playing"
+        if self.current_player != player:
+            return "action-not-your-turn"
+        if player.is_spectator:
+            return "action-spectator"
+        return None
+
+    def _is_card_action_hidden(self, player: Player) -> Visibility:
+        """Card actions are visible for current player during play."""
+        if self.status != "playing":
+            return Visibility.HIDDEN
+        if self.current_player != player:
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
+
+    def _update_card_actions(self, player: ScopaPlayer) -> None:
+        """Update card actions for a player (called when rebuilding menus)."""
         turn_set = self.get_action_set(player, "turn")
         if not turn_set:
             return
@@ -320,26 +364,6 @@ class ScopaGame(Game):
         is_playing = self.status == "playing"
         is_spectator = player.is_spectator
         is_current = self.current_player == player
-        is_host = player.name == self.host
-
-        # Scopa-specific info actions available during play
-        if is_playing:
-            turn_set.enable("view_table", "view_captured")
-            for i in range(10):
-                turn_set.enable(f"view_table_card_{i}")
-        else:
-            turn_set.disable("view_table", "view_captured")
-            for i in range(10):
-                turn_set.disable(f"view_table_card_{i}")
-
-        # Pause timer action: host-only, when timer is active
-        if is_host and self._round_timer.is_active:
-            turn_set.enable("pause_timer")
-        else:
-            turn_set.disable("pause_timer")
-
-        # Update standard actions (whose_turn, check_scores, check_scores_detailed)
-        self.update_standard_actions(player)
 
         # Remove old card actions
         turn_set.remove_by_prefix("play_card_")
@@ -357,15 +381,16 @@ class ScopaGame(Game):
                     Action(
                         id=f"play_card_{card.id}",
                         label=name,
-                        handler="_action_play_card",  # Extracts card ID from action_id
-                        enabled=True,
+                        handler="_action_play_card",
+                        is_enabled="_is_card_action_enabled",
+                        is_hidden="_is_card_action_hidden",
                     )
                 )
 
-    def update_all_turn_actions(self) -> None:
-        """Update turn actions for all players."""
+    def _update_all_card_actions(self) -> None:
+        """Update card actions for all players."""
         for player in self.players:
-            self.update_turn_actions(player)
+            self._update_card_actions(player)
 
     # ==========================================================================
     # Game Flow
@@ -392,10 +417,6 @@ class ScopaGame(Game):
             player.hand = []
 
         self.team_manager.reset_all_scores()
-
-        # Update actions
-        self.update_all_lobby_actions()
-        self.update_all_options_actions()
 
         # Play music
         self.play_music("game_pig/mus.ogg")
@@ -543,7 +564,7 @@ class ScopaGame(Game):
         if player.is_bot:
             BotHelper.jolt_bot(player, ticks=random.randint(15, 25))
 
-        self.update_all_turn_actions()
+        self._update_all_card_actions()
         self.rebuild_all_menus()
 
     def _play_card(self, player: ScopaPlayer, card: Card) -> None:
@@ -702,7 +723,8 @@ class ScopaGame(Game):
         else:
             # Start timer for next round
             self._round_timer.start()
-            self.update_all_turn_actions()
+            self._update_all_card_actions()
+            self.rebuild_all_menus()
 
     # ==========================================================================
     # Bot AI

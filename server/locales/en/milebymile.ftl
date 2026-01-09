@@ -144,3 +144,8 @@ milebymile-card-driving-ace = Driving Ace
 milebymile-card-right-of-way = Right of Way
 milebymile-card-false-virtue = False Virtue
 milebymile-card-miles = { $miles } miles
+
+# Disabled action reasons
+milebymile-no-dirty-trick-window = No dirty trick window is active.
+milebymile-not-your-dirty-trick = It's not your team's dirty trick window.
+milebymile-between-races = Wait for the next race to start.

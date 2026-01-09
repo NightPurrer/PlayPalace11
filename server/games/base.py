@@ -14,7 +14,14 @@ from mashumaro.config import BaseConfig
 
 from ..users.base import User, MenuItem, EscapeBehavior
 from ..users.bot import Bot
-from ..game_utils.actions import Action, ActionSet, MenuInput, EditboxInput
+from ..game_utils.actions import (
+    Action,
+    ActionSet,
+    MenuInput,
+    EditboxInput,
+    Visibility,
+    ResolvedAction,
+)
 from ..game_utils.options import (
     GameOptions as DeclarativeGameOptions,
     get_option_meta,
@@ -339,18 +346,33 @@ class Game(ABC, DataClassJSONMixin):
                 return action
         return None
 
-    def get_all_visible_actions(self, player: Player) -> list[Action]:
+    def resolve_action(self, player: Player, action: Action) -> ResolvedAction:
+        """Resolve a single action's state for a player."""
+        # Find the action set containing this action
+        for action_set in self.get_action_sets(player):
+            if action_set.get_action(action.id):
+                return action_set.resolve_action(self, player, action)
+        # Fallback - resolve with defaults
+        return ResolvedAction(
+            action=action,
+            label=action.label,
+            enabled=True,
+            disabled_reason=None,
+            visible=True,
+        )
+
+    def get_all_visible_actions(self, player: Player) -> list[ResolvedAction]:
         """Get all visible (enabled and not hidden) actions for a player, in order."""
         result = []
         for action_set in self.get_action_sets(player):
-            result.extend(action_set.get_visible_actions())
+            result.extend(action_set.get_visible_actions(self, player))
         return result
 
-    def get_all_enabled_actions(self, player: Player) -> list[Action]:
+    def get_all_enabled_actions(self, player: Player) -> list[ResolvedAction]:
         """Get all enabled actions for a player (for F5 menu), in order."""
         result = []
         for action_set in self.get_action_sets(player):
-            result.extend(action_set.get_enabled_actions())
+            result.extend(action_set.get_enabled_actions(self, player))
         return result
 
     def define_keybind(
@@ -421,8 +443,14 @@ class Game(ABC, DataClassJSONMixin):
         if not action:
             return
 
-        # Check if action is enabled
-        if not action.enabled:
+        # Check if action is enabled using declarative callback
+        resolved = self.resolve_action(player, action)
+        if not resolved.enabled:
+            # Speak the reason to the player
+            if resolved.disabled_reason:
+                user = self.get_user(player)
+                if user:
+                    user.speak_l(resolved.disabled_reason)
             return
 
         # If action requires input and we don't have it yet
@@ -845,8 +873,8 @@ class Game(ABC, DataClassJSONMixin):
             return
 
         items: list[MenuItem] = []
-        for action in self.get_all_visible_actions(player):
-            items.append(MenuItem(text=action.label, id=action.id))
+        for resolved in self.get_all_visible_actions(player):
+            items.append(MenuItem(text=resolved.label, id=resolved.action.id))
 
         user.show_menu(
             "turn_menu",
@@ -875,8 +903,8 @@ class Game(ABC, DataClassJSONMixin):
             return
 
         items: list[MenuItem] = []
-        for action in self.get_all_visible_actions(player):
-            items.append(MenuItem(text=action.label, id=action.id))
+        for resolved in self.get_all_visible_actions(player):
+            items.append(MenuItem(text=resolved.label, id=resolved.action.id))
 
         user.update_menu("turn_menu", items, selection_id=selection_id)
 
@@ -921,18 +949,20 @@ class Game(ABC, DataClassJSONMixin):
                 action = (
                     self.find_action(player, selection_id) if selection_id else None
                 )
-                if action and action.enabled:
-                    self.execute_action(player, selection_id)
-                    # Don't rebuild if action is waiting for input
-                    if player.id not in self._pending_actions:
-                        self.rebuild_all_menus()
+                if action:
+                    resolved = self.resolve_action(player, action)
+                    if resolved.enabled:
+                        self.execute_action(player, selection_id)
+                        # Don't rebuild if action is waiting for input
+                        if player.id not in self._pending_actions:
+                            self.rebuild_all_menus()
                 else:
                     # Fallback to index-based selection - use visible actions only
                     selection = event.get("selection", 1) - 1  # Convert to 0-based
                     visible = self.get_all_visible_actions(player)
                     if 0 <= selection < len(visible):
-                        action = visible[selection]
-                        self.execute_action(player, action.id)
+                        resolved = visible[selection]
+                        self.execute_action(player, resolved.action.id)
                         # Don't rebuild if action is waiting for input
                         if player.id not in self._pending_actions:
                             self.rebuild_all_menus()
@@ -1022,9 +1052,11 @@ class Game(ABC, DataClassJSONMixin):
                 # Execute all enabled actions in the keybind
                 for action_id in keybind.actions:
                     action = self.find_action(player, action_id)
-                    if action and action.enabled:
-                        self.execute_action(player, action_id, context=context)
-                        executed_any = True
+                    if action:
+                        resolved = self.resolve_action(player, action)
+                        if resolved.enabled:
+                            self.execute_action(player, action_id, context=context)
+                            executed_any = True
 
             # Don't rebuild if action is waiting for input, status box is open, or actions menu is open
             if (
@@ -1044,8 +1076,10 @@ class Game(ABC, DataClassJSONMixin):
             self.rebuild_player_menu(player)
             return
         action = self.find_action(player, action_id)
-        if action and action.enabled:
-            self.execute_action(player, action_id)
+        if action:
+            resolved = self.resolve_action(player, action)
+            if resolved.enabled:
+                self.execute_action(player, action_id)
         # Don't rebuild if action is waiting for input
         if player.id not in self._pending_actions:
             self.rebuild_player_menu(player)
@@ -1058,11 +1092,177 @@ class Game(ABC, DataClassJSONMixin):
         if self._table:
             self._table.destroy()
 
+    # ==========================================================================
+    # Declarative is_enabled / is_hidden / get_label methods for base actions
+    # ==========================================================================
+
+    # --- Lobby actions ---
+
+    def _is_start_game_enabled(self, player: Player) -> str | None:
+        """Check if start_game action is enabled."""
+        if self.status != "waiting":
+            return "action-game-in-progress"
+        if player.name != self.host:
+            return "action-not-host"
+        active_count = self.get_active_player_count()
+        if active_count < self.get_min_players():
+            return "action-need-more-players"
+        return None
+
+    def _is_start_game_hidden(self, player: Player) -> Visibility:
+        """Check if start_game action is hidden."""
+        if self.status != "waiting":
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
+
+    def _is_add_bot_enabled(self, player: Player) -> str | None:
+        """Check if add_bot action is enabled."""
+        if self.status != "waiting":
+            return "action-game-in-progress"
+        if player.name != self.host:
+            return "action-not-host"
+        if len(self.players) >= self.get_max_players():
+            return "action-table-full"
+        return None
+
+    def _is_add_bot_hidden(self, player: Player) -> Visibility:
+        """Add bot is always hidden (F5/keybind only)."""
+        return Visibility.HIDDEN
+
+    def _is_remove_bot_enabled(self, player: Player) -> str | None:
+        """Check if remove_bot action is enabled."""
+        if self.status != "waiting":
+            return "action-game-in-progress"
+        if player.name != self.host:
+            return "action-not-host"
+        if not any(p.is_bot for p in self.players):
+            return "action-no-bots"
+        return None
+
+    def _is_remove_bot_hidden(self, player: Player) -> Visibility:
+        """Remove bot is always hidden (F5/keybind only)."""
+        return Visibility.HIDDEN
+
+    def _is_toggle_spectator_enabled(self, player: Player) -> str | None:
+        """Check if toggle_spectator action is enabled."""
+        if self.status != "waiting":
+            return "action-game-in-progress"
+        if player.is_bot:
+            return "action-bots-cannot"
+        return None
+
+    def _is_toggle_spectator_hidden(self, player: Player) -> Visibility:
+        """Toggle spectator is always hidden (F5/keybind only)."""
+        return Visibility.HIDDEN
+
+    def _get_toggle_spectator_label(self, player: Player) -> str:
+        """Get dynamic label for toggle_spectator action."""
+        user = self.get_user(player)
+        locale = user.locale if user else "en"
+        if player.is_spectator:
+            return Localization.get(locale, "play")
+        return Localization.get(locale, "spectate")
+
+    def _is_leave_game_enabled(self, player: Player) -> str | None:
+        """Leave game is always enabled."""
+        return None
+
+    def _is_leave_game_hidden(self, player: Player) -> Visibility:
+        """Leave game is always hidden (F5/keybind only)."""
+        return Visibility.HIDDEN
+
+    # --- Option actions ---
+
+    def _is_option_enabled(self, player: Player) -> str | None:
+        """Check if option actions are enabled (waiting state, host only)."""
+        if self.status != "waiting":
+            return "action-game-in-progress"
+        if player.name != self.host:
+            return "action-not-host"
+        return None
+
+    def _is_option_hidden(self, player: Player) -> Visibility:
+        """Options are visible in waiting state only."""
+        if self.status != "waiting":
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
+
+    # --- Estimate actions ---
+
+    def _is_estimate_duration_enabled(self, player: Player) -> str | None:
+        """Check if estimate_duration action is enabled."""
+        if self.status != "waiting":
+            return "action-game-in-progress"
+        return None
+
+    def _is_estimate_duration_hidden(self, player: Player) -> Visibility:
+        """Estimate duration is visible in waiting state."""
+        if self.status != "waiting":
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
+
+    # --- Standard actions ---
+
+    def _is_show_actions_enabled(self, player: Player) -> str | None:
+        """Show actions menu is always enabled."""
+        return None
+
+    def _is_show_actions_hidden(self, player: Player) -> Visibility:
+        """Show actions is always hidden (keybind only)."""
+        return Visibility.HIDDEN
+
+    def _is_save_table_enabled(self, player: Player) -> str | None:
+        """Check if save_table action is enabled."""
+        if player.name != self.host:
+            return "action-not-host"
+        return None
+
+    def _is_save_table_hidden(self, player: Player) -> Visibility:
+        """Save table is always hidden (keybind only)."""
+        return Visibility.HIDDEN
+
+    def _is_whose_turn_enabled(self, player: Player) -> str | None:
+        """Check if whose_turn action is enabled."""
+        if self.status != "playing":
+            return "action-not-playing"
+        return None
+
+    def _is_whose_turn_hidden(self, player: Player) -> Visibility:
+        """Whose turn is always hidden (keybind only)."""
+        return Visibility.HIDDEN
+
+    def _is_check_scores_enabled(self, player: Player) -> str | None:
+        """Check if check_scores action is enabled."""
+        if self.status != "playing":
+            return "action-not-playing"
+        if len(self.team_manager.teams) == 0:
+            return "action-no-scores"
+        return None
+
+    def _is_check_scores_hidden(self, player: Player) -> Visibility:
+        """Check scores is always hidden (keybind only)."""
+        return Visibility.HIDDEN
+
+    def _is_check_scores_detailed_enabled(self, player: Player) -> str | None:
+        """Check if check_scores_detailed action is enabled."""
+        if self.status != "playing":
+            return "action-not-playing"
+        if len(self.team_manager.teams) == 0:
+            return "action-no-scores"
+        return None
+
+    def _is_check_scores_detailed_hidden(self, player: Player) -> Visibility:
+        """Check scores detailed is always hidden (keybind only)."""
+        return Visibility.HIDDEN
+
+    # ==========================================================================
+    # Action set creation
+    # ==========================================================================
+
     def create_lobby_action_set(self, player: Player) -> ActionSet:
         """Create the lobby action set for a player."""
         user = self.get_user(player)
         locale = user.locale if user else "en"
-        is_spectator = player.is_spectator
 
         action_set = ActionSet(name="lobby")
         action_set.add(
@@ -1070,6 +1270,8 @@ class Game(ABC, DataClassJSONMixin):
                 id="start_game",
                 label=Localization.get(locale, "start-game"),
                 handler="_action_start_game",
+                is_enabled="_is_start_game_enabled",
+                is_hidden="_is_start_game_hidden",
             )
         )
         action_set.add(
@@ -1077,7 +1279,8 @@ class Game(ABC, DataClassJSONMixin):
                 id="add_bot",
                 label=Localization.get(locale, "add-bot"),
                 handler="_action_add_bot",
-                hidden=True,  # Available via F5 and B key
+                is_enabled="_is_add_bot_enabled",
+                is_hidden="_is_add_bot_hidden",
                 input_request=EditboxInput(
                     prompt="enter-bot-name",
                     default="",
@@ -1090,17 +1293,18 @@ class Game(ABC, DataClassJSONMixin):
                 id="remove_bot",
                 label=Localization.get(locale, "remove-bot"),
                 handler="_action_remove_bot",
-                hidden=True,  # Available via F5 and Shift+B key
+                is_enabled="_is_remove_bot_enabled",
+                is_hidden="_is_remove_bot_hidden",
             )
         )
         action_set.add(
             Action(
                 id="toggle_spectator",
-                label=Localization.get(
-                    locale, "spectate" if not is_spectator else "play"
-                ),
+                label=Localization.get(locale, "spectate"),
                 handler="_action_toggle_spectator",
-                hidden=True,  # Hidden from turn menu, but keybindable via F3
+                is_enabled="_is_toggle_spectator_enabled",
+                is_hidden="_is_toggle_spectator_hidden",
+                get_label="_get_toggle_spectator_label",
             )
         )
         action_set.add(
@@ -1108,7 +1312,8 @@ class Game(ABC, DataClassJSONMixin):
                 id="leave_game",
                 label=Localization.get(locale, "leave-table"),
                 handler="_action_leave_game",
-                hidden=True,  # Hidden from turn menu, but keybindable
+                is_enabled="_is_leave_game_enabled",
+                is_hidden="_is_leave_game_hidden",
             )
         )
         return action_set
@@ -1124,6 +1329,8 @@ class Game(ABC, DataClassJSONMixin):
                 id="estimate_duration",
                 label=Localization.get(locale, "estimate-duration"),
                 handler="_action_estimate_duration",
+                is_enabled="_is_estimate_duration_enabled",
+                is_hidden="_is_estimate_duration_hidden",
             )
         )
         return action_set
@@ -1139,7 +1346,8 @@ class Game(ABC, DataClassJSONMixin):
                 id="show_actions",
                 label=Localization.get(locale, "actions-menu"),
                 handler="_action_show_actions_menu",
-                hidden=True,  # Never in turn menu
+                is_enabled="_is_show_actions_enabled",
+                is_hidden="_is_show_actions_hidden",
             )
         )
         action_set.add(
@@ -1147,7 +1355,8 @@ class Game(ABC, DataClassJSONMixin):
                 id="save_table",
                 label=Localization.get(locale, "save-table"),
                 handler="_action_save_table",
-                hidden=True,  # Hidden from menus
+                is_enabled="_is_save_table_enabled",
+                is_hidden="_is_save_table_hidden",
             )
         )
 
@@ -1157,7 +1366,8 @@ class Game(ABC, DataClassJSONMixin):
                 id="whose_turn",
                 label=Localization.get(locale, "whose-turn"),
                 handler="_action_whose_turn",
-                hidden=True,
+                is_enabled="_is_whose_turn_enabled",
+                is_hidden="_is_whose_turn_hidden",
             )
         )
         action_set.add(
@@ -1165,7 +1375,8 @@ class Game(ABC, DataClassJSONMixin):
                 id="check_scores",
                 label=Localization.get(locale, "check-scores"),
                 handler="_action_check_scores",
-                hidden=True,
+                is_enabled="_is_check_scores_enabled",
+                is_hidden="_is_check_scores_hidden",
             )
         )
         action_set.add(
@@ -1173,7 +1384,8 @@ class Game(ABC, DataClassJSONMixin):
                 id="check_scores_detailed",
                 label=Localization.get(locale, "check-scores-detailed"),
                 handler="_action_check_scores_detailed",
-                hidden=True,
+                is_enabled="_is_check_scores_detailed_enabled",
+                is_hidden="_is_check_scores_detailed_hidden",
             )
         )
 
@@ -1269,141 +1481,11 @@ class Game(ABC, DataClassJSONMixin):
         standard_set = self.create_standard_action_set(player)
         self.add_action_set(player, standard_set)
 
-        # Update action availability
-        self.update_lobby_actions(player)
-        if hasattr(self, "options"):
-            self.update_options_actions(player)
-        self.update_estimate_actions(player)
-        self.update_standard_actions(player)
-
-    def update_lobby_actions(self, player: Player) -> None:
-        """Update lobby action availability based on current state."""
-        lobby_set = self.get_action_set(player, "lobby")
-        standard_set = self.get_action_set(player, "standard")
-        if not lobby_set or not standard_set:
-            return
-
-        user = self.get_user(player)
-        locale = user.locale if user else "en"
-        is_host = player.name == self.host
-        is_spectator = player.is_spectator
-        in_waiting = self.status == "waiting"
-        active_count = self.get_active_player_count()
-        can_start = in_waiting and is_host and active_count >= self.get_min_players()
-        can_add_bot = (
-            in_waiting and is_host and len(self.players) < self.get_max_players()
-        )
-        can_remove_bot = in_waiting and is_host and any(p.is_bot for p in self.players)
-
-        # Enable/disable lobby actions
-        if can_start:
-            lobby_set.enable("start_game")
-        else:
-            lobby_set.disable("start_game")
-
-        if can_add_bot:
-            lobby_set.enable("add_bot")
-        else:
-            lobby_set.disable("add_bot")
-
-        if can_remove_bot:
-            lobby_set.enable("remove_bot")
-        else:
-            lobby_set.disable("remove_bot")
-
-        # Toggle spectator - enabled for non-bots before game starts
-        if in_waiting and not player.is_bot:
-            lobby_set.enable("toggle_spectator")
-            # Update label based on current spectator status
-            lobby_set.set_label(
-                "toggle_spectator",
-                Localization.get(locale, "spectate" if not is_spectator else "play"),
-            )
-        else:
-            lobby_set.disable("toggle_spectator")
-
-        # Leave game is always enabled
-        lobby_set.enable("leave_game")
-
-        # Standard actions
-        standard_set.enable("show_actions")
-        if is_host:
-            standard_set.enable("save_table")
-        else:
-            standard_set.disable("save_table")
-
-    def update_options_actions(self, player: Player) -> None:
-        """Update options action availability based on current state."""
-        options_set = self.get_action_set(player, "options")
-        if not options_set:
-            return
-
-        is_host = player.name == self.host
-        in_waiting = self.status == "waiting"
-        can_change_options = in_waiting and is_host
-
-        # Enable or disable all options based on host status and game state
-        for action_id in options_set._order:
-            if can_change_options:
-                options_set.enable(action_id)
-            else:
-                options_set.disable(action_id)
-
-    def update_all_options_actions(self) -> None:
-        """Update options actions for all players."""
-        for player in self.players:
-            self.update_options_actions(player)
-
-    def update_estimate_actions(self, player: Player) -> None:
-        """Update estimate action availability based on current state."""
-        estimate_set = self.get_action_set(player, "estimate")
-        if not estimate_set:
-            return
-
-        in_waiting = self.status == "waiting"
-
-        # Estimate is visible/enabled only in waiting state
-        # Keep it enabled even when running so users see the "already running" message
-        if in_waiting:
-            estimate_set.enable("estimate_duration")
-        else:
-            estimate_set.disable("estimate_duration")
-
-    def update_all_estimate_actions(self) -> None:
-        """Update estimate actions for all players."""
-        for player in self.players:
-            self.update_estimate_actions(player)
-
-    def update_standard_actions(self, player: Player) -> None:
-        """Update standard action availability for a player."""
-        standard_set = self.get_action_set(player, "standard")
-        if not standard_set:
-            return
-
-        is_playing = self.status == "playing"
-
-        # Status actions: available during play if teams have been set up
-        has_teams = len(self.team_manager.teams) > 0
-        if is_playing:
-            standard_set.enable("whose_turn")
-            if has_teams:
-                standard_set.enable("check_scores", "check_scores_detailed")
-            else:
-                standard_set.disable("check_scores", "check_scores_detailed")
-        else:
-            standard_set.disable("whose_turn", "check_scores", "check_scores_detailed")
-
-    def update_all_standard_actions(self) -> None:
-        """Update standard actions for all players."""
-        for player in self.players:
-            self.update_standard_actions(player)
-
     # Lobby action handlers
 
     def _action_start_game(self, player: Player, action_id: str) -> None:
         """Start the game."""
         self.status = "playing"
-        self.update_all_estimate_actions()
         self.broadcast_l("game-starting")
         self.on_start()
 
@@ -1444,8 +1526,6 @@ class Game(ABC, DataClassJSONMixin):
         # Set up action sets for the bot
         self.setup_player_actions(bot_player)
         self.broadcast_l("table-joined", player=bot_name)
-        # Update all players' lobby actions
-        self.update_all_lobby_actions()
         self.rebuild_all_menus()
 
     def _action_remove_bot(self, player: Player, action_id: str) -> None:
@@ -1458,8 +1538,6 @@ class Game(ABC, DataClassJSONMixin):
                 self._users.pop(bot.id, None)
                 self.broadcast_l("table-left", player=bot.name)
                 break
-        # Update all players' lobby actions
-        self.update_all_lobby_actions()
         self.rebuild_all_menus()
 
     def _action_toggle_spectator(self, player: Player, action_id: str) -> None:
@@ -1473,8 +1551,6 @@ class Game(ABC, DataClassJSONMixin):
         else:
             self.broadcast_l("now-playing", player=player.name)
 
-        # Update all players' lobby actions (affects start_game availability)
-        self.update_all_lobby_actions()
         self.rebuild_all_menus()
 
     def _action_leave_game(self, player: Player, action_id: str) -> None:
@@ -1503,9 +1579,6 @@ class Game(ABC, DataClassJSONMixin):
                         self.broadcast_l("new-host", player=p.name)
                         break
 
-            # Update all players' lobby actions
-            self.update_all_lobby_actions()
-            self.update_all_options_actions()
             self.rebuild_all_menus()
 
     # F5 Actions Menu
@@ -1513,12 +1586,12 @@ class Game(ABC, DataClassJSONMixin):
     def _action_show_actions_menu(self, player: Player, action_id: str) -> None:
         """Show the F5 actions menu."""
         items = []
-        for action in self.get_all_enabled_actions(player):
-            label = action.label
-            keybind_key = self._get_keybind_for_action(action.id)
+        for resolved in self.get_all_enabled_actions(player):
+            label = resolved.label
+            keybind_key = self._get_keybind_for_action(resolved.action.id)
             if keybind_key:
                 label += f" ({keybind_key.upper()})"
-            items.append(MenuItem(text=label, id=action.id))
+            items.append(MenuItem(text=label, id=resolved.action.id))
 
         user = self.get_user(player)
         if user and items:
@@ -1605,14 +1678,7 @@ class Game(ABC, DataClassJSONMixin):
         self.status = "waiting"
         self.setup_keybinds()
         self.add_player(host_name, host_user)
-        # Update all player lobby actions (for host status changes)
-        self.update_all_lobby_actions()
         self.rebuild_all_menus()
-
-    def update_all_lobby_actions(self) -> None:
-        """Update lobby action availability for all players."""
-        for player in self.players:
-            self.update_lobby_actions(player)
 
     # Declarative options system support
 

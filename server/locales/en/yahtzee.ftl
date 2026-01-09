@@ -87,3 +87,8 @@ yahtzee-winners-tie = It's a tie! { $players } all scored { $score } points!
 yahtzee-set-rounds = Number of games: { $rounds }
 yahtzee-enter-rounds = Enter number of games (1-10):
 yahtzee-option-changed-rounds = Number of games set to { $rounds }.
+
+# Disabled action reasons
+yahtzee-no-rolls-left = You have no rolls left.
+yahtzee-roll-first = You need to roll first.
+yahtzee-category-filled = That category is already filled.

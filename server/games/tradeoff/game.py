@@ -11,7 +11,7 @@ import random
 
 from ..base import Game, Player, GameOptions
 from ..registry import register_game
-from ...game_utils.actions import Action, ActionSet
+from ...game_utils.actions import Action, ActionSet, Visibility
 from ...game_utils.bot_helper import BotHelper
 from ...game_utils.dice import roll_dice
 from ...game_utils.options import IntOption, option_field
@@ -127,6 +127,272 @@ class TradeoffGame(Game):
         """Create a new player with Tradeoff-specific state."""
         return TradeoffPlayer(id=player_id, name=name, is_bot=is_bot)
 
+    # ==========================================================================
+    # Declarative is_enabled / is_hidden / get_label for turn actions
+    # ==========================================================================
+
+    def _is_toggle_trade_enabled(self, player: Player, index: int) -> str | None:
+        """Check if toggling trade for die at index is enabled."""
+        if self.status != "playing":
+            return "action-not-playing"
+        if player.is_spectator:
+            return "action-spectator"
+        if self.phase != "trading":
+            return "tradeoff-not-trading-phase"
+        tp: TradeoffPlayer = player  # type: ignore
+        if tp.trades_confirmed:
+            return "tradeoff-already-confirmed"
+        if index >= len(tp.rolled_dice):
+            return "tradeoff-no-die"
+        return None
+
+    def _is_toggle_trade_hidden(self, player: Player, index: int) -> Visibility:
+        """Check if toggle trade action is hidden."""
+        if self.status != "playing":
+            return Visibility.HIDDEN
+        if player.is_spectator:
+            return Visibility.HIDDEN
+        if self.phase != "trading":
+            return Visibility.HIDDEN
+        tp: TradeoffPlayer = player  # type: ignore
+        if tp.trades_confirmed:
+            return Visibility.HIDDEN
+        if not tp.rolled_dice:
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
+
+    def _get_toggle_trade_label(self, player: Player, index: int) -> str:
+        """Get label for toggle trade action."""
+        tp: TradeoffPlayer = player  # type: ignore
+        user = self.get_user(player)
+        locale = user.locale if user else "en"
+
+        if index >= len(tp.rolled_dice):
+            return f"Die {index + 1}"
+
+        die_val = tp.rolled_dice[index]
+        is_trading = index in tp.trading_indices
+        status = Localization.get(
+            locale,
+            "tradeoff-trade-status-trading" if is_trading else "tradeoff-trade-status-keeping"
+        )
+        return Localization.get(locale, "tradeoff-toggle-trade", value=die_val, status=status)
+
+    # Per-die enabled/hidden/label methods
+    def _is_toggle_trade_0_enabled(self, player: Player) -> str | None:
+        return self._is_toggle_trade_enabled(player, 0)
+    def _is_toggle_trade_1_enabled(self, player: Player) -> str | None:
+        return self._is_toggle_trade_enabled(player, 1)
+    def _is_toggle_trade_2_enabled(self, player: Player) -> str | None:
+        return self._is_toggle_trade_enabled(player, 2)
+    def _is_toggle_trade_3_enabled(self, player: Player) -> str | None:
+        return self._is_toggle_trade_enabled(player, 3)
+    def _is_toggle_trade_4_enabled(self, player: Player) -> str | None:
+        return self._is_toggle_trade_enabled(player, 4)
+
+    def _is_toggle_trade_0_hidden(self, player: Player) -> Visibility:
+        return self._is_toggle_trade_hidden(player, 0)
+    def _is_toggle_trade_1_hidden(self, player: Player) -> Visibility:
+        return self._is_toggle_trade_hidden(player, 1)
+    def _is_toggle_trade_2_hidden(self, player: Player) -> Visibility:
+        return self._is_toggle_trade_hidden(player, 2)
+    def _is_toggle_trade_3_hidden(self, player: Player) -> Visibility:
+        return self._is_toggle_trade_hidden(player, 3)
+    def _is_toggle_trade_4_hidden(self, player: Player) -> Visibility:
+        return self._is_toggle_trade_hidden(player, 4)
+
+    def _get_toggle_trade_0_label(self, player: Player) -> str:
+        return self._get_toggle_trade_label(player, 0)
+    def _get_toggle_trade_1_label(self, player: Player) -> str:
+        return self._get_toggle_trade_label(player, 1)
+    def _get_toggle_trade_2_label(self, player: Player) -> str:
+        return self._get_toggle_trade_label(player, 2)
+    def _get_toggle_trade_3_label(self, player: Player) -> str:
+        return self._get_toggle_trade_label(player, 3)
+    def _get_toggle_trade_4_label(self, player: Player) -> str:
+        return self._get_toggle_trade_label(player, 4)
+
+    # Confirm trades
+    def _is_confirm_trades_enabled(self, player: Player) -> str | None:
+        """Check if confirm trades action is enabled."""
+        if self.status != "playing":
+            return "action-not-playing"
+        if player.is_spectator:
+            return "action-spectator"
+        if self.phase != "trading":
+            return "tradeoff-not-trading-phase"
+        tp: TradeoffPlayer = player  # type: ignore
+        if tp.trades_confirmed:
+            return "tradeoff-already-confirmed"
+        return None
+
+    def _is_confirm_trades_hidden(self, player: Player) -> Visibility:
+        """Check if confirm trades action is hidden."""
+        if self.status != "playing":
+            return Visibility.HIDDEN
+        if player.is_spectator:
+            return Visibility.HIDDEN
+        if self.phase != "trading":
+            return Visibility.HIDDEN
+        tp: TradeoffPlayer = player  # type: ignore
+        if tp.trades_confirmed:
+            return Visibility.HIDDEN
+        if not tp.rolled_dice:
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
+
+    def _get_confirm_trades_label(self, player: Player) -> str:
+        """Get label for confirm trades action."""
+        tp: TradeoffPlayer = player  # type: ignore
+        user = self.get_user(player)
+        locale = user.locale if user else "en"
+        trade_count = len(tp.trading_indices)
+        return Localization.get(locale, "tradeoff-confirm-trades", count=trade_count)
+
+    # Take dice actions (1-6)
+    def _is_take_enabled(self, player: Player, value: int) -> str | None:
+        """Check if taking die with value is enabled."""
+        if self.status != "playing":
+            return "action-not-playing"
+        if player.is_spectator:
+            return "action-spectator"
+        if self.phase != "taking":
+            return "tradeoff-not-taking-phase"
+
+        # Is it this player's turn to take?
+        if self.taking_index >= len(self.taking_order):
+            return "action-not-your-turn"
+        if self.taking_order[self.taking_index] != player.id:
+            return "action-not-your-turn"
+
+        tp: TradeoffPlayer = player  # type: ignore
+        if tp.dice_taken_count >= tp.dice_traded_count:
+            return "tradeoff-no-more-takes"
+
+        if value not in self.pool:
+            return "tradeoff-not-in-pool"
+        return None
+
+    def _is_take_hidden(self, player: Player, value: int) -> Visibility:
+        """Check if take action is hidden."""
+        if self.status != "playing":
+            return Visibility.HIDDEN
+        if player.is_spectator:
+            return Visibility.HIDDEN
+        if self.phase != "taking":
+            return Visibility.HIDDEN
+
+        # Is it this player's turn to take?
+        if self.taking_index >= len(self.taking_order):
+            return Visibility.HIDDEN
+        if self.taking_order[self.taking_index] != player.id:
+            return Visibility.HIDDEN
+
+        tp: TradeoffPlayer = player  # type: ignore
+        if tp.dice_taken_count >= tp.dice_traded_count:
+            return Visibility.HIDDEN
+
+        if value not in self.pool:
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
+
+    def _get_take_label(self, player: Player, value: int) -> str:
+        """Get label for take action."""
+        user = self.get_user(player)
+        locale = user.locale if user else "en"
+        count = self.pool.count(value)
+        return Localization.get(locale, "tradeoff-take-die", value=value, remaining=count)
+
+    # Per-value take enabled/hidden/label methods
+    def _is_take_1_enabled(self, player: Player) -> str | None:
+        return self._is_take_enabled(player, 1)
+    def _is_take_2_enabled(self, player: Player) -> str | None:
+        return self._is_take_enabled(player, 2)
+    def _is_take_3_enabled(self, player: Player) -> str | None:
+        return self._is_take_enabled(player, 3)
+    def _is_take_4_enabled(self, player: Player) -> str | None:
+        return self._is_take_enabled(player, 4)
+    def _is_take_5_enabled(self, player: Player) -> str | None:
+        return self._is_take_enabled(player, 5)
+    def _is_take_6_enabled(self, player: Player) -> str | None:
+        return self._is_take_enabled(player, 6)
+
+    def _is_take_1_hidden(self, player: Player) -> Visibility:
+        return self._is_take_hidden(player, 1)
+    def _is_take_2_hidden(self, player: Player) -> Visibility:
+        return self._is_take_hidden(player, 2)
+    def _is_take_3_hidden(self, player: Player) -> Visibility:
+        return self._is_take_hidden(player, 3)
+    def _is_take_4_hidden(self, player: Player) -> Visibility:
+        return self._is_take_hidden(player, 4)
+    def _is_take_5_hidden(self, player: Player) -> Visibility:
+        return self._is_take_hidden(player, 5)
+    def _is_take_6_hidden(self, player: Player) -> Visibility:
+        return self._is_take_hidden(player, 6)
+
+    def _get_take_1_label(self, player: Player) -> str:
+        return self._get_take_label(player, 1)
+    def _get_take_2_label(self, player: Player) -> str:
+        return self._get_take_label(player, 2)
+    def _get_take_3_label(self, player: Player) -> str:
+        return self._get_take_label(player, 3)
+    def _get_take_4_label(self, player: Player) -> str:
+        return self._get_take_label(player, 4)
+    def _get_take_5_label(self, player: Player) -> str:
+        return self._get_take_label(player, 5)
+    def _get_take_6_label(self, player: Player) -> str:
+        return self._get_take_label(player, 6)
+
+    # Dice key actions (hidden keybind-only)
+    def _is_dice_key_enabled(self, player: Player) -> str | None:
+        """Dice keybind actions are enabled during trading/taking."""
+        if self.status != "playing":
+            return "action-not-playing"
+        return None
+
+    def _is_dice_key_hidden(self, player: Player) -> Visibility:
+        """Dice keybind actions are always hidden."""
+        return Visibility.HIDDEN
+
+    # View actions
+    def _is_view_hand_enabled(self, player: Player) -> str | None:
+        """Check if view hand action is enabled."""
+        if self.status != "playing":
+            return "action-not-playing"
+        if self.phase != "taking":
+            return "tradeoff-not-taking-phase"
+        return None
+
+    def _is_view_hand_hidden(self, player: Player) -> Visibility:
+        """View hand is always hidden (keybind only)."""
+        return Visibility.HIDDEN
+
+    def _is_view_pool_enabled(self, player: Player) -> str | None:
+        """Check if view pool action is enabled."""
+        if self.status != "playing":
+            return "action-not-playing"
+        return None
+
+    def _is_view_pool_hidden(self, player: Player) -> Visibility:
+        """View pool is always hidden (keybind only)."""
+        return Visibility.HIDDEN
+
+    def _is_view_players_enabled(self, player: Player) -> str | None:
+        """Check if view players action is enabled."""
+        if self.status != "playing":
+            return "action-not-playing"
+        if self.phase != "taking":
+            return "tradeoff-not-taking-phase"
+        return None
+
+    def _is_view_players_hidden(self, player: Player) -> Visibility:
+        """View players is always hidden (keybind only)."""
+        return Visibility.HIDDEN
+
+    # ==========================================================================
+    # Action set creation
+    # ==========================================================================
+
     def create_turn_action_set(self, player: TradeoffPlayer) -> ActionSet:
         """Create the turn action set for a player."""
         user = self.get_user(player)
@@ -141,6 +407,9 @@ class TradeoffGame(Game):
                     id=f"toggle_trade_{i}",
                     label=f"Die {i + 1}",
                     handler=f"_action_toggle_trade_{i}",
+                    is_enabled=f"_is_toggle_trade_{i}_enabled",
+                    is_hidden=f"_is_toggle_trade_{i}_hidden",
+                    get_label=f"_get_toggle_trade_{i}_label",
                 )
             )
 
@@ -151,8 +420,8 @@ class TradeoffGame(Game):
                     id=f"dice_key_{v}",
                     label=f"Dice key {v}",
                     handler=f"_action_dice_key_{v}",
-                    hidden=True,
-                    enabled=True,
+                    is_enabled="_is_dice_key_enabled",
+                    is_hidden="_is_dice_key_hidden",
                 )
             )
             # Shift+key actions for Quentin C style
@@ -161,8 +430,8 @@ class TradeoffGame(Game):
                     id=f"dice_trade_{v}",
                     label=f"Trade {v}",
                     handler=f"_action_dice_trade_{v}",
-                    hidden=True,
-                    enabled=True,
+                    is_enabled="_is_dice_key_enabled",
+                    is_hidden="_is_dice_key_hidden",
                 )
             )
 
@@ -172,6 +441,9 @@ class TradeoffGame(Game):
                 id="confirm_trades",
                 label=Localization.get(locale, "tradeoff-confirm-trades", count=0),
                 handler="_action_confirm_trades",
+                is_enabled="_is_confirm_trades_enabled",
+                is_hidden="_is_confirm_trades_hidden",
+                get_label="_get_confirm_trades_label",
             )
         )
 
@@ -182,6 +454,9 @@ class TradeoffGame(Game):
                     id=f"take_{v}",
                     label=f"Take a {v}",
                     handler=f"_action_take_{v}",
+                    is_enabled=f"_is_take_{v}_enabled",
+                    is_hidden=f"_is_take_{v}_hidden",
+                    get_label=f"_get_take_{v}_label",
                 )
             )
 
@@ -191,7 +466,8 @@ class TradeoffGame(Game):
                 id="view_hand",
                 label=Localization.get(locale, "tradeoff-view-hand"),
                 handler="_action_view_hand",
-                hidden=True,
+                is_enabled="_is_view_hand_enabled",
+                is_hidden="_is_view_hand_hidden",
             )
         )
         action_set.add(
@@ -199,7 +475,8 @@ class TradeoffGame(Game):
                 id="view_pool",
                 label=Localization.get(locale, "tradeoff-view-pool"),
                 handler="_action_view_pool",
-                hidden=True,
+                is_enabled="_is_view_pool_enabled",
+                is_hidden="_is_view_pool_hidden",
             )
         )
         action_set.add(
@@ -207,7 +484,8 @@ class TradeoffGame(Game):
                 id="view_players",
                 label=Localization.get(locale, "tradeoff-view-players"),
                 handler="_action_view_players",
-                hidden=True,
+                is_enabled="_is_view_players_enabled",
+                is_hidden="_is_view_players_hidden",
             )
         )
 
@@ -264,90 +542,6 @@ class TradeoffGame(Game):
             state=KeybindState.ACTIVE,
             include_spectators=True,
         )
-
-    def update_turn_actions(self, player: TradeoffPlayer) -> None:
-        """Update turn action availability for a player."""
-        turn_set = self.get_action_set(player, "turn")
-        if not turn_set:
-            return
-
-        user = self.get_user(player)
-        locale = user.locale if user else "en"
-        is_playing = self.status == "playing"
-        is_spectator = player.is_spectator
-
-        # Hide all by default
-        for i in range(5):
-            turn_set.disable(f"toggle_trade_{i}")
-            turn_set.hide(f"toggle_trade_{i}")
-        turn_set.disable("confirm_trades")
-        turn_set.hide("confirm_trades")
-        for v in range(1, 7):
-            turn_set.disable(f"take_{v}")
-            turn_set.hide(f"take_{v}")
-
-        if not is_playing or is_spectator:
-            self.update_standard_actions(player)
-            return
-
-        if self.phase == "trading":
-            # Show trade toggle actions for this player's rolled dice
-            if not player.trades_confirmed and player.rolled_dice:
-                for i, die_val in enumerate(player.rolled_dice):
-                    is_trading = i in player.trading_indices
-                    status = Localization.get(
-                        locale,
-                        "tradeoff-trade-status-trading" if is_trading else "tradeoff-trade-status-keeping"
-                    )
-                    turn_set.set_label(
-                        f"toggle_trade_{i}",
-                        Localization.get(locale, "tradeoff-toggle-trade", value=die_val, status=status)
-                    )
-                    turn_set.enable(f"toggle_trade_{i}")
-                    turn_set.show(f"toggle_trade_{i}")
-
-                # Show confirm button
-                trade_count = len(player.trading_indices)
-                turn_set.set_label(
-                    "confirm_trades",
-                    Localization.get(locale, "tradeoff-confirm-trades", count=trade_count)
-                )
-                turn_set.enable("confirm_trades")
-                turn_set.show("confirm_trades")
-
-        elif self.phase == "taking":
-            # Is it this player's turn to take?
-            if self.taking_index < len(self.taking_order):
-                current_taker_id = self.taking_order[self.taking_index]
-                if player.id == current_taker_id and player.dice_taken_count < player.dice_traded_count:
-                    # Show available dice in pool
-                    pool_counts = {}
-                    for d in self.pool:
-                        pool_counts[d] = pool_counts.get(d, 0) + 1
-
-                    for v in range(1, 7):
-                        count = pool_counts.get(v, 0)
-                        if count > 0:
-                            turn_set.set_label(
-                                f"take_{v}",
-                                Localization.get(locale, "tradeoff-take-die", value=v, remaining=count)
-                            )
-                            turn_set.enable(f"take_{v}")
-                            turn_set.show(f"take_{v}")
-
-        # View actions available during play
-        if is_playing:
-            turn_set.enable("view_hand", "view_pool")
-            # View players only available during taking phase (after trades revealed)
-            if self.phase == "taking":
-                turn_set.enable("view_players")
-
-        self.update_standard_actions(player)
-
-    def update_all_turn_actions(self) -> None:
-        """Update turn actions for all players."""
-        for player in self.players:
-            self.update_turn_actions(player)
 
     # Trading toggle handlers
     def _action_toggle_trade_0(self, player: Player, action_id: str) -> None:
@@ -459,7 +653,6 @@ class TradeoffGame(Game):
                 user = self.get_user(player)
                 if user:
                     user.speak_l("tradeoff-keeping", value=value)
-                self.update_all_turn_actions()
                 self.rebuild_player_menu(player)
                 return
         # No matching die found - silent
@@ -482,7 +675,6 @@ class TradeoffGame(Game):
                 user = self.get_user(player)
                 if user:
                     user.speak_l("tradeoff-trading", value=value)
-                self.update_all_turn_actions()
                 self.rebuild_player_menu(player)
                 return
         # No matching die found - silent
@@ -511,7 +703,6 @@ class TradeoffGame(Game):
             if user:
                 user.speak_l("tradeoff-trading", value=die_value)
 
-        self.update_all_turn_actions()
         self.rebuild_player_menu(player)
 
     def _action_confirm_trades(self, player: Player, action_id: str) -> None:
@@ -543,7 +734,6 @@ class TradeoffGame(Game):
         # Check if all players have confirmed
         self._check_all_traded()
 
-        self.update_all_turn_actions()
         self.rebuild_all_menus()
 
     def _check_all_traded(self) -> None:
@@ -623,7 +813,6 @@ class TradeoffGame(Game):
         # Round-robin: always advance to next player after taking one die
         self._advance_taker()
 
-        self.update_all_turn_actions()
         self.rebuild_all_menus()
 
     def _start_taking_phase(self) -> None:
@@ -766,10 +955,6 @@ class TradeoffGame(Game):
         self._team_manager.team_mode = "individual"
         self._team_manager.setup_teams([p.name for p in active_players])
 
-        # Update actions
-        self.update_all_lobby_actions()
-        self.update_all_options_actions()
-
         # Play music
         self.play_music("game_pig/mus.ogg")
 
@@ -827,7 +1012,6 @@ class TradeoffGame(Game):
             if p.is_bot:
                 BotHelper.jolt_bot(p, ticks=random.randint(15, 30))
 
-        self.update_all_turn_actions()
         self.rebuild_all_menus()
 
     def _format_set_description(self, locale: str, set_name: str, dice: list[int]) -> str:

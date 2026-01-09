@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 
 from ..base import Game, Player
 from ..registry import register_game
-from ...game_utils.actions import Action, ActionSet
+from ...game_utils.actions import Action, ActionSet, Visibility
 from ...game_utils.bot_helper import BotHelper
 from ...game_utils.dice import DiceSet
 from ...game_utils.dice_game_mixin import DiceGameMixin
@@ -92,6 +92,105 @@ class ThreesGame(Game, DiceGameMixin):
         """Create a new player with Threes-specific state."""
         return ThreesPlayer(id=player_id, name=name, is_bot=is_bot)
 
+    # ==========================================================================
+    # Declarative is_enabled / is_hidden / get_label for turn actions
+    # ==========================================================================
+
+    def _is_roll_enabled(self, player: Player) -> str | None:
+        """Check if roll action is enabled."""
+        if self.status != "playing":
+            return "action-not-playing"
+        if self.current_player != player:
+            return "action-not-your-turn"
+        threes_player: ThreesPlayer = player  # type: ignore
+        if not threes_player.dice.has_rolled:
+            # First roll is always allowed
+            return None
+        if threes_player.dice.unlocked_count <= 1:
+            # Only 1 die left, can't roll (must bank)
+            return "threes-must-bank"
+        if threes_player.dice.kept_unlocked_count == 0:
+            # Must keep at least one die
+            return "threes-must-keep"
+        return None
+
+    def _is_roll_hidden(self, player: Player) -> Visibility:
+        """Roll is visible during play for current player."""
+        if self.status != "playing":
+            return Visibility.HIDDEN
+        if self.current_player != player:
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
+
+    def _is_bank_enabled(self, player: Player) -> str | None:
+        """Check if bank action is enabled."""
+        if self.status != "playing":
+            return "action-not-playing"
+        if self.current_player != player:
+            return "action-not-your-turn"
+        threes_player: ThreesPlayer = player  # type: ignore
+        if not threes_player.dice.has_rolled:
+            return "threes-roll-first"
+        if not threes_player.dice.all_decided:
+            return "threes-keep-all-first"
+        return None
+
+    def _is_bank_hidden(self, player: Player) -> Visibility:
+        """Bank is hidden until dice are rolled."""
+        if self.status != "playing":
+            return Visibility.HIDDEN
+        if self.current_player != player:
+            return Visibility.HIDDEN
+        threes_player: ThreesPlayer = player  # type: ignore
+        if not threes_player.dice.has_rolled:
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
+
+    def _is_check_hand_enabled(self, player: Player) -> str | None:
+        """Check if check_hand action is enabled."""
+        if self.status != "playing":
+            return "action-not-playing"
+        threes_player: ThreesPlayer = player  # type: ignore
+        if not threes_player.dice.has_rolled:
+            return "threes-no-dice-yet"
+        return None
+
+    def _is_check_hand_hidden(self, player: Player) -> Visibility:
+        """Check hand is always hidden (keybind only)."""
+        return Visibility.HIDDEN
+
+    # Override dice toggle methods from DiceGameMixin for Threes-specific logic
+    def _is_dice_toggle_enabled(self, player: Player, die_index: int) -> str | None:
+        """Check if toggling die at index is enabled in Threes."""
+        if self.status != "playing":
+            return "action-not-playing"
+        if self.current_player != player:
+            return "action-not-your-turn"
+        threes_player: ThreesPlayer = player  # type: ignore
+        if not threes_player.dice.has_rolled:
+            return "dice-not-rolled"
+        if threes_player.dice.is_locked(die_index):
+            return "dice-locked"
+        if threes_player.dice.unlocked_count <= 1:
+            # Only 1 unlocked die left - can't toggle
+            return "threes-last-die"
+        return None
+
+    def _is_dice_toggle_hidden(self, player: Player, die_index: int) -> Visibility:
+        """Check if die toggle action is hidden."""
+        if self.status != "playing":
+            return Visibility.HIDDEN
+        if self.current_player != player:
+            return Visibility.HIDDEN
+        threes_player: ThreesPlayer = player  # type: ignore
+        if not threes_player.dice.has_rolled:
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
+
+    # ==========================================================================
+    # Action set creation
+    # ==========================================================================
+
     def create_turn_action_set(self, player: ThreesPlayer) -> ActionSet:
         """Create the turn action set for a player."""
         user = self.get_user(player)
@@ -99,7 +198,7 @@ class ThreesGame(Game, DiceGameMixin):
 
         action_set = ActionSet(name="turn")
 
-        # Dice keep/unkeep actions (1-5 keys) - shown after first roll
+        # Dice keep/unkeep actions (1-5 keys) - from mixin
         self.add_dice_toggle_actions(action_set)
 
         action_set.add(
@@ -107,6 +206,8 @@ class ThreesGame(Game, DiceGameMixin):
                 id="roll",
                 label=Localization.get(locale, "threes-roll"),
                 handler="_action_roll",
+                is_enabled="_is_roll_enabled",
+                is_hidden="_is_roll_hidden",
             )
         )
 
@@ -115,7 +216,8 @@ class ThreesGame(Game, DiceGameMixin):
                 id="bank",
                 label=Localization.get(locale, "threes-bank"),
                 handler="_action_bank",
-                hidden=True,  # Only shown when all dice are kept/locked
+                is_enabled="_is_bank_enabled",
+                is_hidden="_is_bank_hidden",
             )
         )
 
@@ -125,7 +227,8 @@ class ThreesGame(Game, DiceGameMixin):
                 id="check_hand",
                 label=Localization.get(locale, "threes-check-hand"),
                 handler="_action_check_hand",
-                hidden=True,  # Keybind only
+                is_enabled="_is_check_hand_enabled",
+                is_hidden="_is_check_hand_hidden",
             )
         )
 
@@ -148,89 +251,6 @@ class ThreesGame(Game, DiceGameMixin):
         self.define_keybind(
             "h", "Check hand", ["check_hand"], state=KeybindState.ACTIVE
         )
-
-    def update_turn_actions(self, player: ThreesPlayer) -> None:
-        """Update turn action availability for a player."""
-        turn_set = self.get_action_set(player, "turn")
-        if not turn_set:
-            return
-
-        is_playing = self.status == "playing"
-        is_current = self.current_player == player
-        has_dice = player.dice.has_rolled
-
-        # Roll is available when it's your turn, you have unlocked dice,
-        # and you've kept at least one die (or it's the first roll)
-        can_roll = False
-        if is_playing and is_current:
-            if not has_dice:
-                # First roll
-                can_roll = True
-            elif player.dice.unlocked_count > 1:
-                # Check if at least one unlocked die is kept
-                can_roll = player.dice.kept_unlocked_count > 0
-
-        if can_roll:
-            turn_set.enable("roll")
-        else:
-            turn_set.disable("roll")
-        # Always show roll when it's your turn (don't hide to avoid menu restructuring)
-        if is_playing and is_current:
-            turn_set.show("roll")
-        else:
-            turn_set.hide("roll")
-
-        # Bank is available when all dice are kept or locked
-        can_bank = is_playing and is_current and has_dice and player.dice.all_decided
-
-        if can_bank:
-            turn_set.enable("bank")
-        else:
-            turn_set.disable("bank")
-        # Always show bank when dice are rolled (don't hide to avoid menu restructuring)
-        if is_playing and is_current and has_dice:
-            turn_set.show("bank")
-        else:
-            turn_set.hide("bank")
-
-        # Dice toggle actions - show when dice have been rolled during your turn
-        for i in range(5):
-            action_id = f"toggle_die_{i}"
-            if is_playing and is_current and has_dice:
-                # Show this die's action
-                turn_set.show(action_id)
-                if player.dice.is_locked(i):
-                    # Locked dice are always disabled but visible
-                    turn_set.disable(action_id)
-                    turn_set.set_label(
-                        action_id, f"{player.dice.get_value(i)} (locked)"
-                    )
-                elif player.dice.unlocked_count <= 1:
-                    # Only 1 unlocked die left - can't toggle, will auto-bank
-                    turn_set.disable(action_id)
-                    turn_set.set_label(action_id, str(player.dice.get_value(i)))
-                elif player.dice.is_kept(i):
-                    turn_set.enable(action_id)
-                    turn_set.set_label(action_id, f"{player.dice.get_value(i)} (kept)")
-                else:
-                    turn_set.enable(action_id)
-                    turn_set.set_label(action_id, str(player.dice.get_value(i)))
-            else:
-                turn_set.hide(action_id)
-                turn_set.disable(action_id)
-
-        # Check hand always available during play
-        if is_playing and has_dice:
-            turn_set.enable("check_hand")
-        else:
-            turn_set.disable("check_hand")
-
-        self.update_standard_actions(player)
-
-    def update_all_turn_actions(self) -> None:
-        """Update turn actions for all players."""
-        for player in self.players:
-            self.update_turn_actions(player)
 
     def _action_roll(self, player: Player, action_id: str) -> None:
         """Handle rolling dice."""
@@ -266,7 +286,6 @@ class ThreesGame(Game, DiceGameMixin):
 
             BotHelper.jolt_bot(player, ticks=random.randint(15, 30))
 
-        self.update_all_turn_actions()
         self.rebuild_all_menus()
 
     # Dice toggle handlers provided by DiceGameMixin
@@ -374,7 +393,6 @@ class ThreesGame(Game, DiceGameMixin):
 
             BotHelper.jolt_bot(player, ticks=random.randint(20, 40))
 
-        self.update_all_turn_actions()
         self.rebuild_all_menus()
 
     def _end_game(self) -> None:
@@ -426,11 +444,6 @@ class ThreesGame(Game, DiceGameMixin):
         # Initialize turn order
         self.set_turn_players(self.get_active_players())
 
-        # Update actions
-        self.update_all_lobby_actions()
-        self.update_all_options_actions()
-        self.update_all_turn_actions()
-
         # Play music
         self.play_music("game_pig/mus.ogg")
 
@@ -464,9 +477,6 @@ class ThreesGame(Game, DiceGameMixin):
 
         # Decide what to keep using strategy
         self._bot_decide_keepers(player)
-
-        # Update actions since we changed kept state
-        self.update_turn_actions(player)
 
         # If we've kept something new, roll
         if player.dice.kept_unlocked_count > 0:

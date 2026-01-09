@@ -10,7 +10,7 @@ import random
 
 from ..base import Game, Player, GameOptions
 from ..registry import register_game
-from ...game_utils.actions import Action, ActionSet
+from ...game_utils.actions import Action, ActionSet, Visibility
 from ...game_utils.bot_helper import BotHelper
 from ...game_utils.dice import DiceSet
 from ...game_utils.dice_game_mixin import DiceGameMixin
@@ -265,6 +265,9 @@ class YahtzeeGame(Game, DiceGameMixin):
                 id="roll",
                 label=Localization.get(locale, "yahtzee-roll-all"),
                 handler="_action_roll",
+                is_enabled="_is_roll_enabled",
+                is_hidden="_is_roll_hidden",
+                get_label="_get_roll_label",
             )
         )
 
@@ -279,6 +282,9 @@ class YahtzeeGame(Game, DiceGameMixin):
                     id=f"score_{cat}",
                     label=f"{cat_name} (- points)",
                     handler="_action_score",
+                    is_enabled=f"_is_score_{cat}_enabled",
+                    is_hidden=f"_is_score_{cat}_hidden",
+                    get_label=f"_get_score_{cat}_label",
                 )
             )
 
@@ -288,7 +294,8 @@ class YahtzeeGame(Game, DiceGameMixin):
                 id="view_dice",
                 label=Localization.get(locale, "yahtzee-view-dice"),
                 handler="_action_view_dice",
-                hidden=True,
+                is_enabled="_is_view_dice_enabled",
+                is_hidden="_is_view_dice_hidden",
             )
         )
         action_set.add(
@@ -296,7 +303,8 @@ class YahtzeeGame(Game, DiceGameMixin):
                 id="view_scoresheet",
                 label=Localization.get(locale, "yahtzee-check-scoresheet"),
                 handler="_action_view_scoresheet",
-                hidden=True,
+                is_enabled="_is_view_scoresheet_enabled",
+                is_hidden="_is_view_scoresheet_hidden",
             )
         )
 
@@ -320,104 +328,88 @@ class YahtzeeGame(Game, DiceGameMixin):
             "c", "View scoresheet", ["view_scoresheet"], state=KeybindState.ACTIVE
         )
 
-    def _get_category_label(
-        self, locale: str, category: str, points: int, is_open: bool
-    ) -> str:
-        """Get the label for a scoring category action (v10 style)."""
-        cat_name = Localization.get(locale, CATEGORY_NAMES[category])
-        if is_open:
-            return f"{cat_name} for {points} points"
-        return f"{cat_name} (filled)"
+    # ==========================================================================
+    # Declarative Action Callbacks
+    # ==========================================================================
 
-    def update_turn_actions(self, player: YahtzeePlayer) -> None:
-        """Update turn action availability for a player."""
-        turn_set = self.get_action_set(player, "turn")
-        if not turn_set:
-            return
+    def _is_roll_enabled(self, player: Player) -> str | None:
+        """Check if roll action is enabled."""
+        if self.status != "playing":
+            return "action-not-playing"
+        if self.current_player != player:
+            return "action-not-your-turn"
+        if player.is_spectator:
+            return "action-spectator"
+        ytz_player: YahtzeePlayer = player  # type: ignore
+        if ytz_player.rolls_left <= 0:
+            return "yahtzee-no-rolls-left"
+        return None
 
+    def _is_roll_hidden(self, player: Player) -> Visibility:
+        """Check if roll action is hidden."""
+        if self.status != "playing":
+            return Visibility.HIDDEN
+        if self.current_player != player:
+            return Visibility.HIDDEN
+        ytz_player: YahtzeePlayer = player  # type: ignore
+        if ytz_player.rolls_left <= 0:
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
+
+    def _get_roll_label(self, player: Player) -> str:
+        """Get dynamic label for roll action."""
         user = self.get_user(player)
         locale = user.locale if user else "en"
-        is_playing = self.status == "playing"
-        is_current = self.current_player == player
-        is_spectator = player.is_spectator
+        ytz_player: YahtzeePlayer = player  # type: ignore
+        if ytz_player.dice.has_rolled:
+            return Localization.get(locale, "yahtzee-roll", count=ytz_player.rolls_left)
+        return Localization.get(locale, "yahtzee-roll-all")
 
-        # Determine what actions are available
-        has_rolled = player.dice.has_rolled
-        can_roll = player.rolls_left > 0
+    def _is_dice_toggle_enabled(self, player: Player, die_index: int) -> str | None:
+        """Check if toggling die at index is enabled (override from DiceGameMixin)."""
+        if self.status != "playing":
+            return "action-not-playing"
+        if self.current_player != player:
+            return "action-not-your-turn"
+        ytz_player: YahtzeePlayer = player  # type: ignore
+        if not ytz_player.dice.has_rolled:
+            return "dice-not-rolled"
+        if ytz_player.rolls_left <= 0:
+            return "yahtzee-no-rolls-left"
+        return None
 
-        if is_playing and is_current and not is_spectator:
-            # Roll action (v10 style labels)
-            if can_roll:
-                turn_set.enable("roll")
-                turn_set.show("roll")
-                if has_rolled:
-                    # "Re-roll (X left)"
-                    turn_set.set_label(
-                        "roll",
-                        Localization.get(
-                            locale, "yahtzee-roll", count=player.rolls_left
-                        ),
-                    )
-                else:
-                    # "Roll dice"
-                    turn_set.set_label(
-                        "roll", Localization.get(locale, "yahtzee-roll-all")
-                    )
-            else:
-                turn_set.disable("roll")
-                turn_set.hide("roll")
+    def _is_dice_toggle_hidden(self, player: Player, die_index: int) -> Visibility:
+        """Check if die toggle action is hidden (override from DiceGameMixin)."""
+        if self.status != "playing":
+            return Visibility.HIDDEN
+        if self.current_player != player:
+            return Visibility.HIDDEN
+        ytz_player: YahtzeePlayer = player  # type: ignore
+        if not ytz_player.dice.has_rolled:
+            return Visibility.HIDDEN
+        if ytz_player.rolls_left <= 0:
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
 
-            # Toggle die actions - show when dice have been rolled
-            if has_rolled and can_roll:
-                for i in range(5):
-                    turn_set.show(f"toggle_die_{i}")
-                    turn_set.enable(f"toggle_die_{i}")
-                self.update_dice_action_labels(player, turn_set)
-            else:
-                for i in range(5):
-                    turn_set.hide(f"toggle_die_{i}")
-                    turn_set.disable(f"toggle_die_{i}")
+    def _is_view_dice_enabled(self, player: Player) -> str | None:
+        """Check if view dice action is enabled."""
+        if self.status != "playing":
+            return "action-not-playing"
+        return None
 
-            # Scoring actions - only after rolling, and only open categories
-            open_cats = player.get_open_categories()
-            for cat in ALL_CATEGORIES:
-                action_id = f"score_{cat}"
-                is_open = cat in open_cats
+    def _is_view_dice_hidden(self, player: Player) -> Visibility:
+        """View dice is always hidden from menu (keybind only)."""
+        return Visibility.HIDDEN
 
-                if has_rolled and is_open:
-                    turn_set.enable(action_id)
-                    turn_set.show(action_id)
-                    points = calculate_score(player.dice.values, cat)
-                    turn_set.set_label(
-                        action_id,
-                        self._get_category_label(locale, cat, points, True),
-                    )
-                else:
-                    turn_set.disable(action_id)
-                    turn_set.hide(action_id)
+    def _is_view_scoresheet_enabled(self, player: Player) -> str | None:
+        """Check if view scoresheet action is enabled."""
+        if self.status != "playing":
+            return "action-not-playing"
+        return None
 
-            # View actions always available during play
-            turn_set.enable("view_dice", "view_scoresheet")
-        else:
-            # Disable all turn actions for non-current players
-            turn_set.disable("roll")
-            for i in range(5):
-                turn_set.disable(f"toggle_die_{i}")
-                turn_set.hide(f"toggle_die_{i}")
-            for cat in ALL_CATEGORIES:
-                turn_set.disable(f"score_{cat}")
-                turn_set.hide(f"score_{cat}")
-
-            # View actions still available
-            if is_playing:
-                turn_set.enable("view_dice", "view_scoresheet")
-
-        self.update_standard_actions(player)
-
-    def update_all_turn_actions(self) -> None:
-        """Update turn actions for all players."""
-        for player in self.players:
-            self.update_turn_actions(player)
+    def _is_view_scoresheet_hidden(self, player: Player) -> Visibility:
+        """View scoresheet is always hidden from menu (keybind only)."""
+        return Visibility.HIDDEN
 
     def _action_roll(self, player: Player, action_id: str) -> None:
         """Handle roll action."""
@@ -457,7 +449,6 @@ class YahtzeeGame(Game, DiceGameMixin):
         if player.is_bot:
             BotHelper.jolt_bot(player, ticks=random.randint(15, 25))
 
-        self.update_all_turn_actions()
         self.rebuild_all_menus()
 
     def _action_score(self, player: Player, action_id: str) -> None:
@@ -654,10 +645,6 @@ class YahtzeeGame(Game, DiceGameMixin):
         for p in active_players:
             self._reset_player(p)
 
-        # Update actions
-        self.update_all_lobby_actions()
-        self.update_all_options_actions()
-
         # Play music
         self.play_music("game_pig/mus.ogg")
 
@@ -701,7 +688,6 @@ class YahtzeeGame(Game, DiceGameMixin):
         if player.is_bot:
             BotHelper.jolt_bot(player, ticks=random.randint(10, 20))
 
-        self.update_all_turn_actions()
         self.rebuild_all_menus()
 
     def _end_turn(self) -> None:
@@ -907,3 +893,59 @@ class YahtzeeGame(Game, DiceGameMixin):
 
         # Fallback
         return f"score_{open_cats[0]}"
+
+
+# =============================================================================
+# Dynamic Scoring Category Methods
+# =============================================================================
+# Create is_enabled, is_hidden, and get_label methods for each scoring category
+def _make_score_enabled(cat: str):
+    """Create an is_enabled method for a scoring category."""
+    def method(self, player: Player) -> str | None:
+        if self.status != "playing":
+            return "action-not-playing"
+        if self.current_player != player:
+            return "action-not-your-turn"
+        if player.is_spectator:
+            return "action-spectator"
+        if not player.dice.has_rolled:
+            return "yahtzee-roll-first"
+        if cat not in player.get_open_categories():
+            return "yahtzee-category-filled"
+        return None
+    return method
+
+
+def _make_score_hidden(cat: str):
+    """Create an is_hidden method for a scoring category."""
+    def method(self, player: Player) -> Visibility:
+        if self.status != "playing":
+            return Visibility.HIDDEN
+        if self.current_player != player:
+            return Visibility.HIDDEN
+        if not player.dice.has_rolled:
+            return Visibility.HIDDEN
+        if cat not in player.get_open_categories():
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
+    return method
+
+
+def _make_score_label(cat: str):
+    """Create a get_label method for a scoring category."""
+    def method(self, player: Player) -> str:
+        user = self.get_user(player)
+        locale = user.locale if user else "en"
+        cat_name = Localization.get(locale, CATEGORY_NAMES[cat])
+        if player.dice.has_rolled:
+            points = calculate_score(player.dice.values, cat)
+            return f"{cat_name} for {points} points"
+        return cat_name
+    return method
+
+
+# Register the methods on YahtzeeGame
+for _cat in ALL_CATEGORIES:
+    setattr(YahtzeeGame, f"_is_score_{_cat}_enabled", _make_score_enabled(_cat))
+    setattr(YahtzeeGame, f"_is_score_{_cat}_hidden", _make_score_hidden(_cat))
+    setattr(YahtzeeGame, f"_get_score_{_cat}_label", _make_score_label(_cat))

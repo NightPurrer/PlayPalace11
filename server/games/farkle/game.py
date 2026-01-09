@@ -10,7 +10,7 @@ import random
 
 from ..base import Game, Player, GameOptions
 from ..registry import register_game
-from ...game_utils.actions import Action, ActionSet
+from ...game_utils.actions import Action, ActionSet, Visibility
 from ...game_utils.bot_helper import BotHelper
 from ...game_utils.options import IntOption, option_field
 from ...messages.localization import Localization
@@ -335,6 +335,9 @@ class FarkleGame(Game):
                 id="roll",
                 label=Localization.get(locale, "farkle-roll", count=6),
                 handler="_action_roll",
+                is_enabled="_is_roll_enabled",
+                is_hidden="_is_roll_hidden",
+                get_label="_get_roll_label",
             )
         )
 
@@ -344,6 +347,9 @@ class FarkleGame(Game):
                 id="bank",
                 label=Localization.get(locale, "farkle-bank", points=0),
                 handler="_action_bank",
+                is_enabled="_is_bank_enabled",
+                is_hidden="_is_bank_hidden",
+                get_label="_get_bank_label",
             )
         )
 
@@ -353,7 +359,8 @@ class FarkleGame(Game):
                 id="check_turn_score",
                 label="Check turn score",
                 handler="_action_check_turn_score",
-                hidden=True,  # Hidden from main menu, shown in F5
+                is_enabled="_is_check_turn_score_enabled",
+                is_hidden="_is_check_turn_score_hidden",
             )
         )
 
@@ -474,7 +481,8 @@ class FarkleGame(Game):
                 id=action_id,
                 label=label,
                 handler="_action_take_combo",
-                enabled=True,
+                is_enabled="_is_scoring_action_enabled",
+                is_hidden="_is_scoring_action_hidden",
             )
             turn_set._order.append(action_id)
 
@@ -483,68 +491,110 @@ class FarkleGame(Game):
             if action_id in turn_set._actions:
                 turn_set._order.append(action_id)
 
-    def update_turn_actions(self, player: FarklePlayer) -> None:
-        """Update turn action availability and labels for a player."""
-        turn_set = self.get_action_set(player, "turn")
-        if not turn_set:
-            return
+    # ==========================================================================
+    # Declarative Action Callbacks
+    # ==========================================================================
 
+    def _is_roll_enabled(self, player: Player) -> str | None:
+        """Check if roll action is enabled."""
+        if self.status != "playing":
+            return "action-not-playing"
+        if self.current_player != player:
+            return "action-not-your-turn"
+        if player.is_spectator:
+            return "action-spectator"
+        farkle_player: FarklePlayer = player  # type: ignore
+        can_roll = len(farkle_player.current_roll) == 0 or farkle_player.has_taken_combo
+        if not can_roll:
+            return "farkle-must-take-combo"
+        return None
+
+    def _is_roll_hidden(self, player: Player) -> Visibility:
+        """Check if roll action is hidden."""
+        if self.status != "playing":
+            return Visibility.HIDDEN
+        if self.current_player != player:
+            return Visibility.HIDDEN
+        farkle_player: FarklePlayer = player  # type: ignore
+        can_roll = len(farkle_player.current_roll) == 0 or farkle_player.has_taken_combo
+        if not can_roll:
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
+
+    def _get_roll_label(self, player: Player) -> str:
+        """Get dynamic label for roll action."""
         user = self.get_user(player)
         locale = user.locale if user else "en"
-        is_playing = self.status == "playing"
-        is_spectator = player.is_spectator
-        is_current = self.current_player == player
+        farkle_player: FarklePlayer = player  # type: ignore
+        num_dice = self._get_roll_dice_count(farkle_player)
+        return Localization.get(locale, "farkle-roll", count=num_dice)
 
-        if is_playing and is_current and not is_spectator:
-            # Roll action: available if no current roll or has taken a combo
-            can_roll = len(player.current_roll) == 0 or player.has_taken_combo
-            if can_roll:
-                turn_set.enable("roll")
-                turn_set.show("roll")
-                # Update roll label with dice count
-                num_dice = self._get_roll_dice_count(player)
-                turn_set.set_label(
-                    "roll", Localization.get(locale, "farkle-roll", count=num_dice)
-                )
-            else:
-                turn_set.disable("roll")
-                turn_set.hide("roll")
+    def _is_bank_enabled(self, player: Player) -> str | None:
+        """Check if bank action is enabled."""
+        if self.status != "playing":
+            return "action-not-playing"
+        if self.current_player != player:
+            return "action-not-your-turn"
+        if player.is_spectator:
+            return "action-spectator"
+        farkle_player: FarklePlayer = player  # type: ignore
+        can_bank = farkle_player.turn_score > 0 and (
+            len(farkle_player.current_roll) == 0
+            or not has_scoring_dice(farkle_player.current_roll)
+        )
+        if not can_bank:
+            return "farkle-cannot-bank"
+        return None
 
-            # Bank action: available if turn_score > 0 and no scoring dice left
-            can_bank = player.turn_score > 0 and (
-                len(player.current_roll) == 0
-                or not has_scoring_dice(player.current_roll)
-            )
-            if can_bank:
-                turn_set.enable("bank")
-                turn_set.show("bank")
-                turn_set.set_label(
-                    "bank",
-                    Localization.get(locale, "farkle-bank", points=player.turn_score),
-                )
-            else:
-                turn_set.disable("bank")
-                turn_set.hide("bank")
+    def _is_bank_hidden(self, player: Player) -> Visibility:
+        """Check if bank action is hidden."""
+        if self.status != "playing":
+            return Visibility.HIDDEN
+        if self.current_player != player:
+            return Visibility.HIDDEN
+        farkle_player: FarklePlayer = player  # type: ignore
+        can_bank = farkle_player.turn_score > 0 and (
+            len(farkle_player.current_roll) == 0
+            or not has_scoring_dice(farkle_player.current_roll)
+        )
+        if not can_bank:
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
 
-            # Scoring actions are always enabled when present
-            for action_id in turn_set._actions.keys():
-                if action_id.startswith("score_"):
-                    turn_set.enable(action_id)
-                    turn_set.show(action_id)
-        else:
-            # Disable all turn actions for non-current players
-            turn_set.disable("roll", "bank")
-            for action_id in turn_set._actions.keys():
-                if action_id.startswith("score_"):
-                    turn_set.disable(action_id)
+    def _get_bank_label(self, player: Player) -> str:
+        """Get dynamic label for bank action."""
+        user = self.get_user(player)
+        locale = user.locale if user else "en"
+        farkle_player: FarklePlayer = player  # type: ignore
+        return Localization.get(locale, "farkle-bank", points=farkle_player.turn_score)
 
-        # Update standard actions (status keybinds)
-        self.update_standard_actions(player)
+    def _is_check_turn_score_enabled(self, player: Player) -> str | None:
+        """Check if check turn score action is enabled."""
+        if self.status != "playing":
+            return "action-not-playing"
+        return None
 
-    def update_all_turn_actions(self) -> None:
-        """Update turn actions for all players."""
-        for player in self.players:
-            self.update_turn_actions(player)
+    def _is_check_turn_score_hidden(self, player: Player) -> Visibility:
+        """Check turn score is always hidden from menu (keybind only)."""
+        return Visibility.HIDDEN
+
+    def _is_scoring_action_enabled(self, player: Player) -> str | None:
+        """Check if a scoring action is enabled (scoring actions are only created when available)."""
+        if self.status != "playing":
+            return "action-not-playing"
+        if self.current_player != player:
+            return "action-not-your-turn"
+        if player.is_spectator:
+            return "action-spectator"
+        return None
+
+    def _is_scoring_action_hidden(self, player: Player) -> Visibility:
+        """Check if a scoring action is hidden."""
+        if self.status != "playing":
+            return Visibility.HIDDEN
+        if self.current_player != player:
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
 
     def _get_roll_dice_count(self, player: FarklePlayer) -> int:
         """Get the number of dice that will be rolled."""
@@ -602,7 +652,6 @@ class FarkleGame(Game):
 
         # Update scoring actions based on new roll
         self.update_scoring_actions(farkle_player)
-        self.update_turn_actions(farkle_player)
         self.rebuild_player_menu(farkle_player)
 
     def _action_take_combo(self, player: Player, action_id: str) -> None:
@@ -682,7 +731,6 @@ class FarkleGame(Game):
 
         # Update actions
         self.update_scoring_actions(farkle_player)
-        self.update_turn_actions(farkle_player)
         self.rebuild_player_menu(farkle_player)
 
     def _remove_combo_dice(
@@ -824,11 +872,6 @@ class FarkleGame(Game):
             farkle_p.banked_dice = []
             farkle_p.has_taken_combo = False
 
-        # Update action availability for game start
-        self.update_all_lobby_actions()
-        self.update_all_options_actions()
-        self.update_all_turn_actions()
-
         # Play intro music (using pig music as placeholder)
         self.play_music("game_pig/mus.ogg")
 
@@ -867,8 +910,7 @@ class FarkleGame(Game):
         if player.is_bot:
             BotHelper.set_target(player, 0)  # Bot will calculate during think
 
-        # Update action availability
-        self.update_all_turn_actions()
+        # Rebuild menus
         self.rebuild_all_menus()
 
     def on_tick(self) -> None:
@@ -887,16 +929,19 @@ class FarkleGame(Game):
         if not turn_set:
             return None
 
+        # Resolve actions to get enabled state
+        resolved = turn_set.resolve_actions(self, player)
+
         # Take highest-value scoring combo first
-        for action in turn_set.get_enabled_actions():
-            if action.id.startswith("score_"):
-                return action.id
+        for ra in resolved:
+            if ra.enabled and ra.action.id.startswith("score_"):
+                return ra.action.id
 
-        # If can roll, decide whether to roll or bank
-        roll_action = turn_set.get_action("roll")
-        bank_action = turn_set.get_action("bank")
+        # Check roll/bank enabled state
+        roll_enabled = self._is_roll_enabled(player) is None
+        bank_enabled = self._is_bank_enabled(player) is None
 
-        if roll_action and roll_action.enabled:
+        if roll_enabled:
             # Banking decision based on dice remaining and points
             dice_remaining = 6 - len(player.banked_dice)
             if dice_remaining == 0:
@@ -931,12 +976,12 @@ class FarkleGame(Game):
                 bank_prob = bank_probabilities.get(dice_remaining, 0.50)
 
                 if random.random() < bank_prob:
-                    if bank_action and bank_action.enabled:
+                    if bank_enabled:
                         return "bank"
 
             return "roll"
 
-        if bank_action and bank_action.enabled:
+        if bank_enabled:
             return "bank"
 
         return None

@@ -1,13 +1,21 @@
-"""Action system for games."""
+"""Action system for games - declarative callbacks for state management."""
 
 import copy
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import TYPE_CHECKING
 
 from mashumaro.mixins.json import DataClassJSONMixin
 
 if TYPE_CHECKING:
-    pass
+    from ..games.base import Game, Player
+
+
+class Visibility(str, Enum):
+    """Visibility state for actions."""
+
+    VISIBLE = "visible"
+    HIDDEN = "hidden"
 
 
 @dataclass
@@ -41,25 +49,44 @@ class EditboxInput(DataClassJSONMixin):
 @dataclass
 class Action(DataClassJSONMixin):
     """
-    A game action with imperative state management.
+    A game action with declarative state callbacks.
 
-    Actions are pure data - the handler is a method name (string) that
-    will be looked up on the game object at execution time. This allows
-    actions to be serialized and survive game object replacement.
+    All callback fields are method names (strings) for serialization.
+    Methods are looked up on the game object at resolution time.
 
-    Handler method signature: (self, player) or (self, player, input_value)
+    Callback signatures:
+    - handler: (self, player, action_id) or (self, player, input_value, action_id)
+    - is_enabled: (self, player) -> str | None
+      Returns None if enabled, or a localization key (disabled reason) if disabled.
+    - is_hidden: (self, player) -> Visibility
+      Returns Visibility.VISIBLE or Visibility.HIDDEN.
+    - get_label: (self, player) -> str
+      Returns the dynamic label string.
     """
 
     id: str
-    label: str  # Static label, updated via ActionSet.set_label()
+    label: str  # Static label (fallback if no get_label)
     handler: str  # Method name on game object (e.g., "_action_roll")
-    enabled: bool = False  # Whether action can be executed
-    hidden: bool = (
-        False  # Whether action is hidden from menu (still keybindable if enabled)
-    )
-    input_request: MenuInput | EditboxInput | None = (
-        None  # Optional input before execution
-    )
+    is_enabled: str  # Method name (e.g., "_is_roll_enabled")
+    is_hidden: str  # Method name (e.g., "_is_roll_hidden")
+    get_label: str | None = None  # Optional method name (e.g., "_get_roll_label")
+    input_request: MenuInput | EditboxInput | None = None
+
+
+@dataclass
+class ResolvedAction:
+    """
+    An action with its state resolved for a specific player.
+
+    This is the result of calling the declarative callbacks.
+    Not serialized - created fresh when building menus.
+    """
+
+    action: Action
+    label: str
+    enabled: bool
+    disabled_reason: str | None  # Localization key if disabled, None if enabled
+    visible: bool
 
 
 @dataclass
@@ -68,7 +95,7 @@ class ActionSet(DataClassJSONMixin):
     A named group of actions for a player.
 
     Players have an ordered list of ActionSets (e.g., "turn" before "lobby").
-    Games manage action availability imperatively via enable/disable/show/hide.
+    Action state is resolved declaratively via callbacks when building menus.
     """
 
     name: str  # e.g., "turn", "lobby", "hand"
@@ -94,56 +121,78 @@ class ActionSet(DataClassJSONMixin):
         for aid in to_remove:
             self.remove(aid)
 
-    def enable(self, *action_ids: str) -> None:
-        """Enable actions (make executable)."""
-        for aid in action_ids:
-            if aid in self._actions:
-                self._actions[aid].enabled = True
-
-    def disable(self, *action_ids: str) -> None:
-        """Disable actions (make non-executable)."""
-        for aid in action_ids:
-            if aid in self._actions:
-                self._actions[aid].enabled = False
-
-    def show(self, *action_ids: str) -> None:
-        """Show actions in menu."""
-        for aid in action_ids:
-            if aid in self._actions:
-                self._actions[aid].hidden = False
-
-    def hide(self, *action_ids: str) -> None:
-        """Hide actions from menu (still keybindable if enabled)."""
-        for aid in action_ids:
-            if aid in self._actions:
-                self._actions[aid].hidden = True
-
-    def set_label(self, action_id: str, label: str) -> None:
-        """Set action label imperatively."""
-        if action_id in self._actions:
-            self._actions[action_id].label = label
-
     def get_action(self, action_id: str) -> Action | None:
         """Get an action by ID."""
         return self._actions.get(action_id)
 
-    def get_visible_actions(self) -> list[Action]:
-        """Get enabled, non-hidden actions in order."""
+    def resolve_action(
+        self, game: "Game", player: "Player", action: Action
+    ) -> ResolvedAction:
+        """Resolve a single action's state for a player."""
+        # Resolve enabled state
+        disabled_reason: str | None = None
+        if action.is_enabled:
+            method = getattr(game, action.is_enabled, None)
+            if method:
+                disabled_reason = method(player)
+
+        # Resolve visibility
+        visible = True
+        if action.is_hidden:
+            method = getattr(game, action.is_hidden, None)
+            if method:
+                visibility = method(player)
+                visible = visibility == Visibility.VISIBLE
+
+        # Resolve label
+        label = action.label
+        if action.get_label:
+            method = getattr(game, action.get_label, None)
+            if method:
+                label = method(player)
+
+        return ResolvedAction(
+            action=action,
+            label=label,
+            enabled=disabled_reason is None,
+            disabled_reason=disabled_reason,
+            visible=visible,
+        )
+
+    def resolve_actions(
+        self, game: "Game", player: "Player"
+    ) -> list[ResolvedAction]:
+        """Resolve all actions' states for a player."""
+        result = []
+        for aid in self._order:
+            if aid not in self._actions:
+                continue
+            action = self._actions[aid]
+            resolved = self.resolve_action(game, player, action)
+            result.append(resolved)
+        return result
+
+    def get_visible_actions(
+        self, game: "Game", player: "Player"
+    ) -> list[ResolvedAction]:
+        """Get enabled, visible actions for the turn menu."""
         return [
-            self._actions[aid]
-            for aid in self._order
-            if aid in self._actions
-            and self._actions[aid].enabled
-            and not self._actions[aid].hidden
+            ra
+            for ra in self.resolve_actions(game, player)
+            if ra.enabled and ra.visible
         ]
 
-    def get_enabled_actions(self) -> list[Action]:
-        """Get all enabled actions in order (for F5 menu)."""
-        return [
-            self._actions[aid]
-            for aid in self._order
-            if aid in self._actions and self._actions[aid].enabled
-        ]
+    def get_enabled_actions(
+        self, game: "Game", player: "Player"
+    ) -> list[ResolvedAction]:
+        """Get all enabled actions for F5 menu (includes hidden)."""
+        return [ra for ra in self.resolve_actions(game, player) if ra.enabled]
+
+    def get_all_actions(
+        self, game: "Game", player: "Player"
+    ) -> list[ResolvedAction]:
+        """Get all actions with their resolved state."""
+        return self.resolve_actions(game, player)
 
     def copy(self) -> "ActionSet":
         """Deep copy for templates."""

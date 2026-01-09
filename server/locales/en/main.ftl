@@ -100,3 +100,27 @@ missing-players = Cannot restore: these players are not available: { $players }
 table-restored = Table restored! All players have been transferred.
 table-saved-destroying = Table saved! Returning to main menu.
 game-type-not-found = Game type no longer exists.
+
+# Action disabled reasons
+action-not-your-turn = It's not your turn.
+action-not-playing = The game hasn't started.
+action-spectator = Spectators cannot do this.
+action-not-host = Only the host can do this.
+action-game-in-progress = Cannot do this while the game is in progress.
+action-need-more-players = Need more players to start.
+action-table-full = The table is full.
+action-no-bots = There are no bots to remove.
+action-bots-cannot = Bots cannot do this.
+action-no-scores = No scores available yet.
+
+# Dice actions
+dice-not-rolled = You haven't rolled yet.
+dice-locked = This die is locked.
+dice-no-dice = No dice available.
+
+# Game actions
+game-turn-start = { $player }'s turn.
+game-no-turn = No one's turn right now.
+game-leave = Leave
+status-box-closed = Closed.
+play = Play

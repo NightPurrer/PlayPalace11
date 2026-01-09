@@ -10,7 +10,7 @@ import random
 
 from ..base import Game, Player, GameOptions
 from ..registry import register_game
-from ...game_utils.actions import Action, ActionSet
+from ...game_utils.actions import Action, ActionSet, Visibility
 from ...game_utils.bot_helper import BotHelper
 from ...game_utils.options import IntOption, MenuOption, option_field
 from ...game_utils.teams import TeamManager
@@ -116,6 +116,69 @@ class PigGame(Game):
         """Create a new player with Pig-specific state."""
         return PigPlayer(id=player_id, name=name, is_bot=is_bot, round_score=0)
 
+    # ==========================================================================
+    # Declarative is_enabled / is_hidden / get_label methods for turn actions
+    # ==========================================================================
+
+    def _is_roll_enabled(self, player: Player) -> str | None:
+        """Check if roll action is enabled."""
+        if self.status != "playing":
+            return "action-not-playing"
+        if player.is_spectator:
+            return "action-spectator"
+        if self.current_player != player:
+            return "action-not-your-turn"
+        return None
+
+    def _is_roll_hidden(self, player: Player) -> Visibility:
+        """Roll is visible during play for current player."""
+        if self.status != "playing":
+            return Visibility.HIDDEN
+        if player.is_spectator:
+            return Visibility.HIDDEN
+        if self.current_player != player:
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
+
+    def _is_bank_enabled(self, player: Player) -> str | None:
+        """Check if bank action is enabled."""
+        if self.status != "playing":
+            return "action-not-playing"
+        if player.is_spectator:
+            return "action-spectator"
+        if self.current_player != player:
+            return "action-not-your-turn"
+        pig_player: PigPlayer = player  # type: ignore
+        min_required = max(1, self.options.min_bank_points)
+        if pig_player.round_score < min_required:
+            return "pig-need-more-points"
+        return None
+
+    def _is_bank_hidden(self, player: Player) -> Visibility:
+        """Bank is hidden until player has enough points."""
+        if self.status != "playing":
+            return Visibility.HIDDEN
+        if player.is_spectator:
+            return Visibility.HIDDEN
+        if self.current_player != player:
+            return Visibility.HIDDEN
+        pig_player: PigPlayer = player  # type: ignore
+        min_required = max(1, self.options.min_bank_points)
+        if pig_player.round_score < min_required:
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
+
+    def _get_bank_label(self, player: Player) -> str:
+        """Get dynamic label for bank action showing current points."""
+        pig_player: PigPlayer = player  # type: ignore
+        user = self.get_user(player)
+        locale = user.locale if user else "en"
+        return Localization.get(locale, "pig-bank", points=pig_player.round_score)
+
+    # ==========================================================================
+    # Action set creation
+    # ==========================================================================
+
     def create_turn_action_set(self, player: PigPlayer) -> ActionSet:
         """Create the turn action set for a player."""
         user = self.get_user(player)
@@ -127,6 +190,8 @@ class PigGame(Game):
                 id="roll",
                 label=Localization.get(locale, "pig-roll"),
                 handler="_action_roll",
+                is_enabled="_is_roll_enabled",
+                is_hidden="_is_roll_hidden",
             )
         )
         action_set.add(
@@ -134,13 +199,12 @@ class PigGame(Game):
                 id="bank",
                 label=Localization.get(locale, "pig-bank", points=0),
                 handler="_action_bank",
+                is_enabled="_is_bank_enabled",
+                is_hidden="_is_bank_hidden",
+                get_label="_get_bank_label",
             )
         )
-        # Status actions (whose_turn, check_scores) are in base class standard set
         return action_set
-
-    # Options are now defined declaratively in PigOptions - no need to override
-    # create_options_action_set as the base class handles it automatically
 
     def setup_keybinds(self) -> None:
         """Define all keybinds for the game."""
@@ -151,47 +215,9 @@ class PigGame(Game):
         self.define_keybind("r", "Roll dice", ["roll"], state=KeybindState.ACTIVE)
         self.define_keybind("b", "Bank points", ["bank"], state=KeybindState.ACTIVE)
 
-    def update_turn_actions(self, player: PigPlayer) -> None:
-        """Update turn action availability and labels for a player."""
-        turn_set = self.get_action_set(player, "turn")
-        if not turn_set:
-            return
-
-        user = self.get_user(player)
-        locale = user.locale if user else "en"
-        is_playing = self.status == "playing"
-        is_spectator = player.is_spectator
-        is_current = self.current_player == player
-
-        # Turn actions only for current active player (never for spectators)
-        if is_playing and is_current and not is_spectator:
-            turn_set.enable("roll")
-            # Bank depends on round score
-            min_required = max(1, self.options.min_bank_points)
-            if player.round_score >= min_required:
-                turn_set.enable("bank")
-                turn_set.show("bank")
-                turn_set.set_label(
-                    "bank",
-                    Localization.get(locale, "pig-bank", points=player.round_score),
-                )
-            else:
-                turn_set.disable("bank")
-                turn_set.hide("bank")
-        else:
-            turn_set.disable("roll", "bank")
-
-        # Also update standard actions (status keybinds)
-        self.update_standard_actions(player)
-
-    def update_all_turn_actions(self) -> None:
-        """Update turn actions for all players."""
-        for player in self.players:
-            self.update_turn_actions(player)
-
     def _action_roll(self, player: Player, action_id: str) -> None:
         """Handle roll action."""
-        pig_player = player
+        pig_player: PigPlayer = player  # type: ignore
 
         self.broadcast_l("pig-rolls", player=player.name)
         self.play_sound("game_pig/roll.ogg")
@@ -212,13 +238,11 @@ class PigGame(Game):
         else:
             pig_player.round_score += roll
             self.broadcast_l("pig-roll-result", roll=roll, total=pig_player.round_score)
-            # Update bank action visibility/label after round_score change
-            self.update_turn_actions(pig_player)
-            self.rebuild_player_menu(pig_player)
+            # Menus will be rebuilt automatically after action execution
 
     def _action_bank(self, player: Player, action_id: str) -> None:
         """Handle bank action."""
-        pig_player = player
+        pig_player: PigPlayer = player  # type: ignore
 
         self.play_sound("game_pig/bank.ogg")
         banked = pig_player.round_score
@@ -240,8 +264,6 @@ class PigGame(Game):
         team = self._team_manager.get_team(player.name)
         return team.total_score if team else 0
 
-    # Options are now handled by the declarative system in GameOptions
-
     def on_start(self) -> None:
         """Called when the game starts."""
         self.status = "playing"
@@ -259,11 +281,6 @@ class PigGame(Game):
         # Reset player round scores (total scores are in TeamManager)
         for player in active_players:
             player.round_score = 0
-
-        # Update action availability for game start
-        self.update_all_lobby_actions()
-        self.update_all_options_actions()
-        self.update_all_turn_actions()
 
         # Play intro music
         self.play_music("game_pig/mus.ogg")
@@ -296,12 +313,10 @@ class PigGame(Game):
         self.announce_turn()
 
         # Set up bot target if this is a bot's turn
-        # (bots are already jolted at end of previous turn)
         if player.is_bot:
             self._setup_bot_target(player)
 
-        # Update action availability for new turn
-        self.update_all_turn_actions()
+        # Rebuild menus to reflect new turn
         self.rebuild_all_menus()
 
     def _setup_bot_target(self, player: Player) -> None:

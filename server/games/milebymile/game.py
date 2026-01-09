@@ -12,7 +12,7 @@ from mashumaro.mixins.json import DataClassJSONMixin
 
 from ..base import Game, Player, GameOptions
 from ..registry import register_game
-from ...game_utils.actions import Action, ActionSet, MenuInput
+from ...game_utils.actions import Action, ActionSet, MenuInput, Visibility
 from ...game_utils.bot_helper import BotHelper
 from ...game_utils.options import IntOption, MenuOption, BoolOption, option_field
 from ...game_utils.round_timer import RoundTimer
@@ -340,7 +340,8 @@ class MileByMileGame(Game):
                 id="check_status",
                 label="Check status",
                 handler="_action_check_status",
-                hidden=False,
+                is_enabled="_is_check_status_enabled",
+                is_hidden="_is_check_status_hidden",
             )
         )
 
@@ -350,7 +351,8 @@ class MileByMileGame(Game):
                 id="dirty_trick",
                 label="Play dirty trick",
                 handler="_action_dirty_trick",
-                hidden=True,
+                is_enabled="_is_dirty_trick_enabled",
+                is_hidden="_is_dirty_trick_hidden",
             )
         )
 
@@ -360,7 +362,8 @@ class MileByMileGame(Game):
                 id="junk_card",
                 label="Discard card",
                 handler="_action_junk_card",
-                hidden=True,
+                is_enabled="_is_junk_card_enabled",
+                is_hidden="_is_junk_card_hidden",
             )
         )
 
@@ -435,13 +438,14 @@ class MileByMileGame(Game):
                         bot_select="_bot_select_hazard_target",
                     )
 
-            # Always show cards in menu (enabled=True), but handler checks if it's player's turn
+            # Always show cards in menu, but enable/disable based on state
             turn_set.add(
                 Action(
                     id=action_id,
                     label=label,
                     handler="_action_play_card",
-                    enabled=is_playing and not is_between_races,
+                    is_enabled="_is_card_action_enabled",
+                    is_hidden="_is_card_action_hidden",
                     input_request=input_request,
                 )
             )
@@ -451,46 +455,73 @@ class MileByMileGame(Game):
             turn_set._order.remove("check_status")
             turn_set._order.append("check_status")
 
-    def update_turn_actions(self, player: MileByMilePlayer) -> None:
-        """Update turn action availability for a player."""
-        turn_set = self.get_action_set(player, "turn")
-        if not turn_set:
-            return
+    # ==========================================================================
+    # Declarative Action Callbacks
+    # ==========================================================================
 
-        is_playing = self.status == "playing"
-        is_current = self.current_player == player
+    def _is_check_status_enabled(self, player: Player) -> str | None:
+        """Check if check status action is enabled."""
+        if self.status != "playing":
+            return "action-not-playing"
+        return None
 
-        # Update card actions
+    def _is_check_status_hidden(self, player: Player) -> Visibility:
+        """Check status is visible during play."""
+        if self.status != "playing":
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
+
+    def _is_dirty_trick_enabled(self, player: Player) -> str | None:
+        """Check if dirty trick action is enabled."""
+        if self.status != "playing":
+            return "action-not-playing"
+        mbm_player: MileByMilePlayer = player  # type: ignore
+        if self.dirty_trick_window_team is None:
+            return "milebymile-no-dirty-trick-window"
+        if mbm_player.team_index != self.dirty_trick_window_team:
+            return "milebymile-not-your-dirty-trick"
+        return None
+
+    def _is_dirty_trick_hidden(self, player: Player) -> Visibility:
+        """Dirty trick is always hidden (keybind only)."""
+        return Visibility.HIDDEN
+
+    def _is_junk_card_enabled(self, player: Player) -> str | None:
+        """Check if junk card action is enabled."""
+        if self.status != "playing":
+            return "action-not-playing"
+        if self.current_player != player:
+            return "action-not-your-turn"
+        if self._round_timer.is_active:
+            return "milebymile-between-races"
+        return None
+
+    def _is_junk_card_hidden(self, player: Player) -> Visibility:
+        """Junk card is always hidden (keybind only)."""
+        return Visibility.HIDDEN
+
+    def _is_card_action_enabled(self, player: Player) -> str | None:
+        """Check if card actions are enabled."""
+        if self.status != "playing":
+            return "action-not-playing"
+        if self._round_timer.is_active:
+            return "milebymile-between-races"
+        return None
+
+    def _is_card_action_hidden(self, player: Player) -> Visibility:
+        """Card actions are visible during play."""
+        if self.status != "playing":
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
+
+    def _update_turn_actions(self, player: MileByMilePlayer) -> None:
+        """Update dynamic card actions for a player."""
         self._update_card_actions(player)
 
-        # Status always available during play
-        if is_playing:
-            turn_set.enable("check_status")
-        else:
-            turn_set.disable("check_status")
-
-        # Dirty trick only during window
-        if self.dirty_trick_window_team is not None:
-            if player.team_index == self.dirty_trick_window_team:
-                turn_set.enable("dirty_trick")
-            else:
-                turn_set.disable("dirty_trick")
-        else:
-            turn_set.disable("dirty_trick")
-
-        # Junk card available during your turn (shift+enter to discard selected card)
-        is_between_races = self._round_timer.is_active
-        if is_playing and is_current and not is_between_races:
-            turn_set.enable("junk_card")
-        else:
-            turn_set.disable("junk_card")
-
-        self.update_standard_actions(player)
-
-    def update_all_turn_actions(self) -> None:
-        """Update turn actions for all players."""
+    def _update_all_turn_actions(self) -> None:
+        """Update card actions for all players."""
         for player in self.players:
-            self.update_turn_actions(player)
+            self._update_turn_actions(player)
 
     # ==========================================================================
     # Card Logic
@@ -1315,7 +1346,7 @@ class MileByMileGame(Game):
                 card_name = self._get_localized_card_name(new_card, user.locale)
                 user.speak_l("milebymile-you-drew", card=card_name)
 
-        self.update_turn_actions(player)
+        self._update_turn_actions(player)
         self.rebuild_player_menu(player)
         # Don't end turn - safety grants extra turn
 
@@ -1402,10 +1433,6 @@ class MileByMileGame(Game):
         active_players = self.get_active_players()
         self.set_turn_players(active_players)
 
-        # Update actions
-        self.update_all_lobby_actions()
-        self.update_all_options_actions()
-
         # Play music and ambience
         self.play_music("game_milebymile/music.ogg")
         self.play_ambience("game_milebymile/amloop.ogg")
@@ -1468,7 +1495,7 @@ class MileByMileGame(Game):
         if player.is_bot:
             BotHelper.jolt_bot(player, ticks=random.randint(30, 50))
 
-        self.update_all_turn_actions()
+        self._update_all_turn_actions()
         self.rebuild_all_menus()
 
     def _end_turn(self) -> None:
@@ -1521,7 +1548,7 @@ class MileByMileGame(Game):
             # Start next race after delay (silent countdown)
             self._round_timer.start()
             # Disable all actions during countdown
-            self.update_all_turn_actions()
+            self._update_all_turn_actions()
             self.rebuild_all_menus()
 
     def on_round_timer_ready(self) -> None:

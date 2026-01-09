@@ -12,7 +12,7 @@ import random
 
 from ..base import Game, Player, GameOptions
 from ..registry import register_game
-from ...game_utils.actions import Action, ActionSet
+from ...game_utils.actions import Action, ActionSet, Visibility
 from ...game_utils.bot_helper import BotHelper
 from ...game_utils.cards import (
     Card,
@@ -290,57 +290,16 @@ class NinetyNineGame(Game):
         """Create the turn action set for a player."""
         action_set = ActionSet(name="turn")
 
-        # Card slot actions (up to 13 for max hand size)
-        for i in range(1, 14):
-            action_set.add(
-                Action(
-                    id=f"card_slot_{i}",
-                    label=f"Card {i}",
-                    handler="_action_play_card",
-                    hidden=True,
-                    enabled=False,
-                )
-            )
+        # Card slot actions will be dynamically created in _update_card_actions
 
-        # Choice actions (for Ace and Ten)
-        action_set.add(
-            Action(
-                id="choice_1",
-                label="Choice 1",
-                handler="_action_choice_1",
-                hidden=True,
-                enabled=False,
-            )
-        )
-        action_set.add(
-            Action(
-                id="choice_2",
-                label="Choice 2",
-                handler="_action_choice_2",
-                hidden=True,
-                enabled=False,
-            )
-        )
-
-        # Draw action (for manual draw mode)
-        action_set.add(
-            Action(
-                id="draw_card",
-                label="Draw card",
-                handler="_action_draw_card",
-                hidden=True,
-                enabled=False,
-            )
-        )
-
-        # Status action
+        # Status action (keybind only)
         action_set.add(
             Action(
                 id="check_count",
                 label="Check count",
                 handler="_action_check_count",
-                hidden=True,
-                enabled=True,
+                is_enabled="_is_check_count_enabled",
+                is_hidden="_is_check_count_hidden",
             )
         )
 
@@ -388,71 +347,137 @@ class NinetyNineGame(Game):
         is_current = self.current_player == player
         is_playing = self.status == "playing"
         has_pending_choice = self.pending_choice is not None
+        needs_to_draw = self.pending_draw_player_id == player.id
 
-        # Hide all card slots first
-        for i in range(1, 14):
-            turn_set.hide(f"card_slot_{i}")
-            turn_set.disable(f"card_slot_{i}")
+        # Remove old dynamic actions
+        turn_set.remove_by_prefix("card_slot_")
+        turn_set.remove("choice_1")
+        turn_set.remove("choice_2")
+        turn_set.remove("draw_card")
 
-        # Show cards in hand
+        # Add card slot actions for cards in hand
         for i, card in enumerate(player.hand, 1):
             action_id = f"card_slot_{i}"
-            turn_set.set_label(action_id, card_name(card, locale))
-            turn_set.show(action_id)
-            if is_playing and is_current and not has_pending_choice:
-                turn_set.enable(action_id)
-
-        # Handle choice actions
-        if has_pending_choice and is_current:
-            turn_set.show("choice_1")
-            turn_set.show("choice_2")
-            turn_set.enable("choice_1")
-            turn_set.enable("choice_2")
-
-            if self.pending_choice == "ace":
-                turn_set.set_label(
-                    "choice_1", Localization.get(locale, "ninetynine-ace-add-eleven")
+            turn_set.add(
+                Action(
+                    id=action_id,
+                    label=card_name(card, locale),
+                    handler="_action_play_card",
+                    is_enabled="_is_card_slot_enabled",
+                    is_hidden="_is_card_slot_hidden",
                 )
-                turn_set.set_label(
-                    "choice_2", Localization.get(locale, "ninetynine-ace-add-one")
-                )
-            elif self.pending_choice == "ten":
-                turn_set.set_label(
-                    "choice_1", Localization.get(locale, "ninetynine-ten-add")
-                )
-                turn_set.set_label(
-                    "choice_2", Localization.get(locale, "ninetynine-ten-subtract")
-                )
-        else:
-            turn_set.hide("choice_1")
-            turn_set.hide("choice_2")
-            turn_set.disable("choice_1")
-            turn_set.disable("choice_2")
-
-        # Handle draw action (for manual draw mode)
-        needs_to_draw = self.pending_draw_player_id == player.id
-        if needs_to_draw and is_playing:
-            turn_set.set_label(
-                "draw_card", Localization.get(locale, "ninetynine-draw-card")
             )
-            turn_set.show("draw_card")
-            turn_set.enable("draw_card")
-            # Disable card slots while waiting for draw
-            for i in range(1, 14):
-                turn_set.disable(f"card_slot_{i}")
-        else:
-            turn_set.hide("draw_card")
-            turn_set.disable("draw_card")
 
-    def update_turn_actions(self, player: NinetyNinePlayer) -> None:
+        # Add choice actions if needed
+        if has_pending_choice and is_current:
+            if self.pending_choice == "ace":
+                choice_1_label = Localization.get(locale, "ninetynine-ace-add-eleven")
+                choice_2_label = Localization.get(locale, "ninetynine-ace-add-one")
+            elif self.pending_choice == "ten":
+                choice_1_label = Localization.get(locale, "ninetynine-ten-add")
+                choice_2_label = Localization.get(locale, "ninetynine-ten-subtract")
+            else:
+                choice_1_label = "Choice 1"
+                choice_2_label = "Choice 2"
+
+            turn_set.add(
+                Action(
+                    id="choice_1",
+                    label=choice_1_label,
+                    handler="_action_choice_1",
+                    is_enabled="_is_choice_enabled",
+                    is_hidden="_is_choice_hidden",
+                )
+            )
+            turn_set.add(
+                Action(
+                    id="choice_2",
+                    label=choice_2_label,
+                    handler="_action_choice_2",
+                    is_enabled="_is_choice_enabled",
+                    is_hidden="_is_choice_hidden",
+                )
+            )
+
+        # Add draw action if in manual draw mode
+        if needs_to_draw and is_playing:
+            turn_set.add(
+                Action(
+                    id="draw_card",
+                    label=Localization.get(locale, "ninetynine-draw-card"),
+                    handler="_action_draw_card",
+                    is_enabled="_is_draw_enabled",
+                    is_hidden="_is_draw_hidden",
+                )
+            )
+
+    # ==========================================================================
+    # Declarative Action Callbacks
+    # ==========================================================================
+
+    def _is_check_count_enabled(self, player: Player) -> str | None:
+        """Check if check count action is enabled."""
+        if self.status != "playing":
+            return "action-not-playing"
+        return None
+
+    def _is_check_count_hidden(self, player: Player) -> Visibility:
+        """Check count is always hidden (keybind only)."""
+        return Visibility.HIDDEN
+
+    def _is_card_slot_enabled(self, player: Player) -> str | None:
+        """Check if card slot actions are enabled."""
+        if self.status != "playing":
+            return "action-not-playing"
+        if self.current_player != player:
+            return "action-not-your-turn"
+        if self.pending_choice is not None:
+            return "ninetynine-choose-first"
+        nn_player: NinetyNinePlayer = player  # type: ignore
+        if self.pending_draw_player_id == nn_player.id:
+            return "ninetynine-draw-first"
+        return None
+
+    def _is_card_slot_hidden(self, player: Player) -> Visibility:
+        """Card slots are visible during play."""
+        if self.status != "playing":
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
+
+    def _is_choice_enabled(self, player: Player) -> str | None:
+        """Check if choice actions are enabled."""
+        if self.status != "playing":
+            return "action-not-playing"
+        if self.current_player != player:
+            return "action-not-your-turn"
+        return None
+
+    def _is_choice_hidden(self, player: Player) -> Visibility:
+        """Choice actions are visible during play."""
+        if self.status != "playing":
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
+
+    def _is_draw_enabled(self, player: Player) -> str | None:
+        """Check if draw action is enabled."""
+        if self.status != "playing":
+            return "action-not-playing"
+        return None
+
+    def _is_draw_hidden(self, player: Player) -> Visibility:
+        """Draw action is visible during play."""
+        if self.status != "playing":
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
+
+    def _update_turn_actions(self, player: NinetyNinePlayer) -> None:
         """Update turn action availability for a player."""
         self._update_card_actions(player)
-        self.update_standard_actions(player)
 
-    def update_all_turn_actions(self) -> None:
+    def _update_all_turn_actions(self) -> None:
         """Update turn actions for all players."""
         for player in self.players:
-            self.update_turn_actions(player)
+            self._update_turn_actions(player)
 
     # ==========================================================================
     # Game Flow
@@ -475,10 +500,6 @@ class NinetyNineGame(Game):
         # Initialize player tokens
         for player in active_players:
             player.tokens = self.options.starting_tokens
-
-        # Update actions
-        self.update_all_lobby_actions()
-        self.update_all_options_actions()
 
         # Play music
         self.play_music("game_ninetynine/mus.ogg")
@@ -548,7 +569,7 @@ class NinetyNineGame(Game):
         if player.is_bot:
             BotHelper.jolt_bot(player, ticks=random.randint(20, 40))
 
-        self.update_all_turn_actions()
+        self._update_all_turn_actions()
         self.rebuild_all_menus()
 
     def _has_safe_card(self, player: NinetyNinePlayer) -> bool:
@@ -660,7 +681,7 @@ class NinetyNineGame(Game):
             user = self.get_user(player)
             if user:
                 user.speak_l("ninetynine-ace-choice")
-            self.update_all_turn_actions()
+            self._update_all_turn_actions()
             self.rebuild_all_menus()
             return
 
@@ -670,7 +691,7 @@ class NinetyNineGame(Game):
             user = self.get_user(player)
             if user:
                 user.speak_l("ninetynine-ten-choice")
-            self.update_all_turn_actions()
+            self._update_all_turn_actions()
             self.rebuild_all_menus()
             return
 
@@ -791,14 +812,14 @@ class NinetyNineGame(Game):
             if drawn:
                 player.hand.append(drawn)
                 self._sort_hand(player)
-            self.update_all_turn_actions()
+            self._update_all_turn_actions()
             self._advance_turn()
         else:
             # Manual draw mode
             self.pending_draw_player_id = player.id
             self.draw_timeout_ticks = DRAW_TIMEOUT_TICKS
             self._advance_turn()
-            self.update_all_turn_actions()
+            self._update_all_turn_actions()
             self.rebuild_all_menus()
             user = self.get_user(player)
             if user:
@@ -1003,7 +1024,7 @@ class NinetyNineGame(Game):
 
         self.pending_draw_player_id = None
         self.draw_timeout_ticks = 0
-        self.update_all_turn_actions()
+        self._update_all_turn_actions()
         self.rebuild_all_menus()
 
     def _action_check_count(self, player: Player, action_id: str) -> None:
@@ -1043,7 +1064,7 @@ class NinetyNineGame(Game):
                             self._player_out_of_cards(draw_player)
                             return
 
-                        self.update_all_turn_actions()
+                        self._update_all_turn_actions()
                         self.rebuild_all_menus()
 
         BotHelper.on_tick(self)

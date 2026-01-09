@@ -36,3 +36,9 @@ threes-tie = { $players } tie with { $score } points!
 threes-set-rounds = Rounds: { $rounds }
 threes-enter-rounds = Enter number of rounds:
 threes-option-changed-rounds = Number of rounds set to { $rounds }.
+
+# Disabled reasons
+threes-must-bank = You must bank now.
+threes-roll-first = You need to roll first.
+threes-keep-all-first = Keep all dice first to bank.
+threes-last-die = This is your last die.

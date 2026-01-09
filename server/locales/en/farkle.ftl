@@ -45,3 +45,7 @@ farkle-no-turn = No one is currently taking a turn.
 farkle-set-target-score = Target score: { $score }
 farkle-enter-target-score = Enter target score (500-5000):
 farkle-option-changed-target = Target score set to { $score }.
+
+# Disabled action reasons
+farkle-must-take-combo = You must take a scoring combination first.
+farkle-cannot-bank = You cannot bank right now.
