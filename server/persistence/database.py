@@ -103,6 +103,52 @@ class Database:
             )
         """)
 
+        # Game results (for statistics)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS game_results (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                game_type TEXT NOT NULL,
+                timestamp TEXT NOT NULL,
+                duration_ticks INTEGER,
+                custom_data TEXT
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS game_result_players (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                result_id INTEGER REFERENCES game_results(id) ON DELETE CASCADE,
+                player_id TEXT NOT NULL,
+                player_name TEXT NOT NULL,
+                is_bot INTEGER NOT NULL
+            )
+        """)
+
+        # Indexes for game results
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_game_results_type
+            ON game_results(game_type)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_game_results_timestamp
+            ON game_results(timestamp)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_result_players_player
+            ON game_result_players(player_id)
+        """)
+
+        # Player ratings (for skill-based matchmaking)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS player_ratings (
+                player_id TEXT NOT NULL,
+                game_type TEXT NOT NULL,
+                mu REAL NOT NULL,
+                sigma REAL NOT NULL,
+                PRIMARY KEY (player_id, game_type)
+            )
+        """)
+
         self._conn.commit()
 
     # User operations
@@ -329,3 +375,294 @@ class Database:
         cursor = self._conn.cursor()
         cursor.execute("DELETE FROM saved_tables WHERE id = ?", (save_id,))
         self._conn.commit()
+
+    # Game result operations (statistics)
+
+    def save_game_result(
+        self,
+        game_type: str,
+        timestamp: str,
+        duration_ticks: int,
+        players: list[tuple[str, str, bool]],  # (player_id, player_name, is_bot)
+        custom_data: dict | None = None,
+    ) -> int:
+        """
+        Save a game result to the database.
+
+        Args:
+            game_type: The game type identifier
+            timestamp: ISO format timestamp
+            duration_ticks: Game duration in ticks
+            players: List of (player_id, player_name, is_bot) tuples
+            custom_data: Game-specific result data
+
+        Returns:
+            The result ID
+        """
+        cursor = self._conn.cursor()
+
+        # Insert the main result record
+        cursor.execute(
+            """
+            INSERT INTO game_results (game_type, timestamp, duration_ticks, custom_data)
+            VALUES (?, ?, ?, ?)
+            """,
+            (
+                game_type,
+                timestamp,
+                duration_ticks,
+                json.dumps(custom_data) if custom_data else None,
+            ),
+        )
+        result_id = cursor.lastrowid
+
+        # Insert player records
+        for player_id, player_name, is_bot in players:
+            cursor.execute(
+                """
+                INSERT INTO game_result_players (result_id, player_id, player_name, is_bot)
+                VALUES (?, ?, ?, ?)
+                """,
+                (result_id, player_id, player_name, 1 if is_bot else 0),
+            )
+
+        self._conn.commit()
+        return result_id
+
+    def get_player_game_history(
+        self,
+        player_id: str,
+        game_type: str | None = None,
+        limit: int = 50,
+    ) -> list[dict]:
+        """
+        Get a player's game history.
+
+        Args:
+            player_id: The player ID to look up
+            game_type: Optional filter by game type
+            limit: Maximum number of results
+
+        Returns:
+            List of game result dictionaries
+        """
+        cursor = self._conn.cursor()
+
+        if game_type:
+            cursor.execute(
+                """
+                SELECT gr.id, gr.game_type, gr.timestamp, gr.duration_ticks, gr.custom_data
+                FROM game_results gr
+                INNER JOIN game_result_players grp ON gr.id = grp.result_id
+                WHERE grp.player_id = ? AND gr.game_type = ?
+                ORDER BY gr.timestamp DESC
+                LIMIT ?
+                """,
+                (player_id, game_type, limit),
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT gr.id, gr.game_type, gr.timestamp, gr.duration_ticks, gr.custom_data
+                FROM game_results gr
+                INNER JOIN game_result_players grp ON gr.id = grp.result_id
+                WHERE grp.player_id = ?
+                ORDER BY gr.timestamp DESC
+                LIMIT ?
+                """,
+                (player_id, limit),
+            )
+
+        results = []
+        for row in cursor.fetchall():
+            results.append({
+                "id": row["id"],
+                "game_type": row["game_type"],
+                "timestamp": row["timestamp"],
+                "duration_ticks": row["duration_ticks"],
+                "custom_data": json.loads(row["custom_data"]) if row["custom_data"] else {},
+            })
+        return results
+
+    def get_game_result_players(self, result_id: int) -> list[dict]:
+        """Get all players for a specific game result."""
+        cursor = self._conn.cursor()
+        cursor.execute(
+            """
+            SELECT player_id, player_name, is_bot
+            FROM game_result_players
+            WHERE result_id = ?
+            """,
+            (result_id,),
+        )
+        return [
+            {
+                "player_id": row["player_id"],
+                "player_name": row["player_name"],
+                "is_bot": bool(row["is_bot"]),
+            }
+            for row in cursor.fetchall()
+        ]
+
+    def get_game_stats(self, game_type: str, limit: int | None = None) -> list[tuple]:
+        """
+        Get game results for a game type.
+
+        Args:
+            game_type: The game type to query
+            limit: Optional maximum number of results
+
+        Returns:
+            List of tuples: (id, game_type, timestamp, duration_ticks, custom_data)
+        """
+        cursor = self._conn.cursor()
+
+        if limit:
+            cursor.execute(
+                """
+                SELECT id, game_type, timestamp, duration_ticks, custom_data
+                FROM game_results
+                WHERE game_type = ?
+                ORDER BY timestamp DESC
+                LIMIT ?
+                """,
+                (game_type, limit),
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT id, game_type, timestamp, duration_ticks, custom_data
+                FROM game_results
+                WHERE game_type = ?
+                ORDER BY timestamp DESC
+                """,
+                (game_type,),
+            )
+
+        return [
+            (row["id"], row["game_type"], row["timestamp"], row["duration_ticks"], row["custom_data"])
+            for row in cursor.fetchall()
+        ]
+
+    def get_game_stats_aggregate(self, game_type: str) -> dict:
+        """
+        Get aggregate statistics for a game type.
+
+        Returns:
+            Dictionary with total_games, total_duration_ticks, etc.
+        """
+        cursor = self._conn.cursor()
+        cursor.execute(
+            """
+            SELECT
+                COUNT(*) as total_games,
+                SUM(duration_ticks) as total_duration,
+                AVG(duration_ticks) as avg_duration
+            FROM game_results
+            WHERE game_type = ?
+            """,
+            (game_type,),
+        )
+        row = cursor.fetchone()
+        return {
+            "total_games": row["total_games"] or 0,
+            "total_duration_ticks": row["total_duration"] or 0,
+            "avg_duration_ticks": row["avg_duration"] or 0,
+        }
+
+    def get_player_stats(self, player_id: str, game_type: str | None = None) -> dict:
+        """
+        Get statistics for a player.
+
+        Args:
+            player_id: The player ID
+            game_type: Optional filter by game type
+
+        Returns:
+            Dictionary with games_played, etc.
+        """
+        cursor = self._conn.cursor()
+
+        if game_type:
+            cursor.execute(
+                """
+                SELECT COUNT(*) as games_played
+                FROM game_result_players grp
+                INNER JOIN game_results gr ON grp.result_id = gr.id
+                WHERE grp.player_id = ? AND gr.game_type = ?
+                """,
+                (player_id, game_type),
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT COUNT(*) as games_played
+                FROM game_result_players
+                WHERE player_id = ?
+                """,
+                (player_id,),
+            )
+
+        row = cursor.fetchone()
+        return {
+            "games_played": row["games_played"] or 0,
+        }
+
+    # Player rating operations
+
+    def get_player_rating(
+        self, player_id: str, game_type: str
+    ) -> tuple[float, float] | None:
+        """
+        Get a player's rating for a game type.
+
+        Returns:
+            (mu, sigma) tuple or None if no rating exists
+        """
+        cursor = self._conn.cursor()
+        cursor.execute(
+            """
+            SELECT mu, sigma FROM player_ratings
+            WHERE player_id = ? AND game_type = ?
+            """,
+            (player_id, game_type),
+        )
+        row = cursor.fetchone()
+        if row:
+            return (row["mu"], row["sigma"])
+        return None
+
+    def set_player_rating(
+        self, player_id: str, game_type: str, mu: float, sigma: float
+    ) -> None:
+        """Set or update a player's rating for a game type."""
+        cursor = self._conn.cursor()
+        cursor.execute(
+            """
+            INSERT OR REPLACE INTO player_ratings (player_id, game_type, mu, sigma)
+            VALUES (?, ?, ?, ?)
+            """,
+            (player_id, game_type, mu, sigma),
+        )
+        self._conn.commit()
+
+    def get_rating_leaderboard(
+        self, game_type: str, limit: int = 10
+    ) -> list[tuple[str, float, float]]:
+        """
+        Get the rating leaderboard for a game type.
+
+        Returns:
+            List of (player_id, mu, sigma) tuples sorted by mu descending
+        """
+        cursor = self._conn.cursor()
+        cursor.execute(
+            """
+            SELECT player_id, mu, sigma FROM player_ratings
+            WHERE game_type = ?
+            ORDER BY mu DESC
+            LIMIT ?
+            """,
+            (game_type, limit),
+        )
+        return [(row["player_id"], row["mu"], row["sigma"]) for row in cursor.fetchall()]

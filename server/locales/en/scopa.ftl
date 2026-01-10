@@ -58,5 +58,10 @@ scopa-option-changed-instant = Instant win on scopa { $enabled }.
 scopa-option-changed-team-scoring = Team card scoring { $enabled }.
 scopa-option-changed-inverse = Inverse mode { $enabled }.
 
+# Scopa mechanic choices
+scopa-mechanic-normal = Normal
+scopa-mechanic-no_scopas = No Scopas
+scopa-mechanic-only_scopas = Scopas Only
+
 # Disabled action reasons
 scopa-timer-not-active = The round timer is not active.

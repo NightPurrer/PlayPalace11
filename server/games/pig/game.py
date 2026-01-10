@@ -6,12 +6,14 @@ Supports individual and team modes via TeamManager.
 """
 
 from dataclasses import dataclass, field
+from datetime import datetime
 import random
 
 from ..base import Game, Player, GameOptions
 from ..registry import register_game
 from ...game_utils.actions import Action, ActionSet, Visibility
 from ...game_utils.bot_helper import BotHelper
+from ...game_utils.game_result import GameResult, PlayerResult
 from ...game_utils.options import IntOption, MenuOption, option_field
 from ...game_utils.teams import TeamManager
 from ...messages.localization import Localization
@@ -420,8 +422,6 @@ class PigGame(Game):
             self.play_sound("game_pig/win.ogg")
             self.broadcast_l("pig-winner", player=winners[0].name)
             self.finish_game()
-            if not self._destroyed:
-                self._on_game_end()
         elif len(winners) > 1:
             # Tiebreaker! Start immediately (no delay)
             names = [w.name for w in winners]
@@ -442,16 +442,51 @@ class PigGame(Game):
             # No winner yet, continue to next round
             self._start_round()
 
-    def _on_game_end(self) -> None:
-        """Handle game ending - show final scores and cleanup."""
+    def build_game_result(self) -> GameResult:
+        """Build the game result with Pig-specific data."""
         sorted_teams = self._team_manager.get_sorted_teams(
             by_score=True, descending=True
         )
-        lines = ["Final Scores:"]
-        for i, team in enumerate(sorted_teams, 1):
+        winner = sorted_teams[0] if sorted_teams else None
+
+        # Build final scores dict
+        final_scores = {}
+        for team in sorted_teams:
             name = self._team_manager.get_team_name(team)
-            lines.append(f"{i}. {name}: {team.total_score} points")
-        self.show_game_end_menu(lines)
+            final_scores[name] = team.total_score
+
+        return GameResult(
+            game_type=self.get_type(),
+            timestamp=datetime.now().isoformat(),
+            duration_ticks=self.sound_scheduler_tick,
+            player_results=[
+                PlayerResult(
+                    player_id=p.id,
+                    player_name=p.name,
+                    is_bot=p.is_bot,
+                )
+                for p in self.get_active_players()
+            ],
+            custom_data={
+                "winner_name": self._team_manager.get_team_name(winner) if winner else None,
+                "winner_score": winner.total_score if winner else 0,
+                "final_scores": final_scores,
+                "rounds_played": self.round,
+                "target_score": self.options.target_score,
+                "team_mode": self.options.team_mode,
+            },
+        )
+
+    def format_end_screen(self, result: GameResult, locale: str) -> list[str]:
+        """Format the end screen for Pig game."""
+        lines = [Localization.get(locale, "game-final-scores")]
+
+        final_scores = result.custom_data.get("final_scores", {})
+        for i, (name, score) in enumerate(final_scores.items(), 1):
+            points_str = Localization.get(locale, "game-points", count=score)
+            lines.append(f"{i}. {name}: {points_str}")
+
+        return lines
 
     def end_turn(self, jolt_min: int = 20, jolt_max: int = 30) -> None:
         """Override to use Pig's turn advancement logic."""

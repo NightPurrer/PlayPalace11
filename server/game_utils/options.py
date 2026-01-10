@@ -133,12 +133,31 @@ class MenuOption(OptionMeta):
         default_factory=list
     )
     value_key: str = "mode"  # Key used in localization
+    # Map choice values to localization keys for display
+    # If not provided, raw choice values are displayed
+    choice_labels: dict[str, str] | None = None
+
+    def get_localized_choice(self, value: str, locale: str) -> str:
+        """Get the localized display text for a choice value."""
+        if self.choice_labels and value in self.choice_labels:
+            return Localization.get(locale, self.choice_labels[value])
+        return value
 
     def get_label_kwargs(self, value: Any) -> dict[str, Any]:
         return {self.value_key: value}
 
+    def get_label_kwargs_localized(self, value: Any, locale: str) -> dict[str, Any]:
+        """Get kwargs with localized choice value."""
+        display_value = self.get_localized_choice(value, locale)
+        return {self.value_key: display_value}
+
     def get_change_kwargs(self, value: Any) -> dict[str, Any]:
         return {self.value_key: value}
+
+    def get_change_kwargs_localized(self, value: Any, locale: str) -> dict[str, Any]:
+        """Get kwargs with localized choice value for change message."""
+        display_value = self.get_localized_choice(value, locale)
+        return {self.value_key: display_value}
 
     def create_action(
         self,
@@ -148,8 +167,9 @@ class MenuOption(OptionMeta):
         current_value: Any,
         locale: str,
     ) -> Action:
+        # Use localized choice value in the label
         label = Localization.get(
-            locale, self.label, **self.get_label_kwargs(current_value)
+            locale, self.label, **self.get_label_kwargs_localized(current_value, locale)
         )
 
         return Action(
@@ -167,6 +187,12 @@ class MenuOption(OptionMeta):
     def validate_and_convert(self, value: str) -> tuple[bool, Any]:
         # For menu options, the value comes from a predefined list, so it's valid
         return True, value
+
+    def get_choices(self, game: "Game", player: "Player") -> list[str]:
+        """Get the list of choices for this option."""
+        if callable(self.choices):
+            return self.choices(game, player)
+        return list(self.choices)
 
 
 @dataclass

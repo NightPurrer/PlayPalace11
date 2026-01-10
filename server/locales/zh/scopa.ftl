@@ -57,3 +57,11 @@ scopa-option-changed-mechanic = Scopa 机制已设为 { $mechanic }。
 scopa-option-changed-instant = Scopa 即时胜利 { $enabled }。
 scopa-option-changed-team-scoring = 团队合并计分 { $enabled }。
 scopa-option-changed-inverse = 反向模式 { $enabled }。
+
+# Scopa 机制选项
+scopa-mechanic-normal = 普通
+scopa-mechanic-no_scopas = 无Scopa
+scopa-mechanic-only_scopas = 仅Scopa
+
+# 操作禁用原因
+scopa-timer-not-active = 回合计时器未激活。

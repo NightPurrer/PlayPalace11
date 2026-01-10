@@ -8,12 +8,14 @@ Rules match v10 implementation with Quentin C and RS Games variants.
 """
 
 from dataclasses import dataclass, field
+from datetime import datetime
 import random
 
 from ..base import Game, Player, GameOptions
 from ..registry import register_game
 from ...game_utils.actions import Action, ActionSet, Visibility
 from ...game_utils.bot_helper import BotHelper
+from ...game_utils.game_result import GameResult, PlayerResult
 from ...game_utils.cards import (
     Card,
     Deck,
@@ -102,6 +104,10 @@ class NinetyNineOptions(GameOptions):
             default="quentin_c",
             value_key="rules",
             choices=["quentin_c", "rs_games"],
+            choice_labels={
+                "quentin_c": "ninetynine-rules-variant-quentin_c",
+                "rs_games": "ninetynine-rules-variant-rs_games",
+            },
             label="ninetynine-set-rules",
             prompt="ninetynine-select-rules",
             change_msg="ninetynine-option-changed-rules",
@@ -983,17 +989,54 @@ class NinetyNineGame(Game):
             self.broadcast_l("ninetynine-player-wins", player=winner.name)
 
         self.finish_game()
-        self._show_final_scores()
 
-    def _show_final_scores(self) -> None:
-        """Show final scores to all players."""
+    def build_game_result(self) -> GameResult:
+        """Build the game result with NinetyNine-specific data."""
         sorted_players = sorted(
             self.get_active_players(), key=lambda p: p.tokens, reverse=True
         )
-        lines = ["Final Results:"]
-        for i, player in enumerate(sorted_players, 1):
-            lines.append(f"{i}. {player.name}: {player.tokens} tokens")
-        self.show_game_end_menu(lines)
+
+        # Build final tokens
+        final_tokens = {}
+        for p in sorted_players:
+            nn_p: NinetyNinePlayer = p  # type: ignore
+            final_tokens[p.name] = nn_p.tokens
+
+        winner = sorted_players[0] if sorted_players else None
+        winner_nn: NinetyNinePlayer = winner  # type: ignore
+
+        return GameResult(
+            game_type=self.get_type(),
+            timestamp=datetime.now().isoformat(),
+            duration_ticks=self.sound_scheduler_tick,
+            player_results=[
+                PlayerResult(
+                    player_id=p.id,
+                    player_name=p.name,
+                    is_bot=p.is_bot,
+                )
+                for p in self.get_active_players()
+            ],
+            custom_data={
+                "winner_name": winner.name if winner else None,
+                "winner_tokens": winner_nn.tokens if winner_nn else 0,
+                "final_tokens": final_tokens,
+                "rounds_played": self.round,
+                "starting_tokens": self.options.starting_tokens,
+            },
+        )
+
+    def format_end_screen(self, result: GameResult, locale: str) -> list[str]:
+        """Format the end screen for NinetyNine game."""
+        from ...messages.localization import Localization
+
+        lines = [Localization.get(locale, "game-final-scores")]
+
+        final_tokens = result.custom_data.get("final_tokens", {})
+        for i, (name, tokens) in enumerate(final_tokens.items(), 1):
+            lines.append(f"{i}. {name}: {tokens} tokens")
+
+        return lines
 
     def _action_draw_card(self, player: Player, action_id: str) -> None:
         """Handle manual card draw."""

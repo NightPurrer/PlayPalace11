@@ -171,18 +171,5 @@ def declare_winner(game: "ScopaGame", team: Team) -> None:
     game.play_sound("game_pig/win.ogg")
 
     # Mark game as finished (auto-destroys if no humans)
+    # finish_game() now handles both persisting the result and showing the end screen
     game.finish_game()
-
-    # Show final menu (only if not destroyed)
-    if not game._destroyed:
-        show_game_end(game)
-
-
-def show_game_end(game: "ScopaGame") -> None:
-    """Handle game ending - show final scores."""
-    sorted_teams = game.team_manager.get_sorted_teams(by_score=True, descending=True)
-    lines = []
-    for i, team in enumerate(sorted_teams, 1):
-        name = game.team_manager.get_team_name(team)
-        lines.append(f"{i}. {name}: {team.total_score} points")
-    game.show_game_end_menu(lines)

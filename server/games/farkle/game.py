@@ -6,12 +6,14 @@ Push your luck by rolling again or bank your points.
 """
 
 from dataclasses import dataclass, field
+from datetime import datetime
 import random
 
 from ..base import Game, Player, GameOptions
 from ..registry import register_game
 from ...game_utils.actions import Action, ActionSet, Visibility
 from ...game_utils.bot_helper import BotHelper
+from ...game_utils.game_result import GameResult, PlayerResult
 from ...game_utils.options import IntOption, option_field
 from ...messages.localization import Localization
 from ...ui.keybinds import KeybindState
@@ -26,6 +28,9 @@ class FarklePlayer(Player):
     current_roll: list[int] = field(default_factory=list)  # Dice available to take
     banked_dice: list[int] = field(default_factory=list)  # Dice taken this turn
     has_taken_combo: bool = False  # True after taking a combo (enables roll)
+    # Stats tracking
+    turns_taken: int = 0  # Number of turns completed (for avg points per turn)
+    best_turn: int = 0  # Highest points banked in a single turn
 
 
 @dataclass
@@ -306,6 +311,25 @@ class FarkleGame(Game):
     @classmethod
     def get_max_players(cls) -> int:
         return 4
+
+    @classmethod
+    def get_leaderboard_types(cls) -> list[dict]:
+        return [
+            {
+                "id": "avg_points_per_turn",
+                "numerator": "player_stats.{player_name}.total_score",
+                "denominator": "player_stats.{player_name}.turns_taken",
+                "aggregate": "sum",  # sum num/sum denom across games
+                "format": "avg",
+                "decimals": 1,
+            },
+            {
+                "id": "best_single_turn",
+                "path": "player_stats.{player_name}.best_turn",
+                "aggregate": "max",
+                "format": "score",
+            },
+        ]
 
     def create_player(
         self, player_id: str, name: str, is_bot: bool = False
@@ -641,6 +665,8 @@ class FarkleGame(Game):
             self.broadcast_l(
                 "farkle-farkle", player=player.name, points=farkle_player.turn_score
             )
+            # Track turn (farkle = 0 points banked)
+            farkle_player.turns_taken += 1
             farkle_player.turn_score = 0
             farkle_player.current_roll = []
             farkle_player.banked_dice = []
@@ -804,6 +830,11 @@ class FarkleGame(Game):
     def _action_bank(self, player: Player, action_id: str) -> None:
         """Handle bank action."""
         farkle_player: FarklePlayer = player  # type: ignore
+
+        # Track stats before resetting
+        farkle_player.turns_taken += 1
+        if farkle_player.turn_score > farkle_player.best_turn:
+            farkle_player.best_turn = farkle_player.turn_score
 
         # Add turn score to permanent score
         farkle_player.score += farkle_player.turn_score
@@ -1019,8 +1050,6 @@ class FarkleGame(Game):
                 "farkle-winner", player=winners[0].name, score=winner_farkle.score
             )
             self.finish_game()
-            if not self._destroyed:
-                self._on_game_end()
         elif len(winners) > 1:
             # Tie - announce winners
             names = [w.name for w in winners]
@@ -1040,18 +1069,61 @@ class FarkleGame(Game):
             # No winner yet
             self._start_round()
 
-    def _on_game_end(self) -> None:
-        """Handle game ending - show final scores."""
-        lines = ["Final Scores:"]
+    def build_game_result(self) -> GameResult:
+        """Build the game result with Farkle-specific data."""
         sorted_players = sorted(
             self.get_active_players(),
             key=lambda p: p.score,  # type: ignore
             reverse=True,
         )
-        for i, p in enumerate(sorted_players, 1):
+
+        # Build final scores and per-player stats
+        final_scores = {}
+        player_stats = {}
+        for p in sorted_players:
             farkle_p: FarklePlayer = p  # type: ignore
-            lines.append(f"{i}. {p.name}: {farkle_p.score} points")
-        self.show_game_end_menu(lines)
+            final_scores[p.name] = farkle_p.score
+            player_stats[p.name] = {
+                "turns_taken": farkle_p.turns_taken,
+                "best_turn": farkle_p.best_turn,
+                "total_score": farkle_p.score,
+            }
+
+        winner = sorted_players[0] if sorted_players else None
+        winner_farkle: FarklePlayer = winner  # type: ignore
+
+        return GameResult(
+            game_type=self.get_type(),
+            timestamp=datetime.now().isoformat(),
+            duration_ticks=self.sound_scheduler_tick,
+            player_results=[
+                PlayerResult(
+                    player_id=p.id,
+                    player_name=p.name,
+                    is_bot=p.is_bot,
+                )
+                for p in self.get_active_players()
+            ],
+            custom_data={
+                "winner_name": winner.name if winner else None,
+                "winner_score": winner_farkle.score if winner_farkle else 0,
+                "final_scores": final_scores,
+                "player_stats": player_stats,
+                "rounds_played": self.round,
+                "target_score": self.options.target_score,
+            },
+        )
+
+    def format_end_screen(self, result: GameResult, locale: str) -> list[str]:
+        """Format the end screen for Farkle game."""
+        lines = [Localization.get(locale, "game-final-scores")]
+
+        final_scores = result.custom_data.get("final_scores", {})
+        for i, (name, score) in enumerate(final_scores.items(), 1):
+            points_str = Localization.get(locale, "game-points", count=score)
+            lines.append(f"{i}. {name}: {points_str}")
+
+        return lines
 
     def end_turn(self, jolt_min: int = 20, jolt_max: int = 30) -> None:
         """End the current player's turn."""

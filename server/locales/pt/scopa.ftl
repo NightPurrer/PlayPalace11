@@ -57,3 +57,11 @@ scopa-option-changed-mechanic = Mecânica de scopa definida para { $mechanic }.
 scopa-option-changed-instant = Vitória instantânea com scopa { $enabled }.
 scopa-option-changed-team-scoring = Pontuação de cartas da equipe { $enabled }.
 scopa-option-changed-inverse = Modo inverso { $enabled }.
+
+# Opções de mecânica de scopa
+scopa-mechanic-normal = Normal
+scopa-mechanic-no_scopas = Sem Scopas
+scopa-mechanic-only_scopas = Apenas Scopas
+
+# Razões para ações desabilitadas
+scopa-timer-not-active = O temporizador da rodada não está ativo.

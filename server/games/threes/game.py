@@ -6,6 +6,8 @@ Threes = 0 points. Lowest score wins!
 """
 
 from dataclasses import dataclass, field
+from datetime import datetime
+import random
 
 from ..base import Game, Player
 from ..registry import register_game
@@ -13,6 +15,7 @@ from ...game_utils.actions import Action, ActionSet, Visibility
 from ...game_utils.bot_helper import BotHelper
 from ...game_utils.dice import DiceSet
 from ...game_utils.dice_game_mixin import DiceGameMixin
+from ...game_utils.game_result import GameResult, PlayerResult
 from ...game_utils.options import IntOption, option_field, GameOptions
 from ...messages.localization import Localization
 from ...ui.keybinds import KeybindState
@@ -415,19 +418,55 @@ class ThreesGame(Game, DiceGameMixin):
             winner_names = " and ".join(w.name for w in winners)
             self.broadcast_l("threes-tie", players=winner_names, score=lowest_score)
 
-        self._show_game_end()
         self.finish_game()
 
-    def _show_game_end(self) -> None:
-        """Show the game end menu to all players."""
+    def build_game_result(self) -> GameResult:
+        """Build the game result with Threes-specific data."""
+        # Sorted by score ascending (lowest wins)
         sorted_players = sorted(
             [p for p in self.players if isinstance(p, ThreesPlayer)],
             key=lambda p: p.total_score,
         )
-        lines = ["Final Scores:"]
-        for i, p in enumerate(sorted_players, 1):
-            lines.append(f"{i}. {p.name}: {p.total_score} points")
-        self.show_game_end_menu(lines)
+
+        # Build final scores
+        final_scores = {}
+        for p in sorted_players:
+            final_scores[p.name] = p.total_score
+
+        winner = sorted_players[0] if sorted_players else None
+
+        return GameResult(
+            game_type=self.get_type(),
+            timestamp=datetime.now().isoformat(),
+            duration_ticks=self.sound_scheduler_tick,
+            player_results=[
+                PlayerResult(
+                    player_id=p.id,
+                    player_name=p.name,
+                    is_bot=p.is_bot,
+                )
+                for p in sorted_players
+            ],
+            custom_data={
+                "winner_name": winner.name if winner else None,
+                "winner_score": winner.total_score if winner else 0,
+                "final_scores": final_scores,
+                "rounds_played": self.current_round,
+                "total_rounds": self.options.total_rounds,
+                "scoring_mode": "lowest_wins",
+            },
+        )
+
+    def format_end_screen(self, result: GameResult, locale: str) -> list[str]:
+        """Format the end screen for Threes game."""
+        lines = [Localization.get(locale, "game-final-scores")]
+
+        final_scores = result.custom_data.get("final_scores", {})
+        for i, (name, score) in enumerate(final_scores.items(), 1):
+            points_str = Localization.get(locale, "game-points", count=score)
+            lines.append(f"{i}. {name}: {points_str}")
+
+        return lines
 
     def on_start(self) -> None:
         """Called when the game starts."""

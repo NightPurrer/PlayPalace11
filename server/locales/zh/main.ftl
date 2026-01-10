@@ -40,6 +40,8 @@ game-starting = 游戏开始！
 table-listing = { $host } 的桌台 ({ $count } 位玩家)
 table-not-exists = 桌台已不存在。
 table-full = 桌台已满。
+player-replaced-by-bot = { $player } 离开，已由机器人替代。
+player-took-over = { $player } 接管了机器人。
 spectator-joined = 已作为观众加入 { $host } 的桌台。
 
 # 观众模式
@@ -75,3 +77,38 @@ missing-players = 无法恢复：以下玩家不在线：{ $players }
 table-restored = 桌台已恢复！所有玩家已转移。
 table-saved-destroying = 桌台已保存！返回主菜单。
 game-type-not-found = 游戏类型不存在。
+
+# 排行榜
+leaderboards = 排行榜
+leaderboards-menu-title = 排行榜
+leaderboards-select-game = 选择游戏查看排行榜
+leaderboard-no-data = 此游戏暂无排行榜数据。
+
+# 排行榜类型
+leaderboard-type-wins = 胜利排行
+leaderboard-type-total-score = 总分排行
+leaderboard-type-high-score = 最高分排行
+leaderboard-type-games-played = 游戏场次排行
+leaderboard-type-avg-points-per-turn = 平均每回合得分
+leaderboard-type-best-single-turn = 单回合最高分
+leaderboard-type-score-per-round = 每轮得分
+
+# 排行榜标题
+leaderboard-wins-header = { $game } - 胜利排行
+leaderboard-total-score-header = { $game } - 总分排行
+leaderboard-high-score-header = { $game } - 最高分排行
+leaderboard-games-played-header = { $game } - 游戏场次排行
+leaderboard-rating-header = { $game } - 技能评分
+leaderboard-avg-points-header = { $game } - 平均每回合得分
+leaderboard-best-turn-header = { $game } - 单回合最高分
+leaderboard-score-per-round-header = { $game } - 每轮得分
+
+# 排行榜条目
+leaderboard-wins-entry = { $rank }：{ $player }，{ $wins }胜 { $losses }负，{ $percentage }%胜率
+leaderboard-score-entry = { $rank }. { $player }：{ $value }
+leaderboard-avg-entry = { $rank }. { $player }：{ $value } 平均
+leaderboard-games-entry = { $rank }. { $player }：{ $value } 场
+
+# 玩家统计
+leaderboard-player-stats = 您的统计：{ $wins } 胜，{ $losses } 负（{ $percentage }% 胜率）
+leaderboard-no-player-stats = 您还没有玩过这个游戏。

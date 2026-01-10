@@ -46,6 +46,8 @@ game-starting = Game starting!
 table-listing = { $host }'s table ({ $count } players)
 table-not-exists = Table no longer exists.
 table-full = Table is full.
+player-replaced-by-bot = { $player } left and was replaced by a bot.
+player-took-over = { $player } took over from the bot.
 spectator-joined = Joined { $host }'s table as a spectator.
 
 # Spectator mode
@@ -122,5 +124,52 @@ dice-no-dice = No dice available.
 game-turn-start = { $player }'s turn.
 game-no-turn = No one's turn right now.
 game-leave = Leave
+game-over = Game Over
+game-final-scores = Final Scores
+game-points = { $count } { $count ->
+    [one] point
+   *[other] points
+}
 status-box-closed = Closed.
 play = Play
+
+# Leaderboards
+leaderboards = Leaderboards
+leaderboards-menu-title = Leaderboards
+leaderboards-select-game = Select a game to view its leaderboard
+leaderboard-no-data = No leaderboard data yet for this game.
+
+# Leaderboard types
+leaderboard-type-wins = Win Leaders
+leaderboard-type-total-score = Total Score
+leaderboard-type-high-score = High Score
+leaderboard-type-games-played = Games Played
+leaderboard-type-avg-points-per-turn = Avg Points Per Turn
+leaderboard-type-best-single-turn = Best Single Turn
+leaderboard-type-score-per-round = Score Per Round
+
+# Leaderboard headers
+leaderboard-wins-header = { $game } - Win Leaders
+leaderboard-total-score-header = { $game } - Total Score
+leaderboard-high-score-header = { $game } - High Score
+leaderboard-games-played-header = { $game } - Games Played
+leaderboard-rating-header = { $game } - Skill Ratings
+leaderboard-avg-points-header = { $game } - Avg Points Per Turn
+leaderboard-best-turn-header = { $game } - Best Single Turn
+leaderboard-score-per-round-header = { $game } - Score Per Round
+
+# Leaderboard entries
+leaderboard-wins-entry = { $rank }: { $player }, { $wins } { $wins ->
+    [one] win
+   *[other] wins
+} { $losses } { $losses ->
+    [one] loss
+   *[other] losses
+}, { $percentage }% winrate
+leaderboard-score-entry = { $rank }. { $player }: { $value }
+leaderboard-avg-entry = { $rank }. { $player }: { $value } avg
+leaderboard-games-entry = { $rank }. { $player }: { $value } games
+
+# Player stats
+leaderboard-player-stats = Your stats: { $wins } wins, { $losses } losses ({ $percentage }% win rate)
+leaderboard-no-player-stats = You haven't played this game yet.

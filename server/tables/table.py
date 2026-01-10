@@ -136,3 +136,8 @@ class Table(DataClassJSONMixin):
         """Save game state and close table. Called by game save action."""
         if self._server:
             self._server.on_table_save(self, username)
+
+    def save_game_result(self, result: Any) -> None:
+        """Save a game result to the database. Called by game when it finishes."""
+        if self._server:
+            self._server.on_game_result(result)

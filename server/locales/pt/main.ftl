@@ -40,6 +40,8 @@ game-starting = O jogo está começando!
 table-listing = Mesa de { $host } ({ $count } jogadores)
 table-not-exists = A mesa não existe mais.
 table-full = A mesa está cheia.
+player-replaced-by-bot = { $player } saiu e foi substituído por um bot.
+player-took-over = { $player } assumiu o controle do bot.
 spectator-joined = Entrou na mesa de { $host } como espectador.
 
 # Modo espectador
@@ -76,3 +78,44 @@ missing-players = Não é possível restaurar: estes jogadores não estão dispo
 table-restored = Mesa restaurada! Todos os jogadores foram transferidos.
 table-saved-destroying = Mesa salva! Voltando ao menu principal.
 game-type-not-found = Este tipo de jogo não existe mais.
+
+# Placares
+leaderboards = Placares
+leaderboards-menu-title = Placares
+leaderboards-select-game = Selecione um jogo para ver seu placar
+leaderboard-no-data = Ainda não há dados de placar para este jogo.
+
+# Tipos de placar
+leaderboard-type-wins = Líderes em Vitórias
+leaderboard-type-total-score = Pontuação Total
+leaderboard-type-high-score = Maior Pontuação
+leaderboard-type-games-played = Jogos Disputados
+leaderboard-type-avg-points-per-turn = Média de Pontos por Turno
+leaderboard-type-best-single-turn = Melhor Turno
+leaderboard-type-score-per-round = Pontuação por Rodada
+
+# Cabeçalhos de placar
+leaderboard-wins-header = { $game } - Líderes em Vitórias
+leaderboard-total-score-header = { $game } - Pontuação Total
+leaderboard-high-score-header = { $game } - Maior Pontuação
+leaderboard-games-played-header = { $game } - Jogos Disputados
+leaderboard-rating-header = { $game } - Classificação de Habilidade
+leaderboard-avg-points-header = { $game } - Média de Pontos por Turno
+leaderboard-best-turn-header = { $game } - Melhor Turno
+leaderboard-score-per-round-header = { $game } - Pontuação por Rodada
+
+# Entradas de placar
+leaderboard-wins-entry = { $rank }: { $player }, { $wins } { $wins ->
+    [one] vitória
+   *[other] vitórias
+} { $losses } { $losses ->
+    [one] derrota
+   *[other] derrotas
+}, { $percentage }% de vitórias
+leaderboard-score-entry = { $rank }. { $player }: { $value }
+leaderboard-avg-entry = { $rank }. { $player }: { $value } média
+leaderboard-games-entry = { $rank }. { $player }: { $value } jogos
+
+# Estatísticas do jogador
+leaderboard-player-stats = Suas estatísticas: { $wins } vitórias, { $losses } derrotas ({ $percentage }% de vitórias)
+leaderboard-no-player-stats = Você ainda não jogou este jogo.

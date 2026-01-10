@@ -6,6 +6,7 @@ while playing hazards on opponents and defending with safeties.
 """
 
 from dataclasses import dataclass, field
+from datetime import datetime
 import random
 
 from mashumaro.mixins.json import DataClassJSONMixin
@@ -14,8 +15,10 @@ from ..base import Game, Player, GameOptions
 from ..registry import register_game
 from ...game_utils.actions import Action, ActionSet, MenuInput, Visibility
 from ...game_utils.bot_helper import BotHelper
+from ...game_utils.game_result import GameResult, PlayerResult
 from ...game_utils.options import IntOption, MenuOption, BoolOption, option_field
 from ...game_utils.round_timer import RoundTimer
+from ...messages.localization import Localization
 from ...ui.keybinds import KeybindState
 
 from .cards import (
@@ -1679,18 +1682,54 @@ class MileByMileGame(Game):
         self.broadcast_l("milebymile-final-score", score=winner_score)
 
         self.finish_game()
-        self._show_final_scores()
 
-    def _show_final_scores(self) -> None:
-        """Show final scores to all players."""
+    def build_game_result(self) -> GameResult:
+        """Build the game result with MileByMile-specific data."""
         # Sort teams by score descending
         team_scores = [(i, self.get_team_score(i)) for i in range(self.get_num_teams())]
         sorted_teams = sorted(team_scores, key=lambda t: t[1], reverse=True)
-        lines = ["Final Scores:"]
-        for i, (team_idx, score) in enumerate(sorted_teams, 1):
+
+        # Build final scores
+        final_scores = {}
+        for team_idx, score in sorted_teams:
             name = self.get_team_name(team_idx)
-            lines.append(f"{i}. {name}: {score} points")
-        self.show_game_end_menu(lines)
+            final_scores[name] = score
+
+        winner_idx, winner_score = sorted_teams[0] if sorted_teams else (0, 0)
+        winner_name = self.get_team_name(winner_idx)
+
+        return GameResult(
+            game_type=self.get_type(),
+            timestamp=datetime.now().isoformat(),
+            duration_ticks=self.sound_scheduler_tick,
+            player_results=[
+                PlayerResult(
+                    player_id=p.id,
+                    player_name=p.name,
+                    is_bot=p.is_bot,
+                )
+                for p in self.get_active_players()
+            ],
+            custom_data={
+                "winner_name": winner_name,
+                "winner_score": winner_score,
+                "final_scores": final_scores,
+                "rounds_played": self.round,
+                "target_score": self.options.target_distance,
+                "team_mode": self.options.team_mode,
+            },
+        )
+
+    def format_end_screen(self, result: GameResult, locale: str) -> list[str]:
+        """Format the end screen for MileByMile game."""
+        lines = [Localization.get(locale, "game-final-scores")]
+
+        final_scores = result.custom_data.get("final_scores", {})
+        for i, (name, score) in enumerate(final_scores.items(), 1):
+            points_str = Localization.get(locale, "game-points", count=score)
+            lines.append(f"{i}. {name}: {points_str}")
+
+        return lines
 
     def _get_player_by_name(self, name: str) -> MileByMilePlayer | None:
         """Get a player by name."""

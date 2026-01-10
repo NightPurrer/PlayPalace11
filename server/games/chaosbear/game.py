@@ -8,10 +8,12 @@ who fall too far back. Last player standing (or furthest distance) wins!
 
 import random
 from dataclasses import dataclass, field
+from datetime import datetime
 
 from ..base import Game, Player
 from ..registry import register_game
 from ...game_utils.bot_helper import BotHelper
+from ...game_utils.game_result import GameResult, PlayerResult
 from ...game_utils.actions import Action, ActionSet, Visibility
 from ...ui.keybinds import KeybindState
 from ...messages.localization import Localization
@@ -399,24 +401,78 @@ class ChaosBearGame(Game):
 
     def _end_game(self, winner: ChaosBearPlayer) -> None:
         """End the game with a winner."""
-        self.status = "finished"
-        self.game_active = False
+        self._winner_name = winner.name
+        self._winner_position = winner.position
+        self._is_tie = False
 
         self.schedule_sound("game_pig/win.ogg", delay_ticks=5)
         self.broadcast_l(
             "chaosbear-winner", player=winner.name, position=winner.position
         )
 
-        self.rebuild_all_menus()
+        self.finish_game()
 
     def _end_game_tie(self, position: int) -> None:
         """End the game with a tie."""
-        self.status = "finished"
-        self.game_active = False
+        self._winner_name = None
+        self._winner_position = position
+        self._is_tie = True
 
         self.broadcast_l("chaosbear-tie", position=position)
 
-        self.rebuild_all_menus()
+        self.finish_game()
+
+    def build_game_result(self) -> GameResult:
+        """Build the game result with ChaosBear-specific data."""
+        all_players = [p for p in self.players if isinstance(p, ChaosBearPlayer) and not p.is_spectator]
+        sorted_players = sorted(all_players, key=lambda p: p.position, reverse=True)
+
+        # Build final positions
+        final_positions = {}
+        alive_status = {}
+        for p in sorted_players:
+            final_positions[p.name] = p.position
+            alive_status[p.name] = p.alive
+
+        winner_name = getattr(self, "_winner_name", None)
+        winner_position = getattr(self, "_winner_position", 0)
+        is_tie = getattr(self, "_is_tie", False)
+
+        return GameResult(
+            game_type=self.get_type(),
+            timestamp=datetime.now().isoformat(),
+            duration_ticks=self.sound_scheduler_tick,
+            player_results=[
+                PlayerResult(
+                    player_id=p.id,
+                    player_name=p.name,
+                    is_bot=p.is_bot,
+                )
+                for p in sorted_players
+            ],
+            custom_data={
+                "winner_name": winner_name,
+                "winner_position": winner_position,
+                "is_tie": is_tie,
+                "final_positions": final_positions,
+                "alive_status": alive_status,
+                "bear_position": self.bear_position,
+                "rounds_played": self.round_number,
+            },
+        )
+
+    def format_end_screen(self, result: GameResult, locale: str) -> list[str]:
+        """Format the end screen for ChaosBear game."""
+        lines = [Localization.get(locale, "game-final-scores")]
+
+        final_positions = result.custom_data.get("final_positions", {})
+        alive_status = result.custom_data.get("alive_status", {})
+
+        for i, (name, position) in enumerate(final_positions.items(), 1):
+            status = "" if alive_status.get(name, True) else " (caught)"
+            lines.append(f"{i}. {name}: {position} squares{status}")
+
+        return lines
 
     # ==========================================================================
     # Actions

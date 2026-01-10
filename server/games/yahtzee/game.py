@@ -6,6 +6,7 @@ Fill all categories to complete the game. Highest total score wins.
 """
 
 from dataclasses import dataclass, field
+from datetime import datetime
 import random
 
 from ..base import Game, Player, GameOptions
@@ -14,6 +15,7 @@ from ...game_utils.actions import Action, ActionSet, Visibility
 from ...game_utils.bot_helper import BotHelper
 from ...game_utils.dice import DiceSet
 from ...game_utils.dice_game_mixin import DiceGameMixin
+from ...game_utils.game_result import GameResult, PlayerResult
 from ...game_utils.options import IntOption, option_field
 from ...messages.localization import Localization
 from ...ui.keybinds import KeybindState
@@ -763,25 +765,58 @@ class YahtzeeGame(Game, DiceGameMixin):
             self._start_game()
         else:
             # All games complete
-            self._show_final_results()
+            self.finish_game()
 
-    def _show_final_results(self) -> None:
-        """Show final game results."""
+    def build_game_result(self) -> GameResult:
+        """Build the game result with Yahtzee-specific data."""
         active_players = [
             p for p in self.players if isinstance(p, YahtzeePlayer) and not p.is_spectator
         ]
 
-        lines = ["Final Scores:"]
         sorted_players = sorted(
             active_players,
             key=lambda p: p.get_total_score(),
             reverse=True,
         )
-        for i, p in enumerate(sorted_players, 1):
-            lines.append(f"{i}. {p.name}: {p.get_total_score()} points")
 
-        self.finish_game()
-        self.show_game_end_menu(lines)
+        # Build final scores
+        final_scores = {}
+        for p in sorted_players:
+            final_scores[p.name] = p.get_total_score()
+
+        winner = sorted_players[0] if sorted_players else None
+
+        return GameResult(
+            game_type=self.get_type(),
+            timestamp=datetime.now().isoformat(),
+            duration_ticks=self.sound_scheduler_tick,
+            player_results=[
+                PlayerResult(
+                    player_id=p.id,
+                    player_name=p.name,
+                    is_bot=p.is_bot,
+                )
+                for p in active_players
+            ],
+            custom_data={
+                "winner_name": winner.name if winner else None,
+                "winner_score": winner.get_total_score() if winner else 0,
+                "final_scores": final_scores,
+                "games_played": self.games_played,
+                "num_games": self.options.num_games,
+            },
+        )
+
+    def format_end_screen(self, result: GameResult, locale: str) -> list[str]:
+        """Format the end screen for Yahtzee game."""
+        lines = [Localization.get(locale, "game-final-scores")]
+
+        final_scores = result.custom_data.get("final_scores", {})
+        for i, (name, score) in enumerate(final_scores.items(), 1):
+            points_str = Localization.get(locale, "game-points", count=score)
+            lines.append(f"{i}. {name}: {points_str}")
+
+        return lines
 
     def on_tick(self) -> None:
         """Called every tick."""

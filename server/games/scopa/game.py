@@ -5,6 +5,7 @@ Classic Italian card game: capture cards from the table by matching ranks or sum
 """
 
 from dataclasses import dataclass, field
+from datetime import datetime
 import random
 
 from ..base import Game, Player, GameOptions
@@ -19,6 +20,7 @@ from ...game_utils.cards import (
     read_cards,
     sort_cards,
 )
+from ...game_utils.game_result import GameResult, PlayerResult
 from ...game_utils.options import IntOption, MenuOption, BoolOption, option_field
 from ...game_utils.teams import TeamManager
 from ...game_utils.round_timer import RoundTimer
@@ -97,6 +99,11 @@ class ScopaOptions(GameOptions):
             default="normal",
             value_key="mechanic",
             choices=["normal", "no_scopas", "only_scopas"],
+            choice_labels={
+                "normal": "scopa-mechanic-normal",
+                "no_scopas": "scopa-mechanic-no_scopas",
+                "only_scopas": "scopa-mechanic-only_scopas",
+            },
             label="scopa-set-mechanic",
             prompt="scopa-select-mechanic",
             change_msg="scopa-option-changed-mechanic",
@@ -725,6 +732,55 @@ class ScopaGame(Game):
             self._round_timer.start()
             self._update_all_card_actions()
             self.rebuild_all_menus()
+
+    # ==========================================================================
+    # Game Result
+    # ==========================================================================
+
+    def build_game_result(self) -> GameResult:
+        """Build the game result with Scopa-specific data."""
+        sorted_teams = self.team_manager.get_sorted_teams(by_score=True, descending=True)
+
+        # Build final scores
+        final_scores = {}
+        for team in sorted_teams:
+            name = self.team_manager.get_team_name(team)
+            final_scores[name] = team.total_score
+
+        winner = sorted_teams[0] if sorted_teams else None
+
+        return GameResult(
+            game_type=self.get_type(),
+            timestamp=datetime.now().isoformat(),
+            duration_ticks=self.sound_scheduler_tick,
+            player_results=[
+                PlayerResult(
+                    player_id=p.id,
+                    player_name=p.name,
+                    is_bot=p.is_bot,
+                )
+                for p in self.get_active_players()
+            ],
+            custom_data={
+                "winner_name": self.team_manager.get_team_name(winner) if winner else None,
+                "winner_score": winner.total_score if winner else 0,
+                "final_scores": final_scores,
+                "rounds_played": self.round,
+                "target_score": self.options.target_score,
+                "team_mode": self.options.team_mode,
+            },
+        )
+
+    def format_end_screen(self, result: GameResult, locale: str) -> list[str]:
+        """Format the end screen for Scopa game."""
+        lines = [Localization.get(locale, "game-final-scores")]
+
+        final_scores = result.custom_data.get("final_scores", {})
+        for i, (name, score) in enumerate(final_scores.items(), 1):
+            points_str = Localization.get(locale, "game-points", count=score)
+            lines.append(f"{i}. {name}: {points_str}")
+
+        return lines
 
     # ==========================================================================
     # Bot AI

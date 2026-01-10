@@ -5,12 +5,14 @@ A resource management game where you shoot a turret to gain light and coins.
 """
 
 from dataclasses import dataclass, field
+from datetime import datetime
 import random
 
 from ..base import Game, Player
 from ..registry import register_game
 from ...game_utils.actions import Action, ActionSet, Visibility
 from ...game_utils.bot_helper import BotHelper
+from ...game_utils.game_result import GameResult, PlayerResult
 from ...game_utils.options import IntOption, option_field, GameOptions
 from ...messages.localization import Localization
 from ...ui.keybinds import KeybindState
@@ -368,7 +370,7 @@ class LightTurretGame(Game):
         if self._pending_finish and not self.scheduled_sounds:
             self._pending_finish = False
             self.game_active = False
-            self.finish_game()
+            self.finish_game(show_end_screen=False)
             return
 
         # Don't process bots if game is finished or inactive
@@ -476,7 +478,8 @@ class LightTurretGame(Game):
         self.rebuild_all_menus()
 
         # Show final menu first (before potential destruction)
-        self._show_game_end()
+        result = self.build_game_result()
+        self._show_end_screen(result)
 
         # Delay final cleanup if sounds are pending
         if self.scheduled_sounds:
@@ -484,20 +487,58 @@ class LightTurretGame(Game):
             # Keep game_active = True so ticks continue and sounds play
         else:
             self.game_active = False
-            self.finish_game()
+            self.finish_game(show_end_screen=False)
 
-    def _show_game_end(self) -> None:
-        """Show the game end menu to all players."""
+    def build_game_result(self) -> GameResult:
+        """Build the game result with LightTurret-specific data."""
         sorted_players = sorted(
             [p for p in self.players if isinstance(p, LightTurretPlayer)],
             key=lambda p: p.light,
             reverse=True,
         )
-        lines = []
-        for i, p in enumerate(sorted_players, 1):
-            status = "" if p.alive else " (eliminated)"
-            lines.append(f"{i}. {p.name}: {p.light} light{status}")
-        self.show_game_end_menu(lines)
+
+        # Build final light values
+        final_light = {}
+        alive_status = {}
+        for p in sorted_players:
+            final_light[p.name] = p.light
+            alive_status[p.name] = p.alive
+
+        winner = sorted_players[0] if sorted_players else None
+
+        return GameResult(
+            game_type=self.get_type(),
+            timestamp=datetime.now().isoformat(),
+            duration_ticks=self.sound_scheduler_tick,
+            player_results=[
+                PlayerResult(
+                    player_id=p.id,
+                    player_name=p.name,
+                    is_bot=p.is_bot,
+                )
+                for p in sorted_players
+            ],
+            custom_data={
+                "winner_name": winner.name if winner else None,
+                "winner_light": winner.light if winner else 0,
+                "final_light": final_light,
+                "alive_status": alive_status,
+                "rounds_played": self.round,
+            },
+        )
+
+    def format_end_screen(self, result: GameResult, locale: str) -> list[str]:
+        """Format the end screen for LightTurret game."""
+        lines = [Localization.get(locale, "game-final-scores")]
+
+        final_light = result.custom_data.get("final_light", {})
+        alive_status = result.custom_data.get("alive_status", {})
+
+        for i, (name, light) in enumerate(final_light.items(), 1):
+            status = "" if alive_status.get(name, True) else " (eliminated)"
+            lines.append(f"{i}. {name}: {light} light{status}")
+
+        return lines
 
     def end_turn(self, jolt_min: int = 15, jolt_max: int = 25) -> None:
         """End the current player's turn."""

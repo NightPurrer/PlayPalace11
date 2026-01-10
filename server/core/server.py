@@ -314,6 +314,9 @@ class Server:
             MenuItem(
                 text=Localization.get(user.locale, "saved-tables"), id="saved_tables"
             ),
+            MenuItem(
+                text=Localization.get(user.locale, "leaderboards"), id="leaderboards"
+            ),
             MenuItem(text=Localization.get(user.locale, "options"), id="options"),
             MenuItem(text=Localization.get(user.locale, "logout"), id="logout"),
         ]
@@ -581,6 +584,12 @@ class Server:
             await self._handle_saved_tables_selection(user, selection_id, state)
         elif current_menu == "saved_table_actions_menu":
             await self._handle_saved_table_actions_selection(user, selection_id, state)
+        elif current_menu == "leaderboards_menu":
+            await self._handle_leaderboards_selection(user, selection_id, state)
+        elif current_menu == "leaderboard_types_menu":
+            await self._handle_leaderboard_types_selection(user, selection_id, state)
+        elif current_menu == "game_leaderboard":
+            await self._handle_game_leaderboard_selection(user, selection_id, state)
 
     async def _handle_main_menu_selection(
         self, user: NetworkUser, selection_id: str
@@ -590,6 +599,8 @@ class Server:
             self._show_categories_menu(user)
         elif selection_id == "saved_tables":
             self._show_saved_tables_menu(user)
+        elif selection_id == "leaderboards":
+            self._show_leaderboards_menu(user)
         elif selection_id == "options":
             self._show_options_menu(user)
         elif selection_id == "logout":
@@ -780,6 +791,37 @@ class Server:
         game = table.game
 
         if selection_id == "join_player":
+            # Check if game is already in progress
+            if game.status == "playing":
+                # Look for a player with matching UUID that is now a bot
+                matching_player = None
+                for p in game.players:
+                    if p.id == user.uuid and p.is_bot:
+                        matching_player = p
+                        break
+
+                if matching_player:
+                    # Take over from the bot
+                    matching_player.is_bot = False
+                    game.attach_user(matching_player.id, user)
+                    table.add_member(user.username, user, as_spectator=False)
+                    game.broadcast_l("player-took-over", player=user.username)
+                    game.rebuild_all_menus()
+                    self._user_states[user.username] = {
+                        "menu": "in_game",
+                        "table_id": table_id,
+                    }
+                    return
+                else:
+                    # No matching player - join as spectator instead
+                    table.add_member(user.username, user, as_spectator=True)
+                    user.speak_l("spectator-joined", host=table.host)
+                    self._user_states[user.username] = {
+                        "menu": "in_game",
+                        "table_id": table_id,
+                    }
+                    return
+
             if len(game.players) >= game.get_max_players():
                 user.speak_l("table-full")
                 self._show_tables_menu(user, state.get("game_type", ""))
@@ -913,6 +955,567 @@ class Server:
         # Delete the saved table now that it's been restored
         self._db.delete_saved_table(save_id)
 
+    def _show_leaderboards_menu(self, user: NetworkUser) -> None:
+        """Show leaderboards game selection menu."""
+        categories = GameRegistry.get_by_category()
+        items = []
+
+        # Add all games from all categories
+        for category_key in sorted(categories.keys()):
+            for game_class in categories[category_key]:
+                game_name = Localization.get(user.locale, game_class.get_name_key())
+                items.append(
+                    MenuItem(text=game_name, id=f"lb_{game_class.get_type()}")
+                )
+
+        items.append(MenuItem(text=Localization.get(user.locale, "back"), id="back"))
+
+        user.show_menu(
+            "leaderboards_menu",
+            items,
+            multiletter=True,
+            escape_behavior=EscapeBehavior.SELECT_LAST,
+        )
+        self._user_states[user.username] = {"menu": "leaderboards_menu"}
+
+    def _show_leaderboard_types_menu(self, user: NetworkUser, game_type: str) -> None:
+        """Show leaderboard type selection menu for a game."""
+        game_class = get_game_class(game_type)
+        if not game_class:
+            user.speak_l("game-type-not-found")
+            return
+
+        # Check if there's any data for this game
+        results = self._db.get_game_stats(game_type, limit=1)
+        if not results:
+            # No data - speak message and stay on game selection
+            user.speak_l("leaderboard-no-data")
+            return
+
+        game_name = Localization.get(user.locale, game_class.get_name_key())
+
+        # Available leaderboard types (common to all games)
+        items = [
+            MenuItem(
+                text=Localization.get(user.locale, "leaderboard-type-wins"),
+                id="type_wins",
+            ),
+            MenuItem(
+                text=Localization.get(user.locale, "leaderboard-type-total-score"),
+                id="type_total_score",
+            ),
+            MenuItem(
+                text=Localization.get(user.locale, "leaderboard-type-high-score"),
+                id="type_high_score",
+            ),
+            MenuItem(
+                text=Localization.get(user.locale, "leaderboard-type-games-played"),
+                id="type_games_played",
+            ),
+        ]
+
+        # Game-specific leaderboards (declared by each game class)
+        for lb_config in game_class.get_leaderboard_types():
+            lb_id = lb_config["id"]
+            # Convert underscores to hyphens for localization key
+            loc_key = f"leaderboard-type-{lb_id.replace('_', '-')}"
+            items.append(
+                MenuItem(
+                    text=Localization.get(user.locale, loc_key),
+                    id=f"type_{lb_id}",
+                )
+            )
+
+        items.append(MenuItem(text=Localization.get(user.locale, "back"), id="back"))
+
+        user.show_menu(
+            "leaderboard_types_menu",
+            items,
+            multiletter=True,
+            escape_behavior=EscapeBehavior.SELECT_LAST,
+        )
+        self._user_states[user.username] = {
+            "menu": "leaderboard_types_menu",
+            "game_type": game_type,
+            "game_name": game_name,
+        }
+
+    def _get_game_results(self, game_type: str) -> list:
+        """Get game results as GameResult objects."""
+        from ..game_utils.game_result import GameResult, PlayerResult
+        import json
+
+        results = self._db.get_game_stats(game_type, limit=100)
+        game_results = []
+
+        for row in results:
+            custom_data = json.loads(row[4]) if row[4] else {}
+            player_rows = self._db.get_game_result_players(row[0])
+            player_results = [
+                PlayerResult(
+                    player_id=p["player_id"],
+                    player_name=p["player_name"],
+                    is_bot=p["is_bot"],
+                )
+                for p in player_rows
+            ]
+            game_results.append(
+                GameResult(
+                    game_type=row[1],
+                    timestamp=row[2],
+                    duration_ticks=row[3],
+                    player_results=player_results,
+                    custom_data=custom_data,
+                )
+            )
+
+        return game_results
+
+    def _show_wins_leaderboard(
+        self, user: NetworkUser, game_type: str, game_name: str
+    ) -> None:
+        """Show win leaders leaderboard."""
+        from ..game_utils.stats_helpers import LeaderboardHelper
+
+        game_results = self._get_game_results(game_type)
+
+        # Build player stats: {player_id: {wins, losses, name}}
+        player_stats: dict[str, dict] = {}
+        for result in game_results:
+            winner_name = result.custom_data.get("winner_name")
+            for p in result.player_results:
+                if p.is_bot:
+                    continue
+                if p.player_id not in player_stats:
+                    player_stats[p.player_id] = {
+                        "wins": 0,
+                        "losses": 0,
+                        "name": p.player_name,
+                    }
+                if winner_name == p.player_name:
+                    player_stats[p.player_id]["wins"] += 1
+                else:
+                    player_stats[p.player_id]["losses"] += 1
+
+        # Sort by wins descending
+        sorted_players = sorted(
+            player_stats.items(), key=lambda x: x[1]["wins"], reverse=True
+        )
+
+        items = []
+
+        for rank, (player_id, stats) in enumerate(sorted_players[:10], 1):
+            wins = stats["wins"]
+            losses = stats["losses"]
+            total = wins + losses
+            percentage = round((wins / total * 100) if total > 0 else 0)
+            items.append(
+                MenuItem(
+                    text=Localization.get(
+                        user.locale,
+                        "leaderboard-wins-entry",
+                        rank=rank,
+                        player=stats["name"],
+                        wins=wins,
+                        losses=losses,
+                        percentage=percentage,
+                    ),
+                    id=f"entry_{rank}",
+                )
+            )
+
+        # Player's own stats
+        if user.username in player_stats:
+            stats = player_stats[user.username]
+            wins = stats["wins"]
+            losses = stats["losses"]
+            total = wins + losses
+            percentage = round((wins / total * 100) if total > 0 else 0)
+            items.append(
+                MenuItem(
+                    text=Localization.get(
+                        user.locale,
+                        "leaderboard-player-stats",
+                        wins=wins,
+                        losses=losses,
+                        percentage=percentage,
+                    ),
+                    id="player_stats",
+                )
+            )
+        else:
+            items.append(
+                MenuItem(
+                    text=Localization.get(user.locale, "leaderboard-no-player-stats"),
+                    id="player_stats",
+                )
+            )
+
+        items.append(MenuItem(text=Localization.get(user.locale, "back"), id="back"))
+
+        user.show_menu(
+            "game_leaderboard",
+            items,
+            multiletter=True,
+            escape_behavior=EscapeBehavior.SELECT_LAST,
+        )
+        self._user_states[user.username] = {
+            "menu": "game_leaderboard",
+            "game_type": game_type,
+            "game_name": game_name,
+        }
+
+    def _show_total_score_leaderboard(
+        self, user: NetworkUser, game_type: str, game_name: str
+    ) -> None:
+        """Show total score leaderboard."""
+        from ..game_utils.stats_helpers import LeaderboardHelper
+
+        game_results = self._get_game_results(game_type)
+
+        # Build total scores per player
+        player_scores: dict[str, dict] = {}
+        for result in game_results:
+            final_scores = result.custom_data.get("final_scores", {})
+            for p in result.player_results:
+                if p.is_bot:
+                    continue
+                if p.player_id not in player_scores:
+                    player_scores[p.player_id] = {"total": 0, "name": p.player_name}
+                # Try to get score by player name
+                score = final_scores.get(p.player_name, 0)
+                if score:
+                    player_scores[p.player_id]["total"] += score
+
+        # Sort by total score descending
+        sorted_players = sorted(
+            player_scores.items(), key=lambda x: x[1]["total"], reverse=True
+        )
+
+        items = []
+
+        for rank, (player_id, stats) in enumerate(sorted_players[:10], 1):
+            items.append(
+                MenuItem(
+                    text=Localization.get(
+                        user.locale,
+                        "leaderboard-score-entry",
+                        rank=rank,
+                        player=stats["name"],
+                        value=int(stats["total"]),
+                    ),
+                    id=f"entry_{rank}",
+                )
+            )
+
+        items.append(MenuItem(text=Localization.get(user.locale, "back"), id="back"))
+
+        user.show_menu(
+            "game_leaderboard",
+            items,
+            multiletter=True,
+            escape_behavior=EscapeBehavior.SELECT_LAST,
+        )
+        self._user_states[user.username] = {
+            "menu": "game_leaderboard",
+            "game_type": game_type,
+            "game_name": game_name,
+        }
+
+    def _show_high_score_leaderboard(
+        self, user: NetworkUser, game_type: str, game_name: str
+    ) -> None:
+        """Show high score leaderboard."""
+        game_results = self._get_game_results(game_type)
+
+        # Build high scores per player
+        player_high: dict[str, dict] = {}
+        for result in game_results:
+            final_scores = result.custom_data.get("final_scores", {})
+            for p in result.player_results:
+                if p.is_bot:
+                    continue
+                score = final_scores.get(p.player_name, 0)
+                if p.player_id not in player_high:
+                    player_high[p.player_id] = {"high": score, "name": p.player_name}
+                elif score > player_high[p.player_id]["high"]:
+                    player_high[p.player_id]["high"] = score
+
+        # Sort by high score descending
+        sorted_players = sorted(
+            player_high.items(), key=lambda x: x[1]["high"], reverse=True
+        )
+
+        items = []
+
+        for rank, (player_id, stats) in enumerate(sorted_players[:10], 1):
+            items.append(
+                MenuItem(
+                    text=Localization.get(
+                        user.locale,
+                        "leaderboard-score-entry",
+                        rank=rank,
+                        player=stats["name"],
+                        value=int(stats["high"]),
+                    ),
+                    id=f"entry_{rank}",
+                )
+            )
+
+        items.append(MenuItem(text=Localization.get(user.locale, "back"), id="back"))
+
+        user.show_menu(
+            "game_leaderboard",
+            items,
+            multiletter=True,
+            escape_behavior=EscapeBehavior.SELECT_LAST,
+        )
+        self._user_states[user.username] = {
+            "menu": "game_leaderboard",
+            "game_type": game_type,
+            "game_name": game_name,
+        }
+
+    def _show_games_played_leaderboard(
+        self, user: NetworkUser, game_type: str, game_name: str
+    ) -> None:
+        """Show games played leaderboard."""
+        game_results = self._get_game_results(game_type)
+
+        # Count games per player
+        player_games: dict[str, dict] = {}
+        for result in game_results:
+            for p in result.player_results:
+                if p.is_bot:
+                    continue
+                if p.player_id not in player_games:
+                    player_games[p.player_id] = {"count": 0, "name": p.player_name}
+                player_games[p.player_id]["count"] += 1
+
+        # Sort by games played descending
+        sorted_players = sorted(
+            player_games.items(), key=lambda x: x[1]["count"], reverse=True
+        )
+
+        items = []
+
+        for rank, (player_id, stats) in enumerate(sorted_players[:10], 1):
+            items.append(
+                MenuItem(
+                    text=Localization.get(
+                        user.locale,
+                        "leaderboard-games-entry",
+                        rank=rank,
+                        player=stats["name"],
+                        value=stats["count"],
+                    ),
+                    id=f"entry_{rank}",
+                )
+            )
+
+        items.append(MenuItem(text=Localization.get(user.locale, "back"), id="back"))
+
+        user.show_menu(
+            "game_leaderboard",
+            items,
+            multiletter=True,
+            escape_behavior=EscapeBehavior.SELECT_LAST,
+        )
+        self._user_states[user.username] = {
+            "menu": "game_leaderboard",
+            "game_type": game_type,
+            "game_name": game_name,
+        }
+
+    def _extract_value_from_path(
+        self, data: dict, path: str, player_id: str, player_name: str
+    ) -> float | None:
+        """Extract a value from custom_data using a dot-separated path.
+
+        Supports {player_id} and {player_name} placeholders in path.
+        """
+        # Replace placeholders
+        resolved_path = path.replace("{player_id}", player_id)
+        resolved_path = resolved_path.replace("{player_name}", player_name)
+
+        # Navigate the path
+        parts = resolved_path.split(".")
+        current = data
+        for part in parts:
+            if isinstance(current, dict) and part in current:
+                current = current[part]
+            else:
+                return None
+
+        # Convert to float if possible
+        if isinstance(current, (int, float)):
+            return float(current)
+        return None
+
+    def _show_custom_leaderboard(
+        self,
+        user: NetworkUser,
+        game_type: str,
+        game_name: str,
+        config: dict,
+    ) -> None:
+        """Show a custom leaderboard using declarative config."""
+        game_results = self._get_game_results(game_type)
+
+        lb_id = config["id"]
+        aggregate = config.get("aggregate", "sum")
+        format_key = config.get("format", "score")
+        decimals = config.get("decimals", 0)
+
+        # Check if this is a ratio calculation or simple path
+        is_ratio = "numerator" in config and "denominator" in config
+
+        # Aggregate data per player
+        player_data: dict[str, dict] = {}
+
+        for result in game_results:
+            custom_data = result.custom_data
+            for p in result.player_results:
+                if p.is_bot:
+                    continue
+
+                if p.player_id not in player_data:
+                    player_data[p.player_id] = {
+                        "name": p.player_name,
+                        "values": [],
+                        "numerators": [],
+                        "denominators": [],
+                    }
+
+                if is_ratio:
+                    num = self._extract_value_from_path(
+                        custom_data, config["numerator"], p.player_id, p.player_name
+                    )
+                    denom = self._extract_value_from_path(
+                        custom_data, config["denominator"], p.player_id, p.player_name
+                    )
+                    if num is not None and denom is not None:
+                        player_data[p.player_id]["numerators"].append(num)
+                        player_data[p.player_id]["denominators"].append(denom)
+                else:
+                    value = self._extract_value_from_path(
+                        custom_data, config["path"], p.player_id, p.player_name
+                    )
+                    if value is not None:
+                        player_data[p.player_id]["values"].append(value)
+
+        # Calculate final values based on aggregate type
+        player_scores: list[tuple[str, str, float]] = []
+
+        for player_id, data in player_data.items():
+            if is_ratio:
+                total_num = sum(data["numerators"])
+                total_denom = sum(data["denominators"])
+                if total_denom > 0:
+                    value = total_num / total_denom
+                    player_scores.append((player_id, data["name"], value))
+            else:
+                values = data["values"]
+                if not values:
+                    continue
+
+                if aggregate == "sum":
+                    value = sum(values)
+                elif aggregate == "max":
+                    value = max(values)
+                elif aggregate == "avg":
+                    value = sum(values) / len(values)
+                else:
+                    value = sum(values)
+
+                player_scores.append((player_id, data["name"], value))
+
+        # Sort descending
+        player_scores.sort(key=lambda x: x[2], reverse=True)
+
+        # Build menu items
+        items = []
+        entry_key = f"leaderboard-{format_key}-entry"
+
+        for rank, (player_id, name, value) in enumerate(player_scores[:10], 1):
+            display_value = round(value, decimals) if decimals > 0 else int(value)
+            items.append(
+                MenuItem(
+                    text=Localization.get(
+                        user.locale,
+                        entry_key,
+                        rank=rank,
+                        player=name,
+                        value=display_value,
+                    ),
+                    id=f"entry_{rank}",
+                )
+            )
+
+        items.append(MenuItem(text=Localization.get(user.locale, "back"), id="back"))
+
+        user.show_menu(
+            "game_leaderboard",
+            items,
+            multiletter=True,
+            escape_behavior=EscapeBehavior.SELECT_LAST,
+        )
+        self._user_states[user.username] = {
+            "menu": "game_leaderboard",
+            "game_type": game_type,
+            "game_name": game_name,
+        }
+
+    async def _handle_leaderboards_selection(
+        self, user: NetworkUser, selection_id: str, state: dict
+    ) -> None:
+        """Handle leaderboards menu selection."""
+        if selection_id.startswith("lb_"):
+            game_type = selection_id[3:]  # Remove "lb_" prefix
+            self._show_leaderboard_types_menu(user, game_type)
+        elif selection_id == "back":
+            self._show_main_menu(user)
+
+    async def _handle_leaderboard_types_selection(
+        self, user: NetworkUser, selection_id: str, state: dict
+    ) -> None:
+        """Handle leaderboard type selection."""
+        game_type = state.get("game_type", "")
+        game_name = state.get("game_name", "")
+
+        # Built-in leaderboard types
+        if selection_id == "type_wins":
+            self._show_wins_leaderboard(user, game_type, game_name)
+        elif selection_id == "type_total_score":
+            self._show_total_score_leaderboard(user, game_type, game_name)
+        elif selection_id == "type_high_score":
+            self._show_high_score_leaderboard(user, game_type, game_name)
+        elif selection_id == "type_games_played":
+            self._show_games_played_leaderboard(user, game_type, game_name)
+        elif selection_id == "back":
+            self._show_leaderboards_menu(user)
+        elif selection_id.startswith("type_"):
+            # Custom leaderboard type - look up config from game class
+            lb_id = selection_id[5:]  # Remove "type_" prefix
+            game_class = get_game_class(game_type)
+            if game_class:
+                for config in game_class.get_leaderboard_types():
+                    if config["id"] == lb_id:
+                        self._show_custom_leaderboard(
+                            user, game_type, game_name, config
+                        )
+                        return
+
+    async def _handle_game_leaderboard_selection(
+        self, user: NetworkUser, selection_id: str, state: dict
+    ) -> None:
+        """Handle game leaderboard menu selection."""
+        if selection_id == "back":
+            game_type = state.get("game_type", "")
+            game_name = state.get("game_name", "")
+            self._show_leaderboard_types_menu(user, game_type)
+        # Other selections (entries, header) are informational only
+
     def on_table_destroy(self, table) -> None:
         """Handle table destruction. Called by TableManager."""
         if not table.game:
@@ -923,6 +1526,25 @@ class Server:
                 player_user = self._users.get(player.name)
                 if player_user:
                     self._show_main_menu(player_user)
+
+    def on_game_result(self, result) -> None:
+        """Handle game result persistence. Called by Table when a game finishes."""
+        from ..game_utils.game_result import GameResult
+
+        if not isinstance(result, GameResult):
+            return
+
+        # Save to database
+        self._db.save_game_result(
+            game_type=result.game_type,
+            timestamp=result.timestamp,
+            duration_ticks=result.duration_ticks,
+            players=[
+                (p.player_id, p.player_name, p.is_bot)
+                for p in result.player_results
+            ],
+            custom_data=result.custom_data,
+        )
 
     def on_table_save(self, table, username: str) -> None:
         """Handle table save request. Called by TableManager."""

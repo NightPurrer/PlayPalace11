@@ -27,6 +27,7 @@ from ..game_utils.options import (
     get_option_meta,
     MenuOption,
 )
+from ..game_utils.game_result import GameResult, PlayerResult
 from ..game_utils.teams import TeamManager
 from ..messages.localization import Localization
 from ..ui.keybinds import Keybind, KeybindState
@@ -216,6 +217,31 @@ class Game(ABC, DataClassJSONMixin):
         """Return maximum number of players."""
         return 4
 
+    @classmethod
+    def get_leaderboard_types(cls) -> list[dict]:
+        """Return additional leaderboard types this game supports.
+
+        Override in subclasses to add game-specific leaderboards.
+        Each dict should have:
+        - "id": leaderboard type identifier (e.g., "best_single_turn")
+        - "path": dot-separated path to value in custom_data
+                  Use {player_id} or {player_name} as placeholders
+                  e.g., "player_stats.{player_name}.best_turn"
+                  OR for ratio calculations, use:
+        - "numerator": path to numerator value
+        - "denominator": path to denominator value
+                  (values are summed across games, then divided)
+        - "aggregate": how to combine values across games
+                       "sum", "max", or "avg"
+        - "format": entry format key suffix (e.g., "score" for leaderboard-score-entry)
+        - "decimals": optional, number of decimal places (default 0)
+
+        The server will look up localization keys like:
+        - "leaderboard-type-{id}" for menu display (with underscores as hyphens)
+        - "leaderboard-{format}-entry" for each entry
+        """
+        return []
+
     @abstractmethod
     def on_start(self) -> None:
         """Called when the game starts."""
@@ -233,21 +259,96 @@ class Game(ABC, DataClassJSONMixin):
         """Called when round timer expires. Override in subclasses that use RoundTimer."""
         pass
 
-    def finish_game(self) -> None:
-        """Mark the game as finished and handle cleanup.
+    def finish_game(self, show_end_screen: bool = True) -> None:
+        """Mark the game as finished, persist result, and optionally show end screen.
 
         Call this instead of setting status directly to ensure proper cleanup.
         If no humans remain, the table is automatically destroyed.
+
+        Args:
+            show_end_screen: Whether to show the end screen (default True).
+                             Set to False if you want to show it manually.
         """
         self.game_active = False
         self.status = "finished"
+
+        # Build and persist the game result
+        result = self.build_game_result()
+        self._persist_result(result)
+
+        # Show end screen
+        if show_end_screen:
+            self._show_end_screen(result)
+
         # Auto-destroy if no humans remain (bot-only games)
         has_humans = any(not p.is_bot for p in self.players)
         if not has_humans:
             self.destroy()
 
+    def build_game_result(self) -> GameResult:
+        """Build the game result. Override in subclasses for custom data.
+
+        Returns:
+            A GameResult with game-specific data in custom_data.
+        """
+        from datetime import datetime
+
+        return GameResult(
+            game_type=self.get_type(),
+            timestamp=datetime.now().isoformat(),
+            duration_ticks=self.sound_scheduler_tick,
+            player_results=[
+                PlayerResult(
+                    player_id=p.id,
+                    player_name=p.name,
+                    is_bot=p.is_bot,
+                )
+                for p in self.get_active_players()
+            ],
+            custom_data={},
+        )
+
+    def format_end_screen(self, result: GameResult, locale: str) -> list[str]:
+        """Format the end screen lines from a game result. Override for custom display.
+
+        Args:
+            result: The game result to format
+            locale: The locale to use for localization
+
+        Returns:
+            List of lines to display on the end screen
+        """
+        # Default implementation - just show "Game Over" and player names
+        lines = [Localization.get(locale, "game-over")]
+        for p in result.player_results:
+            lines.append(p.player_name)
+        return lines
+
+    def _persist_result(self, result: GameResult) -> None:
+        """Persist the game result to the database."""
+        # Only persist if there are human players
+        if not result.has_human_players():
+            return
+
+        if self._table:
+            self._table.save_game_result(result)
+
+    def _show_end_screen(self, result: GameResult) -> None:
+        """Show the end screen to all players using structured result."""
+        for player in self.players:
+            user = self.get_user(player)
+            if user:
+                lines = self.format_end_screen(result, user.locale)
+                items = [MenuItem(text=line, id="score_line") for line in lines]
+                leave_text = Localization.get(user.locale, "game-leave")
+                items.append(MenuItem(text=leave_text, id="leave_game"))
+                user.show_menu("game_over", items, multiletter=False)
+
     def show_game_end_menu(self, score_lines: list[str]) -> None:
         """Show the game end menu to all players.
+
+        DEPRECATED: Use finish_game() with build_game_result() and format_end_screen()
+        instead. This method is kept for backwards compatibility during migration.
 
         Args:
             score_lines: List of score lines to display
@@ -561,7 +662,25 @@ class Game(ABC, DataClassJSONMixin):
                 user.speak_l("no-options-available")
                 return
 
-            items = [MenuItem(text=opt, id=opt) for opt in options]
+            # Check if this is a MenuOption with localized choice labels
+            menu_option_meta = None
+            if action.id.startswith("set_") and hasattr(self, "options"):
+                option_name = action.id[4:]  # Remove "set_" prefix
+                meta = get_option_meta(type(self.options), option_name)
+                if meta and isinstance(meta, MenuOption):
+                    menu_option_meta = meta
+
+            # Build menu items with localized labels if available
+            items = []
+            for opt in options:
+                if menu_option_meta:
+                    display_text = menu_option_meta.get_localized_choice(
+                        opt, user.locale
+                    )
+                else:
+                    display_text = opt
+                items.append(MenuItem(text=display_text, id=opt))
+
             items.append(
                 MenuItem(text=Localization.get(user.locale, "cancel"), id="_cancel")
             )
@@ -1555,7 +1674,32 @@ class Game(ABC, DataClassJSONMixin):
 
     def _action_leave_game(self, player: Player, action_id: str) -> None:
         """Leave the game."""
-        # Remove player and their action sets
+        from ..users.bot import Bot
+
+        if self.status == "playing" and not player.is_bot:
+            # Mid-game: replace human with bot instead of removing
+            # Keep the same player ID so they can rejoin and take over
+            player.is_bot = True
+            self._users.pop(player.id, None)
+
+            # Create a bot user with the same UUID to control this player
+            bot_user = Bot(player.name, uuid=player.id)
+            self.attach_user(player.id, bot_user)
+
+            self.broadcast_l("player-replaced-by-bot", player=player.name)
+
+            # Check if any humans remain
+            has_humans = any(not p.is_bot for p in self.players)
+            if not has_humans:
+                # Destroy the game - no humans left
+                self.destroy()
+                return
+
+            # Rebuild menus for remaining players
+            self.rebuild_all_menus()
+            return
+
+        # Lobby or bot leaving: fully remove the player
         self.players = [p for p in self.players if p.id != player.id]
         self.player_action_sets.pop(player.id, None)
         self._users.pop(player.id, None)

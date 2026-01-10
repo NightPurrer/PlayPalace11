@@ -82,6 +82,10 @@ ninetynine-option-changed-autodraw = Automatic drawing set to { $enabled }.
 ninetynine-rules-quentin = Quentin C rules.
 ninetynine-rules-rsgames = RS Games rules.
 
+# Rules variant choices (for menu display)
+ninetynine-rules-variant-quentin_c = Quentin C
+ninetynine-rules-variant-rs_games = RS Games
+
 # Disabled action reasons
 ninetynine-choose-first = You need to make a choice first.
 ninetynine-draw-first = You need to draw a card first.
