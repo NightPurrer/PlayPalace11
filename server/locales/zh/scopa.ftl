@@ -40,7 +40,7 @@ scopa-set-cards-per-deal = 每次发牌数：{ $cards }
 scopa-enter-cards-per-deal = 输入每次发牌数 (1-10)
 scopa-set-decks = 牌组数量：{ $decks }
 scopa-enter-decks = 输入牌组数量 (1-6)
-scopa-toggle-escoba = Escoba 规则 (凑15)：{ $enabled }
+scopa-toggle-escoba = Escoba (凑15)：{ $enabled }
 scopa-toggle-hints = 显示收牌提示：{ $enabled }
 scopa-set-mechanic = Scopa 机制：{ $mechanic }
 scopa-select-mechanic = 选择 Scopa 机制
@@ -51,7 +51,7 @@ scopa-toggle-inverse = 反向模式 (达到目标即淘汰)：{ $enabled }
 # 选项变更通知
 scopa-option-changed-cards = 每次发牌数已设为 { $cards }。
 scopa-option-changed-decks = 牌组数量已设为 { $decks }。
-scopa-option-changed-escoba = Escoba 规则 { $enabled }。
+scopa-option-changed-escoba = Escoba { $enabled }。
 scopa-option-changed-hints = 收牌提示 { $enabled }。
 scopa-option-changed-mechanic = Scopa 机制已设为 { $mechanic }。
 scopa-option-changed-instant = Scopa 即时胜利 { $enabled }。

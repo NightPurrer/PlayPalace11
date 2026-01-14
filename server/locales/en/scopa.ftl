@@ -40,7 +40,7 @@ scopa-set-cards-per-deal = Cards per deal: { $cards }
 scopa-enter-cards-per-deal = Enter cards per deal (1-10)
 scopa-set-decks = Number of decks: { $decks }
 scopa-enter-decks = Enter number of decks (1-6)
-scopa-toggle-escoba = Escoba rules (sum to 15): { $enabled }
+scopa-toggle-escoba = Escoba (sum to 15): { $enabled }
 scopa-toggle-hints = Show capture hints: { $enabled }
 scopa-set-mechanic = Scopa mechanic: { $mechanic }
 scopa-select-mechanic = Select scopa mechanic
@@ -51,7 +51,7 @@ scopa-toggle-inverse = Inverse mode (reach target = elimination): { $enabled }
 # Option change announcements
 scopa-option-changed-cards = Cards per deal set to { $cards }.
 scopa-option-changed-decks = Number of decks set to { $decks }.
-scopa-option-changed-escoba = Escoba rules { $enabled }.
+scopa-option-changed-escoba = Escoba { $enabled }.
 scopa-option-changed-hints = Capture hints { $enabled }.
 scopa-option-changed-mechanic = Scopa mechanic set to { $mechanic }.
 scopa-option-changed-instant = Instant win on scopa { $enabled }.

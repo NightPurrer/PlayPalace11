@@ -40,7 +40,7 @@ scopa-set-cards-per-deal = Cartas por distribuição: { $cards }
 scopa-enter-cards-per-deal = Digite cartas por distribuição (1-10)
 scopa-set-decks = Número de baralhos: { $decks }
 scopa-enter-decks = Digite número de baralhos (1-6)
-scopa-toggle-escoba = Regras de Escoba (soma 15): { $enabled }
+scopa-toggle-escoba = Escoba (soma 15): { $enabled }
 scopa-toggle-hints = Mostrar dicas de captura: { $enabled }
 scopa-set-mechanic = Mecânica de scopa: { $mechanic }
 scopa-select-mechanic = Selecione a mecânica de scopa
@@ -51,7 +51,7 @@ scopa-toggle-inverse = Modo inverso (atingir alvo = eliminação): { $enabled }
 # Anúncios de mudança de opções
 scopa-option-changed-cards = Cartas por distribuição definidas para { $cards }.
 scopa-option-changed-decks = Número de baralhos definido para { $decks }.
-scopa-option-changed-escoba = Regras de Escoba { $enabled }.
+scopa-option-changed-escoba = Escoba { $enabled }.
 scopa-option-changed-hints = Dicas de captura { $enabled }.
 scopa-option-changed-mechanic = Mecânica de scopa definida para { $mechanic }.
 scopa-option-changed-instant = Vitória instantânea com scopa { $enabled }.

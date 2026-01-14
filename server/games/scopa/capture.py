@@ -30,7 +30,7 @@ def find_subsets_with_sum(cards: list[Card], target: int) -> list[list[Card]]:
 
 
 def find_captures(
-    table_cards: list[Card], card_value: int, escoba_rules: bool = False
+    table_cards: list[Card], card_value: int, escoba: bool = False
 ) -> list[list[Card]]:
     """
     Find all valid capture combinations for a card value.
@@ -38,7 +38,7 @@ def find_captures(
     Args:
         table_cards: Cards currently on the table.
         card_value: The rank of the card being played.
-        escoba_rules: If True, use escoba rules (sum to 15).
+        escoba: If True, use escoba rules (sum to 15).
 
     Returns:
         List of possible capture combinations (each is a list of cards).
@@ -46,7 +46,7 @@ def find_captures(
     For standard scopa: rank match first, then sum combinations.
     For escoba: find combinations that sum to 15 (including played card).
     """
-    if escoba_rules:
+    if escoba:
         # Escoba: find subsets that sum to 15 - card_value
         target = 15 - card_value
         return find_subsets_with_sum(table_cards, target)
@@ -68,7 +68,7 @@ def select_best_capture(captures: list[list[Card]]) -> list[Card]:
 
 
 def get_capture_hint(
-    table_cards: list[Card], card: Card, escoba_rules: bool = False, locale: str = "en"
+    table_cards: list[Card], card: Card, escoba: bool = False, locale: str = "en"
 ) -> str:
     """
     Get a hint about what cards would be captured.
@@ -76,13 +76,13 @@ def get_capture_hint(
     Args:
         table_cards: Cards currently on the table.
         card: The card being considered for play.
-        escoba_rules: If True, use escoba rules.
+        escoba: If True, use escoba rules.
         locale: Locale for card names.
 
     Returns:
         Hint string like " -> 7 of Coins" or " -> 3 cards", or empty string.
     """
-    captures = find_captures(table_cards, card.rank, escoba_rules)
+    captures = find_captures(table_cards, card.rank, escoba)
     if not captures:
         return ""
     best = select_best_capture(captures)

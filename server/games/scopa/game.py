@@ -78,7 +78,7 @@ class ScopaOptions(GameOptions):
             change_msg="scopa-option-changed-decks",
         )
     )
-    escoba_rules: bool = option_field(
+    escoba: bool = option_field(
         BoolOption(
             default=False,
             value_key="enabled",
@@ -378,7 +378,7 @@ class ScopaGame(Game):
         name = card_name(card, locale)
         if self.options.show_capture_hints:
             hint = get_capture_hint(
-                self.table_cards, card, self.options.escoba_rules, locale
+                self.table_cards, card, self.options.escoba, locale
             )
             name += hint
         return name
@@ -519,7 +519,7 @@ class ScopaGame(Game):
         self._current_deal = 0
 
         # For standard scopa, avoid too many 10s on table (re-shuffle if needed)
-        if not self.options.escoba_rules:
+        if not self.options.escoba:
             max_attempts = 10
             for _ in range(max_attempts):
                 self.table_cards = self.deck.draw(initial_table)
@@ -601,7 +601,7 @@ class ScopaGame(Game):
         self.play_sound(f"game_cards/{play_sound}")
 
         # Find and execute capture
-        captures = find_captures(self.table_cards, card.rank, self.options.escoba_rules)
+        captures = find_captures(self.table_cards, card.rank, self.options.escoba)
 
         if captures:
             best_capture = select_best_capture(captures)

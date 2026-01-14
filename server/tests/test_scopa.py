@@ -134,7 +134,7 @@ class TestScopaGameUnit:
         assert options.target_score == 11
         assert options.cards_per_deal == 3
         assert options.number_of_decks == 1
-        assert options.escoba_rules is False
+        assert options.escoba is False
         assert options.team_mode == "individual"
 
     def test_serialization(self):
@@ -220,7 +220,7 @@ class TestScopaCaptureLogic:
         ]
 
         # Playing a 7: need table cards that sum to 15-7=8, so 3+5=8
-        captures = find_captures(table_cards, 7, escoba_rules=True)
+        captures = find_captures(table_cards, 7, escoba=True)
         assert len(captures) >= 1
         found = False
         for capture in captures:

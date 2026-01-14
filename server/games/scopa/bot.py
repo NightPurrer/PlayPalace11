@@ -56,7 +56,7 @@ def evaluate_card(game: "ScopaGame", card: Card, player: "ScopaPlayer") -> float
     """
     score = 0.0
     inverse = game.options.inverse_scopa
-    escoba = game.options.escoba_rules
+    escoba = game.options.escoba
 
     captures = find_captures(game.table_cards, card.rank, escoba)
 
