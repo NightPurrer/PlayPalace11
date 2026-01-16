@@ -4,9 +4,8 @@ The purpose of this module will be to integrate it with base game to provide ext
 objectives:
 1. Move round_timer.py into this module, and call it a RoundTransitionTimer to be more clear.
 2. Add the concept of turn cycles. A turn cycle is defined as after every player has played and it cycles back to the first player, or when turn order is reversed. Different games handle turn cycles differently. A few games won't use them at all.
-3. Make a TurnTracker dataclass which stores an array of GameRound classes.
-4. Find a way for the turn tracker class to sync with the base game current player
-5. Better system for firing event callbacks. For example in the on_turn_start function, it might run the on_start_cycle function, which would need to pass the appropriate args and kwargs to that function.
+3. Make a TurnTracker mixin dataclass which stores an array of GameRound classes, and mixes with the base game.
+4. Better system for firing event callbacks. For example in the on_turn_start function, it might run the on_start_cycle function, which would need to pass the appropriate args and kwargs to that function.
 
 GameTurn dataclass:
 turn_number: int
@@ -51,7 +50,6 @@ stop and reset turn_timer
 self.final_scores.update({p.id: p.score for p in players})
 
 TurnTracker dataclass:
-players: list
 rounds: list[GameRound]
 start_round_func: callable = None
 end_round_func: callable = None
