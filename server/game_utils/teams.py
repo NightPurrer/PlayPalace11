@@ -385,6 +385,21 @@ class TeamManager(DataClassJSONMixin):
             for mode in internal_modes
         ]
 
+    @staticmethod
+    def is_valid_team_mode(team_mode: str, num_players: int) -> bool:
+        """
+        Check if a team mode is valid for the given number of players.
+
+        Args:
+            team_mode: Internal team mode string (e.g., "individual", "2v2").
+            num_players: Number of players in the game.
+
+        Returns:
+            True if the team mode is valid for the player count, False otherwise.
+        """
+        valid_modes = TeamManager.get_team_modes_for_player_count_internal(num_players)
+        return team_mode in valid_modes
+
     # ==========================================================================
     # Score Formatting
     # ==========================================================================

@@ -26,7 +26,7 @@ milebymile-option-changed-karma = Karma rule { $enabled }.
 milebymile-option-changed-rig = Deck rigging set to { $rig }.
 
 # Status
-milebymile-status = { $name }: { $miles } miles, Problems: { $problems }, Safeties: { $safeties }
+milebymile-status = { $name }: { $points } points, { $miles } miles, Problems: { $problems }, Safeties: { $safeties }
 
 # Card actions
 milebymile-no-matching-safety = You don't have the matching safety card!
@@ -149,3 +149,6 @@ milebymile-card-miles = { $miles } miles
 milebymile-no-dirty-trick-window = No dirty trick window is active.
 milebymile-not-your-dirty-trick = It's not your team's dirty trick window.
 milebymile-between-races = Wait for the next race to start.
+
+# Validation errors
+milebymile-error-karma-needs-three-teams = Karma rule requires at least 3 distinct cars/teams.

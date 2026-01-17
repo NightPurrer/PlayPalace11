@@ -266,6 +266,21 @@ class PigGame(Game):
         team = self._team_manager.get_team(player.name)
         return team.total_score if team else 0
 
+    def prestart_validate(self) -> list[str]:
+        """Validate game configuration before starting."""
+        errors = super().prestart_validate()
+
+        # Validate team mode for current player count
+        team_mode_error = self._validate_team_mode(self.options.team_mode)
+        if team_mode_error:
+            errors.append(team_mode_error)
+
+        # Ensure min_bank_points is less than target_score
+        if self.options.min_bank_points >= self.options.target_score:
+            errors.append("pig-error-min-bank-too-high")
+
+        return errors
+
     def on_start(self) -> None:
         """Called when the game starts."""
         self.status = "playing"

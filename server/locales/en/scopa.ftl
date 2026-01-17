@@ -65,3 +65,12 @@ scopa-mechanic-only_scopas = Scopas Only
 
 # Disabled action reasons
 scopa-timer-not-active = The round timer is not active.
+
+# Validation errors
+scopa-error-not-enough-cards = Not enough cards in { $decks } { $decks ->
+    [one] deck
+    *[other] decks
+} for { $players } { $players ->
+    [one] player
+    *[other] players
+} with { $cards_per_deal } cards each. (Need { $cards_per_deal } × { $players } = { $cards_needed } cards, but only have { $total_cards }.)

@@ -82,3 +82,6 @@ rank-ten = 10
 rank-jack = jack
 rank-queen = queen
 rank-king = king
+
+# Validation errors (common across games)
+game-error-invalid-team-mode = The selected team mode is not valid for the current number of players.

@@ -243,6 +243,41 @@ class Game(ABC, DataClassJSONMixin):
         """
         return []
 
+    def prestart_validate(self) -> list[str] | list[tuple[str, dict]]:
+        """Validate game configuration before starting.
+
+        Returns a list of localization keys for any errors found,
+        or a list of (error_key, kwargs) tuples for errors that need context.
+        Override in subclasses to add game-specific validation.
+
+        Examples:
+            return ["pig-error-min-bank-too-high"]
+            return [("scopa-error-not-enough-cards", {"decks": 1, "players": 4})]
+        """
+        return []
+
+    def _validate_team_mode(self, team_mode: str) -> str | None:
+        """Helper to validate team mode for current player count.
+
+        Args:
+            team_mode: Internal team mode string (e.g., "individual", "2v2").
+
+        Returns:
+            Localization key for error if invalid, None if valid.
+        """
+        active_players = self.get_active_players()
+        num_players = len(active_players)
+
+        # Parse old display format if needed
+        if " " in team_mode or any(c.isupper() for c in team_mode if c != "v"):
+            team_mode = TeamManager.parse_display_to_team_mode(team_mode)
+
+        # Check if team mode is valid for player count
+        if not TeamManager.is_valid_team_mode(team_mode, num_players):
+            return "game-error-invalid-team-mode"
+
+        return None
+
     @abstractmethod
     def on_start(self) -> None:
         """Called when the game starts."""
@@ -1690,8 +1725,22 @@ class Game(ABC, DataClassJSONMixin):
 
     def _action_start_game(self, player: Player, action_id: str) -> None:
         """Start the game."""
-        self.status = "playing"
+        # Validate configuration before starting
+        errors = self.prestart_validate()
+        if errors:
+            for error in errors:
+                # Handle both plain strings and (key, kwargs) tuples
+                if isinstance(error, tuple):
+                    error_key, kwargs = error
+                    self.broadcast_l(error_key, buffer="misc", **kwargs)
+                else:
+                    self.broadcast_l(error, buffer="misc")
+            return
+
+        # Announce game is starting
         self.broadcast_l("game-starting")
+
+        # Start the game (subclasses implement this)
         self.on_start()
 
     def _bot_input_add_bot(self, player: Player) -> str | None:

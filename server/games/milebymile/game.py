@@ -375,17 +375,43 @@ class MileByMileGame(Game):
             )
         )
 
+        # Detailed status action (hidden, triggered by shift+s keybind)
+        action_set.add(
+            Action(
+                id="check_status_detailed",
+                label="Detailed status",
+                handler="_action_check_status_detailed",
+                is_enabled="_is_check_status_enabled",
+                is_hidden="_is_check_status_hidden",
+            )
+        )
+
         return action_set
 
     def setup_keybinds(self) -> None:
         """Define all keybinds for the game."""
         super().setup_keybinds()
 
-        # Status keybind
+        # Remove base class's 's' and 'shift+s' keybinds before adding ours
+        if "s" in self._keybinds:
+            self._keybinds["s"] = []
+        if "shift+s" in self._keybinds:
+            self._keybinds["shift+s"] = []
+
+        # Override 's' to only show status (not scores from base class)
         self.define_keybind(
             "s",
             "Check status",
             ["check_status"],
+            state=KeybindState.ACTIVE,
+            include_spectators=True,
+        )
+
+        # Override 'shift+s' to show detailed status (not just scores)
+        self.define_keybind(
+            "shift+s",
+            "Detailed status",
+            ["check_status_detailed"],
             state=KeybindState.ACTIVE,
             include_spectators=True,
         )
@@ -468,10 +494,8 @@ class MileByMileGame(Game):
         return None
 
     def _is_check_status_hidden(self, player: Player) -> Visibility:
-        """Check status is visible during play."""
-        if self.status != "playing":
-            return Visibility.HIDDEN
-        return Visibility.VISIBLE
+        """Check status is always hidden (triggered by keybind only)."""
+        return Visibility.HIDDEN
 
     def _is_dirty_trick_enabled(self, player: Player) -> str | None:
         """Check if dirty trick action is enabled."""
@@ -805,6 +829,11 @@ class MileByMileGame(Game):
 
         for team_idx, race_state in self.iter_teams():
             name = self.get_team_name(team_idx)
+
+            # Get score
+            team = self._team_manager.teams[team_idx] if team_idx < len(self._team_manager.teams) else None
+            score = team.total_score if team else 0
+
             if race_state.problems:
                 problems_str = ", ".join(
                     self._get_localized_problem_name(p, locale) for p in race_state.problems
@@ -821,10 +850,51 @@ class MileByMileGame(Game):
             user.speak_l(
                 "milebymile-status",
                 name=name,
+                points=score,
                 miles=race_state.miles,
                 problems=problems_str,
                 safeties=safeties_str,
             )
+
+    def _action_check_status_detailed(self, player: Player, action_id: str) -> None:
+        """Show detailed game status in a status box menu."""
+        user = self.get_user(player)
+        if not user:
+            return
+
+        from ...messages.localization import Localization
+
+        locale = user.locale
+        none_str = Localization.get(locale, "milebymile-none")
+        lines = []
+
+        for team_idx, race_state in self.iter_teams():
+            name = self.get_team_name(team_idx)
+
+            # Get score
+            team = self._team_manager.teams[team_idx] if team_idx < len(self._team_manager.teams) else None
+            score = team.total_score if team else 0
+
+            # Format problems
+            if race_state.problems:
+                problems_str = ", ".join(
+                    self._get_localized_problem_name(p, locale) for p in race_state.problems
+                )
+            else:
+                problems_str = none_str
+
+            # Format safeties
+            if race_state.safeties:
+                safeties_str = ", ".join(
+                    self._get_localized_safety_name(s, locale) for s in race_state.safeties
+                )
+            else:
+                safeties_str = none_str
+
+            # Add team status line (one line per team)
+            lines.append(f"{name}: {score} points, {race_state.miles} miles, Problems: {problems_str}, Safeties: {safeties_str}")
+
+        self.status_box(player, lines)
 
     def _action_dirty_trick(self, player: Player, action_id: str) -> None:
         """Handle dirty trick (Coup Fourré) attempt."""
@@ -1438,14 +1508,33 @@ class MileByMileGame(Game):
     # Game Flow
     # ==========================================================================
 
+    def prestart_validate(self) -> list[str]:
+        """Validate game configuration before starting."""
+        errors = super().prestart_validate()
+
+        # Set up teams first if not already done (needed for karma rule validation)
+        if not self._team_manager.teams:
+            self._setup_teams()
+
+        # Validate team mode for current player count
+        team_mode_error = self._validate_team_mode(self.options.team_mode)
+        if team_mode_error:
+            errors.append(team_mode_error)
+
+        # Check karma rule requirement: need at least 3 teams/cars
+        if self.options.karma_rule:
+            num_teams = len(self._team_manager.teams)
+            if num_teams < 3:
+                errors.append("milebymile-error-karma-needs-three-teams")
+
+        return errors
+
     def on_start(self) -> None:
         """Called when the game starts."""
+        # Teams were already set up in prestart_validate()
         self.status = "playing"
         self.game_active = True
         self.current_race = 0
-
-        # Set up teams
-        self._setup_teams()
 
         # Initialize turn order
         active_players = self.get_active_players()
@@ -1484,7 +1573,9 @@ class MileByMileGame(Game):
         # Deal hands
         self._deal_initial_hands()
 
-        self.play_sound("game_pig/roundstart.ogg")
+        # Play shuffle sound (like Scopa)
+        shuffle_sound = random.choice(["shuffle1.ogg", "shuffle2.ogg", "shuffle3.ogg"])
+        self.play_sound(f"game_cards/{shuffle_sound}")
         self.broadcast_l("milebymile-new-race")
 
         # Start first turn

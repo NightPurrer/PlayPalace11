@@ -426,6 +426,36 @@ class ScopaGame(Game):
     # Game Flow
     # ==========================================================================
 
+    def prestart_validate(self) -> list[str | tuple[str, dict]]:
+        """Validate game configuration before starting."""
+        errors = super().prestart_validate()
+
+        # Validate team mode for current player count
+        team_mode_error = self._validate_team_mode(self.options.team_mode)
+        if team_mode_error:
+            errors.append(team_mode_error)
+
+        # Ensure there are enough cards in the deck for the initial deal
+        active_players = self.get_active_players()
+        num_players = len(active_players)
+        cards_per_deck = 40  # Italian deck
+        total_cards = cards_per_deck * self.options.number_of_decks
+        cards_needed = self.options.cards_per_deal * num_players
+
+        if cards_needed > total_cards:
+            errors.append((
+                "scopa-error-not-enough-cards",
+                {
+                    "decks": self.options.number_of_decks,
+                    "players": num_players,
+                    "cards_per_deal": self.options.cards_per_deal,
+                    "total_cards": total_cards,
+                    "cards_needed": cards_needed,
+                }
+            ))
+
+        return errors
+
     def on_start(self) -> None:
         """Called when the game starts."""
         self.status = "playing"
