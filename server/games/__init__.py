@@ -18,6 +18,7 @@ from .pirates.game import PiratesGame
 from .leftrightcenter.game import LeftRightCenterGame
 from .tossup.game import TossUpGame
 from .midnight.game import MidnightGame
+from .ageofheroes.game import AgeOfHeroesGame
 
 __all__ = [
     "Game",
@@ -38,4 +39,5 @@ __all__ = [
     "LeftRightCenterGame",
     "TossUpGame",
     "MidnightGame",
+    "AgeOfHeroesGame",
 ]
