@@ -2068,18 +2068,7 @@ class AgeOfHeroesGame(Game):
                 self.rebuild_all_menus()
                 return
 
-            # If only one target, build directly (but need permission first)
-            if len(targets) == 1:
-                # Still need to ask permission, so go to selection menu
-                player.pending_road_targets = targets
-                self.sub_phase = PlaySubPhase.ROAD_TARGET
-                user = self.get_user(player)
-                if user:
-                    user.speak_l("ageofheroes-road-select-neighbor")
-                self.rebuild_all_menus()
-                return
-
-            # Multiple targets - show selection menu
+            # Show road target selection menu
             player.pending_road_targets = targets
             self.sub_phase = PlaySubPhase.ROAD_TARGET
             user = self.get_user(player)
@@ -2088,17 +2077,20 @@ class AgeOfHeroesGame(Game):
             self.rebuild_all_menus()
             return
 
-        # Build the selected building
-        if build(self, player, building_type):
-            # Check for city victory
-            if building_type == BuildingType.CITY:
-                if player.tribe_state and player.tribe_state.cities >= self.options.victory_cities:
-                    self._declare_victory(player, "cities")
-                    return
+        # Build the selected building using shared logic
+        success = self._execute_single_build(player, building_type, auto_road=False)
+
+        if not success:
+            # Build failed or victory occurred
+            if player.tribe_state:  # Only end if not victory
+                self.sub_phase = PlaySubPhase.SELECT_ACTION
+                self.rebuild_all_menus()
+                self._end_action(player)
+            return
 
         # Check if player can still build more things
-        from .construction import get_available_buildings
-        available = get_available_buildings(self, player)
+        from .construction import get_affordable_buildings
+        available = get_affordable_buildings(self, player)
 
         if available:
             # Stay in construction mode - player can build more
@@ -2221,7 +2213,7 @@ class AgeOfHeroesGame(Game):
             return
 
         # Spend resources and build road
-        from .construction import spend_resources, build_road, get_available_buildings
+        from .construction import spend_resources, build_road, get_affordable_buildings
         spend_resources(builder, BUILDING_COSTS[BuildingType.ROAD], self.discard_pile)
         self.road_supply -= 1
         build_road(self, builder, player_index, direction)
@@ -2232,7 +2224,7 @@ class AgeOfHeroesGame(Game):
         self.road_request_to = -1
 
         # Check if builder can still build more things
-        available = get_available_buildings(self, builder)
+        available = get_affordable_buildings(self, builder)
 
         if available:
             # Stay in construction mode - builder can build more
@@ -3172,6 +3164,53 @@ class AgeOfHeroesGame(Game):
 
         self._end_action(player)
 
+    def _execute_single_build(
+        self, player: AgeOfHeroesPlayer, building_type: str, auto_road: bool = False
+    ) -> bool:
+        """Execute building a single item. Returns True if successful, False otherwise.
+
+        Args:
+            player: The player building
+            building_type: Type of building to construct
+            auto_road: If True, automatically build road to first target (for bots)
+
+        Returns:
+            True if building was successful, False if it failed or victory occurred
+        """
+        if not player.tribe_state:
+            return False
+
+        # Handle road building specially (needs neighbor selection/permission)
+        if building_type == BuildingType.ROAD:
+            targets = get_road_targets(self, player)
+            if not targets:
+                return False
+
+            if auto_road:
+                # Bot mode: Auto-build to first target
+                target_index, direction = targets[0]
+                from .construction import spend_resources, BUILDING_COSTS
+                spend_resources(player, BUILDING_COSTS[BuildingType.ROAD], self.discard_pile)
+                self.road_supply -= 1
+                build_road(self, player, target_index, direction)
+                return True
+            else:
+                # Human mode: Return False to indicate road needs selection menu
+                # (caller should handle this)
+                return False
+
+        # Build the selected building
+        if not build(self, player, building_type):
+            return False
+
+        # Check for city victory
+        if building_type == BuildingType.CITY:
+            if player.tribe_state.cities >= self.options.victory_cities:
+                self._declare_victory(player, "cities")
+                return False  # Don't continue building after victory
+
+        return True
+
     def _start_construction(self, player: AgeOfHeroesPlayer) -> None:
         """Start construction action."""
         if not player.tribe_state:
@@ -3198,40 +3237,37 @@ class AgeOfHeroesGame(Game):
             self.rebuild_all_menus()
 
     def _bot_perform_construction(self, player: AgeOfHeroesPlayer) -> None:
-        """Bot performs construction."""
+        """Bot performs construction - can build multiple things per turn."""
         if not player.tribe_state:
             self._end_action(player)
             return
 
-        # Use bot AI to select what to build
-        building_type = bot_ai.bot_select_construction(self, player)
-        if not building_type:
-            self._end_action(player)
-            return
+        # Keep building as long as bot wants to and has resources
+        from .construction import get_affordable_buildings
+        while True:
+            # Check if bot can still afford to build anything
+            affordable = get_affordable_buildings(self, player)
+            if not affordable:
+                # No more buildings available
+                self._end_action(player)
+                return
 
-        # Handle road building specially (needs neighbor permission)
-        if building_type == BuildingType.ROAD:
-            targets = get_road_targets(self, player)
-            if targets:
-                # Auto-accept road for bots
-                target_index, direction = targets[0]
-                # Spend resources first
-                from .construction import spend_resources, BUILDING_COSTS
-                spend_resources(player, BUILDING_COSTS[BuildingType.ROAD], self.discard_pile)
-                self.road_supply -= 1
-                build_road(self, player, target_index, direction)
-            self._end_action(player)
-            return
+            # Use bot AI to select what to build
+            building_type = bot_ai.bot_select_construction(self, player)
+            if not building_type:
+                # Bot decided to stop building
+                self._end_action(player)
+                return
 
-        # Build the selected building
-        if build(self, player, building_type):
-            # Check for city victory
-            if building_type == BuildingType.CITY:
-                if player.tribe_state.cities >= self.options.victory_cities:
-                    self._declare_victory(player, "cities")
-                    return
+            # Execute the build using shared logic
+            success = self._execute_single_build(player, building_type, auto_road=True)
+            if not success:
+                # Build failed or victory occurred - stop building
+                if player.tribe_state:  # Only end action if not victory (which already ended game)
+                    self._end_action(player)
+                return
 
-        self._end_action(player)
+            # Continue loop - bot might build more things
 
     def _start_war_declaration(self, player: AgeOfHeroesPlayer) -> None:
         """Start war declaration."""
@@ -3271,6 +3307,33 @@ class AgeOfHeroesGame(Game):
             if user:
                 user.speak_l("ageofheroes-war-select-target")
             self.rebuild_all_menus()
+
+    def _execute_war_battle(self) -> None:
+        """Execute the war battle after both sides have prepared forces.
+
+        This shared logic runs the battle rounds and applies the outcome.
+        """
+        # Run battle rounds until one side is defeated
+        max_rounds = 20  # Safety limit
+        rounds = 0
+        while not is_battle_over(self) and rounds < max_rounds:
+            rounds += 1
+            resolve_battle_round(self)
+
+        # Apply war outcome
+        apply_war_outcome(self)
+
+        # Check for elimination of both players
+        active_players = self.get_active_players()
+        if self.war_state.attacker_index < len(active_players):
+            attacker = active_players[self.war_state.attacker_index]
+            if isinstance(attacker, AgeOfHeroesPlayer):
+                self._check_elimination(attacker)
+
+        if self.war_state.defender_index < len(active_players):
+            defender = active_players[self.war_state.defender_index]
+            if isinstance(defender, AgeOfHeroesPlayer):
+                self._check_elimination(defender)
 
     def _bot_perform_war(self, player: AgeOfHeroesPlayer) -> None:
         """Bot performs war declaration and combat."""
@@ -3318,19 +3381,8 @@ class AgeOfHeroesGame(Game):
                 def_generals = defender.tribe_state.get_available_generals()
                 prepare_forces(self, defender, def_armies, def_generals, 0, 0)
 
-        # Run battle rounds until one side is defeated
-        max_rounds = 20  # Safety limit
-        rounds = 0
-        while not is_battle_over(self) and rounds < max_rounds:
-            rounds += 1
-            resolve_battle_round(self)
-
-        # Apply war outcome
-        apply_war_outcome(self)
-
-        # Check for elimination
-        self._check_elimination(defender)
-        self._check_elimination(player)
+        # Execute battle using shared logic
+        self._execute_war_battle()
 
         self._end_action(player)
 
