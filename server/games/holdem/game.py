@@ -177,7 +177,7 @@ class HoldemGame(Game):
 
     @classmethod
     def get_name(cls) -> str:
-        return "Texas Hold'em"
+        return "game-name-holdem"
 
     @classmethod
     def get_type(cls) -> str:

@@ -126,7 +126,7 @@ class FiveCardDrawGame(Game):
 
     @classmethod
     def get_name(cls) -> str:
-        return "Five Card Draw"
+        return "game-name-fivecarddraw"
 
     @classmethod
     def get_type(cls) -> str:
