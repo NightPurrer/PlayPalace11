@@ -397,7 +397,6 @@ class HoldemGame(Game):
         self.define_keybind("c", "Call/Check", ["call"])
         self.define_keybind("r", "Raise", ["raise"])
         self.define_keybind("A", "All in", ["all_in"])
-        self.define_keybind("a", "All in", ["all_in"])
         self.define_keybind("d", "Read hand", ["speak_hand"], include_spectators=False)
         self.define_keybind("e", "Read table", ["speak_table"], include_spectators=True)
         self.define_keybind("g", "Hand value", ["speak_hand_value"], include_spectators=False)
