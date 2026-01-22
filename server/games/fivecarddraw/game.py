@@ -642,17 +642,31 @@ class FiveCardDrawGame(Game):
         amount = p.chips
         if amount <= 0:
             return
-        p.chips = 0
-        p.all_in = True
-        self.play_sound("game_3cardpoker/bet.ogg")
-        self.pot_manager.add_contribution(p.id, amount)
         to_call = self.betting.amount_to_call(p.id)
         min_raise = max(self.betting.last_raise_size, 1)
-        raise_amount = amount - to_call
-        is_raise = raise_amount >= min_raise and amount > to_call
-        self.betting.record_bet(p.id, amount, is_raise=is_raise)
-        self.action_log.append(("poker-log-all-in", {"player": p.name, "amount": amount}))
-        self.broadcast_l("poker-player-all-in", player=p.name, amount=amount)
+        pay = amount
+        if self.options.raise_mode != "no_limit":
+            pot_total = self.pot_manager.total_pot()
+            cap = pot_total + to_call * 2
+            if self.options.raise_mode == "double_pot":
+                cap = pot_total * 2 + to_call * 2
+            pay = min(pay, cap)
+        p.chips -= pay
+        p.all_in = p.chips == 0
+        self.play_sound("game_3cardpoker/bet.ogg")
+        self.pot_manager.add_contribution(p.id, pay)
+        raise_amount = pay - to_call
+        is_raise = raise_amount >= min_raise and pay > to_call
+        self.betting.record_bet(p.id, pay, is_raise=is_raise)
+        if pay > to_call:
+            self.action_log.append(("poker-log-raise", {"player": p.name, "amount": pay}))
+            self.broadcast_l("poker-player-raises", player=p.name, amount=pay)
+        elif to_call == 0:
+            self.action_log.append(("poker-log-check", {"player": p.name}))
+            self.broadcast_l("poker-player-checks", player=p.name)
+        else:
+            self.action_log.append(("poker-log-call", {"player": p.name, "amount": pay}))
+            self.broadcast_l("poker-player-calls", player=p.name, amount=pay)
         self._sync_team_scores()
         self._after_action()
 
