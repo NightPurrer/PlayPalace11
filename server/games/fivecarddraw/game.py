@@ -429,8 +429,7 @@ class FiveCardDrawGame(Game):
                 card = self.deck.draw_one() if self.deck else None
                 if card:
                     p.hand.append(card)
-            sound = f"game_cards/draw{random.randint(1,4)}.ogg"
-            self.schedule_sound(sound, delay_ticks, volume=70)
+            self.schedule_sound("game_cards/draw4.ogg", delay_ticks, volume=100)
             delay_ticks += 6
         for p in players:
             p.hand = sort_cards(p.hand)
@@ -768,7 +767,14 @@ class FiveCardDrawGame(Game):
             desc = describe_hand(best_score, "en")
             if len(winners) == 1:
                 self.play_sound(random.choice(["game_blackjack/win1.ogg", "game_blackjack/win2.ogg", "game_blackjack/win3.ogg"]))
-                self.broadcast_l("poker-player-wins-pot-hand", player=winners[0].name, amount=pot.amount, hand=desc)
+                cards = read_cards(winners[0].hand, "en")
+                self.broadcast_l(
+                    "poker-player-wins-pot-hand",
+                    player=winners[0].name,
+                    amount=pot.amount,
+                    cards=cards,
+                    hand=desc,
+                )
             else:
                 names = ", ".join(w.name for w in winners)
                 self.play_sound(random.choice(["game_blackjack/win1.ogg", "game_blackjack/win2.ogg", "game_blackjack/win3.ogg"]))
@@ -955,7 +961,7 @@ class FiveCardDrawGame(Game):
     def _play_draw_sounds(self, count: int) -> None:
         delay_ticks = 0
         for _ in range(count):
-            self.schedule_sound(f"game_cards/draw{random.randint(1,4)}.ogg", delay_ticks, volume=70)
+            self.schedule_sound("game_cards/draw4.ogg", delay_ticks, volume=100)
             delay_ticks += 6
 
     def _sync_team_scores(self) -> None:

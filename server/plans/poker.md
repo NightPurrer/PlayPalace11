@@ -47,7 +47,7 @@ Add a “hand potential” description function:
 - **X**: Who has the button (Hold’em).
 - **Z**: Your position relative to the button (Hold’em).
 - **S**: Scores/stack sizes (uses TeamManager or poker-specific scoreboard).
-- **B**: Current bet + amount to call.
+- **N**: Current bet + amount to call.
 - **M**: Minimum raise amount.
 - **L**: Action log for the current betting round.
 - **Shift+T**: Turn timer remaining (fallback message if timer is disabled).
