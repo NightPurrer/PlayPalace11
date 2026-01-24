@@ -86,6 +86,7 @@ class CrazyEightsGame(Game):
     timer_warning_played: bool = False
 
     intro_wait_ticks: int = 0
+    hand_wait_ticks: int = 0
     _turn_sound_player_id: str | None = None
     max_hand_size: int = 12
 
@@ -409,6 +410,11 @@ class CrazyEightsGame(Game):
         self.process_scheduled_sounds()
         if not self.game_active:
             return
+        if self.hand_wait_ticks > 0:
+            self.hand_wait_ticks -= 1
+            if self.hand_wait_ticks == 0:
+                self._start_new_hand()
+            return
         if self.intro_wait_ticks > 0:
             self.intro_wait_ticks -= 1
             if self.intro_wait_ticks == 0:
@@ -565,6 +571,8 @@ class CrazyEightsGame(Game):
                 self.pending_round_winner_id = p.id
             self.broadcast_l("crazyeights-wild-played", player=p.name)
             self._start_turn_timer()  # reset timer for suit selection
+            if p.is_bot:
+                BotHelper.jolt_bot(p, ticks=random.randint(20, 30))
             return
 
         self.current_suit = card.suit
@@ -607,6 +615,8 @@ class CrazyEightsGame(Game):
         self._broadcast_draw(p, 1)
         selection_id = f"play_card_{card.id}" if playable else None
         self.update_player_menu(p, selection_id=selection_id)
+        if p.is_bot:
+            BotHelper.jolt_bot(p, ticks=random.randint(20, 30))
 
     def _action_pass(self, player: Player, action_id: str) -> None:
         p = self._require_active_player(player)
@@ -633,6 +643,8 @@ class CrazyEightsGame(Game):
         self.awaiting_wild_suit = False
         self.schedule_sound(self._suit_sound(suit), delay_ticks=10)
         self._broadcast_suit_chosen(suit)
+        if p.is_bot:
+            BotHelper.jolt_bot(p, ticks=random.randint(20, 30))
 
         if self.pending_round_winner_id == p.id:
             self._end_round(p, last_card=None)
@@ -1026,7 +1038,7 @@ class CrazyEightsGame(Game):
             self._end_game(winner)
             return
 
-        self._start_new_hand()
+        self.hand_wait_ticks = 5 * 20
 
     def _hand_points(self, hand: list[Card]) -> int:
         total = 0

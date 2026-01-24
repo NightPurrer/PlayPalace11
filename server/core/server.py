@@ -759,6 +759,8 @@ class Server:
 
         if selection_id == "create_table":
             table = self._tables.create_table(game_type, user.username, user)
+            user.stop_music()
+            user.stop_ambience()
 
             # Create game immediately and initialize lobby
             game_class = get_game_class(game_type)
@@ -884,12 +886,16 @@ class Server:
             game.broadcast_sound("join.ogg")
             game.rebuild_all_menus()
             self._user_states[user.username] = {"menu": "in_game", "table_id": table_id}
+            user.stop_music()
+            user.stop_ambience()
 
         elif selection_id == "join_spectator":
             table.add_member(user.username, user, as_spectator=True)
             user.speak_l("spectator-joined", host=table.host)
             # TODO: spectator viewing - for now just track membership
             self._user_states[user.username] = {"menu": "in_game", "table_id": table_id}
+            user.stop_music()
+            user.stop_ambience()
 
         elif selection_id == "back":
             self._show_tables_menu(user, state.get("game_type", ""))
