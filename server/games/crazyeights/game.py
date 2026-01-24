@@ -127,7 +127,6 @@ class CrazyEightsGame(Game):
         player = super().add_player(name, user)
         sound = "game_crazyeights/botsit.ogg" if player.is_bot else "game_crazyeights/personsit.ogg"
         self.play_sound(sound)
-        user.play_music("game_crazyeights/mus.ogg")
         return player
 
     def _action_add_bot(self, player: Player, bot_name: str, action_id: str) -> None:
@@ -405,10 +404,6 @@ class CrazyEightsGame(Game):
         self.play_sound("game_crazyeights/intro.ogg")
         self.intro_wait_ticks = 8 * 20
 
-    def initialize_lobby(self, host_name: str, host_user: User) -> None:  # type: ignore[override]
-        super().initialize_lobby(host_name, host_user)
-        self.play_music("game_crazyeights/mus.ogg")
-
     def on_tick(self) -> None:
         super().on_tick()
         self.process_scheduled_sounds()
@@ -463,7 +458,7 @@ class CrazyEightsGame(Game):
         self.current_suit = None
 
         active_players = [p for p in self.players if not p.is_spectator]
-        self.set_turn_players(active_players)
+        self.set_turn_players(active_players, reset_index=False)
         for p in active_players:
             p.hand = []
 
@@ -483,8 +478,10 @@ class CrazyEightsGame(Game):
 
         # Rotate dealer/first player each hand
         if self.turn_player_ids:
-            self.turn_index = (self.turn_index + 1) % len(self.turn_player_ids)
+            self.dealer_index = (self.dealer_index + 1) % len(self.turn_player_ids)
+            self.turn_index = self.dealer_index
         else:
+            self.dealer_index = -1
             self.turn_index = 0
         self._start_turn()
 
@@ -681,7 +678,7 @@ class CrazyEightsGame(Game):
             BotHelper.jolt_bot(p, ticks=random.randint(20, 30))
 
         self.timer.clear()
-        self.wild_wait_ticks = 10
+        self.wild_wait_ticks = 15
         self.wild_wait_player_id = p.id
         if self.pending_round_winner_id == p.id:
             self.wild_end_round_pending = True
@@ -1053,6 +1050,7 @@ class CrazyEightsGame(Game):
     # ==========================================================================
 
     def _end_round(self, winner: CrazyEightsPlayer, last_card: Card | None) -> None:
+        self._stop_turn_loop()
         points_from: list[tuple[CrazyEightsPlayer, int]] = []
         total = 0
         for p in self.players:
