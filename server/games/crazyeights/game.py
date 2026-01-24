@@ -81,6 +81,7 @@ class CrazyEightsGame(Game):
     wild_wait_ticks: int = 0
     wild_wait_player_id: str | None = None
     wild_end_round_pending: bool = False
+    dealer_index: int = -1
 
     turn_has_drawn: bool = False
     turn_drawn_card: Card | None = None
@@ -586,9 +587,10 @@ class CrazyEightsGame(Game):
         self._broadcast_play(p, card)
 
         if card.rank == 8:
-            self.awaiting_wild_suit = True
             if len(p.hand) == 0:
-                self.pending_round_winner_id = p.id
+                self._end_round(p, last_card=card)
+                return
+            self.awaiting_wild_suit = True
             self.broadcast_l("crazyeights-wild-played", player=p.name)
             self._start_turn_timer()  # reset timer for suit selection
             if p.is_bot:
