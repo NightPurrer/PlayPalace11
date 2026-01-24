@@ -86,6 +86,7 @@ class CrazyEightsGame(Game):
 
     intro_wait_ticks: int = 0
     _turn_sound_player_id: str | None = None
+    max_hand_size: int = 12
 
     def __post_init__(self):
         super().__post_init__()
@@ -564,6 +565,7 @@ class CrazyEightsGame(Game):
             return
         card = self._draw_card()
         if not card:
+            self._handle_empty_draw()
             return
         p.hand.append(card)
         self.turn_has_drawn = True
@@ -697,6 +699,8 @@ class CrazyEightsGame(Game):
             return "action-not-available"
         if self.turn_has_drawn:
             return "action-not-available"
+        if len(player.hand) >= self.max_hand_size:
+            return "action-not-available"
         if self._has_playable_cards(player):
             return "action-not-available"
         return None
@@ -710,6 +714,8 @@ class CrazyEightsGame(Game):
             return Visibility.HIDDEN
         if self.turn_has_drawn:
             return Visibility.HIDDEN
+        if len(player.hand) >= self.max_hand_size:
+            return Visibility.HIDDEN
         if self._has_playable_cards(player):
             return Visibility.HIDDEN
         return Visibility.VISIBLE
@@ -719,18 +725,30 @@ class CrazyEightsGame(Game):
             return "action-not-available"
         if self._is_turn_action_enabled(player) is not None:
             return self._is_turn_action_enabled(player)
-        if not self.turn_has_drawn:
+        if isinstance(player, CrazyEightsPlayer) and self._has_playable_cards(player):
             return "action-not-available"
-        return None
+        if self.turn_has_drawn:
+            return None
+        if isinstance(player, CrazyEightsPlayer) and len(player.hand) >= self.max_hand_size:
+            return None
+        if not self._can_draw(player if isinstance(player, CrazyEightsPlayer) else None):
+            return None
+        return "action-not-available"
 
     def _is_pass_hidden(self, player: Player) -> Visibility:
         if self.awaiting_wild_suit:
             return Visibility.HIDDEN
         if self._is_turn_action_hidden(player) == Visibility.HIDDEN:
             return Visibility.HIDDEN
-        if not self.turn_has_drawn:
+        if isinstance(player, CrazyEightsPlayer) and self._has_playable_cards(player):
             return Visibility.HIDDEN
-        return Visibility.VISIBLE
+        if self.turn_has_drawn:
+            return Visibility.VISIBLE
+        if isinstance(player, CrazyEightsPlayer) and len(player.hand) >= self.max_hand_size:
+            return Visibility.VISIBLE
+        if not self._can_draw(player if isinstance(player, CrazyEightsPlayer) else None):
+            return Visibility.VISIBLE
+        return Visibility.HIDDEN
 
     def _is_suit_choice_enabled(self, player: Player) -> str | None:
         if not self.awaiting_wild_suit:
@@ -755,10 +773,14 @@ class CrazyEightsGame(Game):
     def _is_always_hidden(self, player: Player) -> Visibility:
         return Visibility.HIDDEN
 
-    def _can_draw(self, player: CrazyEightsPlayer) -> bool:
+    def _can_draw(self, player: CrazyEightsPlayer | None) -> bool:
+        if not player:
+            return False
         if self.awaiting_wild_suit:
             return False
         if self.turn_has_drawn:
+            return False
+        if len(player.hand) >= self.max_hand_size:
             return False
         if self._has_playable_cards(player):
             return False
@@ -803,6 +825,11 @@ class CrazyEightsGame(Game):
         if self.deck.is_empty():
             self._reshuffle_discard_into_deck()
         return self.deck.draw_one()
+
+    def _handle_empty_draw(self) -> None:
+        # No cards available to draw; end the round with no scoring and start a new hand.
+        self._stop_turn_loop()
+        self._start_new_hand()
 
     def _reshuffle_discard_into_deck(self) -> None:
         if len(self.discard_pile) <= 1:
