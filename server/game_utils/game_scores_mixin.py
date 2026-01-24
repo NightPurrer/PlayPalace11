@@ -7,6 +7,8 @@ if TYPE_CHECKING:
     from ..users.base import User
     from .teams import TeamManager
 
+from ..messages.localization import Localization
+
 
 class GameScoresMixin:
     """Mixin providing score checking and turn announcement actions.
