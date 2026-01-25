@@ -53,11 +53,11 @@ def test_active_tables_menu_singular_player_format() -> None:
     assert expected in texts
 
 
-def test_categories_menu_includes_active_tables_option() -> None:
+def test_main_menu_includes_active_tables_option() -> None:
     server = _make_server()
     viewer = MockUser("Alice")
-    server._show_categories_menu(viewer)
+    server._show_main_menu(viewer)
 
-    texts = _menu_texts(viewer, "categories_menu")
+    texts = _menu_texts(viewer, "main_menu")
     expected = Localization.get(viewer.locale, "view-active-tables")
     assert expected in texts
