@@ -103,6 +103,7 @@ no-scores-available = 没有可用分数。
 # 保存/恢复
 saved-tables = 已保存的桌台
 no-saved-tables = 您没有已保存的桌台。
+no-active-tables = 没有活跃的桌台。
 restore-table = 恢复
 delete-saved-table = 删除
 saved-table-deleted = 已删除保存的桌台。

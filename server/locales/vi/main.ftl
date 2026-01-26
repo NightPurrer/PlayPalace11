@@ -116,6 +116,7 @@ estimate-already-running = Đang trong quá trình ước tính thời gian.
 # Lưu/Khôi phục
 saved-tables = Bàn đã lưu
 no-saved-tables = Bạn chưa lưu bàn nào.
+no-active-tables = Không có bàn đang hoạt động.
 restore-table = Khôi phục
 delete-saved-table = Xóa
 saved-table-deleted = Đã xóa bàn đã lưu.

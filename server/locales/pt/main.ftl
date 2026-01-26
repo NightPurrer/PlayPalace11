@@ -103,6 +103,7 @@ no-scores-available = Nenhuma pontuação disponível.
 # Salvar/Restaurar
 saved-tables = Mesas Salvas
 no-saved-tables = Você não tem mesas salvas.
+no-active-tables = Não há mesas ativas.
 restore-table = Restaurar
 delete-saved-table = Excluir
 saved-table-deleted = Mesa salva excluída.

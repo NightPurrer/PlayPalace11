@@ -115,6 +115,7 @@ estimate-already-running = Duration estimation already in progress.
 # Save/Restore
 saved-tables = Saved Tables
 no-saved-tables = You have no saved tables.
+no-active-tables = No active tables.
 restore-table = Restore
 delete-saved-table = Delete
 saved-table-deleted = Saved table deleted.

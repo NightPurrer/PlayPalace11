@@ -532,6 +532,10 @@ class Server(AdministrationMixin):
     def _show_active_tables_menu(self, user: NetworkUser) -> None:
         """Show available tables across all games."""
         tables = self._tables.get_waiting_tables()
+        if not tables:
+            user.speak_l("no-active-tables")
+            self._show_main_menu(user)
+            return
         items: list[MenuItem] = []
         for table in tables:
             game_class = get_game_class(table.game_type)

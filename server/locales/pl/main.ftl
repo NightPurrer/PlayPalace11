@@ -110,6 +110,7 @@ estimate-already-running = Szacowanie w toku
 # Save/Restore
 saved-tables = Zapisane stoły
 no-saved-tables = Nie masz zapisanych stołów
+no-active-tables = Brak aktywnych stołów.
 restore-table = przywróć
 delete-saved-table = Usuń
 saved-table-deleted = usunięto zapisany stół
