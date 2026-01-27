@@ -20,6 +20,14 @@ class EscapeBehavior(Enum):
     ESCAPE_EVENT = "escape_event"  # Sends explicit escape event to server
 
 
+class TrustLevel(Enum):
+    """User trust level for permission checks."""
+
+    USER = 1  # Normal user
+    ADMIN = 2  # Administrator
+    SERVER_OWNER = 3  # Server owner (highest privilege)
+
+
 @dataclass
 class MenuItem:
     """A menu item with text and optional ID."""
@@ -67,9 +75,9 @@ class User(ABC):
         ...
 
     @property
-    def trust_level(self) -> int:
-        """The user's trust level (1 = player, 2 = admin). Defaults to 1 if not overridden."""
-        return 1
+    def trust_level(self) -> TrustLevel:
+        """The user's trust level. Defaults to USER if not overridden."""
+        return TrustLevel.USER
 
     @property
     def preferences(self) -> "UserPreferences":

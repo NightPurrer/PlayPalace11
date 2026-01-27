@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError, InvalidHashError
 
+from ..users.base import TrustLevel
+
 if TYPE_CHECKING:
     from ..persistence.database import Database, UserRecord
 
@@ -77,21 +79,21 @@ class AuthManager:
         Register a new user.
 
         Returns True if registration successful, False if username taken.
-        The first user ever registered becomes an admin (trust level 2) and is auto-approved.
+        The first user ever registered becomes server owner and is auto-approved.
         """
         if self._db.user_exists(username):
             return False
 
-        # Check if this is the first user - they become admin and are auto-approved
+        # Check if this is the first user - they become server owner and are auto-approved
         is_first_user = self._db.get_user_count() == 0
-        trust_level = 2 if is_first_user else 1
+        trust_level = TrustLevel.SERVER_OWNER if is_first_user else TrustLevel.USER
         approved = is_first_user  # First user is auto-approved
 
         password_hash = self.hash_password(password)
         self._db.create_user(username, password_hash, locale, trust_level, approved)
 
         if is_first_user:
-            print(f"User '{username}' is the first user and has been granted admin (trust level 2).")
+            print(f"User '{username}' is the first user and has been granted server owner (trust level {TrustLevel.SERVER_OWNER.value}).")
 
         return True
 

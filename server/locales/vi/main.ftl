@@ -72,6 +72,7 @@ goodbye = Tạm biệt!
 user-online = { $player } vừa online.
 user-offline = { $player } đã offline.
 user-is-admin = { $player } là quản trị viên của PlayPalace.
+user-is-server-owner = { $player } là chủ sở hữu máy chủ của PlayPalace.
 online-users-none = Không có ai online.
 online-users-one = 1 người dùng: { $users }
 online-users-many = { $count } người dùng: { $users }
@@ -274,3 +275,12 @@ promote-announcement-you = Bạn đã được thăng chức lên Admin!
 demote-announcement = { $player } đã bị bãi nhiệm Admin.
 demote-announcement-you = Bạn đã bị bãi nhiệm Admin.
 not-admin-anymore = Bạn không còn là Admin và không thể thực hiện hành động này.
+not-server-owner = Chỉ chủ sở hữu máy chủ mới có thể thực hiện hành động này.
+
+# Chuyển quyền sở hữu máy chủ
+transfer-ownership = Chuyển quyền sở hữu
+transfer-ownership-menu-title = Chuyển quyền sở hữu
+no-admins-for-transfer = Không có Admin nào để chuyển quyền sở hữu.
+confirm-transfer-ownership = Bạn có chắc muốn chuyển quyền sở hữu máy chủ cho { $player } không? Bạn sẽ trở thành Admin.
+transfer-ownership-announcement = { $player } giờ là chủ sở hữu máy chủ!
+transfer-ownership-announcement-you = Bạn giờ là chủ sở hữu máy chủ!

@@ -6,6 +6,7 @@ from pathlib import Path
 from dataclasses import dataclass
 
 from ..tables.table import Table
+from ..users.base import TrustLevel
 
 
 @dataclass
@@ -18,7 +19,7 @@ class UserRecord:
     uuid: str  # Persistent unique identifier for stats tracking
     locale: str = "en"
     preferences_json: str = "{}"
-    trust_level: int = 1  # 1 = player, 2 = admin
+    trust_level: TrustLevel = TrustLevel.USER
     approved: bool = False  # Whether the account has been approved by an admin
 
 
@@ -181,6 +182,7 @@ class Database:
         )
         row = cursor.fetchone()
         if row:
+            trust_level_int = row["trust_level"] if row["trust_level"] is not None else 1
             return UserRecord(
                 id=row["id"],
                 username=row["username"],
@@ -188,13 +190,13 @@ class Database:
                 uuid=row["uuid"],
                 locale=row["locale"] or "en",
                 preferences_json=row["preferences_json"] or "{}",
-                trust_level=row["trust_level"] if row["trust_level"] is not None else 1,
+                trust_level=TrustLevel(trust_level_int),
                 approved=bool(row["approved"]) if row["approved"] is not None else False,
             )
         return None
 
     def create_user(
-        self, username: str, password_hash: str, locale: str = "en", trust_level: int = 1, approved: bool = False
+        self, username: str, password_hash: str, locale: str = "en", trust_level: TrustLevel = TrustLevel.USER, approved: bool = False
     ) -> UserRecord:
         """Create a new user with a generated UUID."""
         import uuid as uuid_module
@@ -202,7 +204,7 @@ class Database:
         cursor = self._conn.cursor()
         cursor.execute(
             "INSERT INTO users (username, password_hash, uuid, locale, trust_level, approved) VALUES (?, ?, ?, ?, ?, ?)",
-            (username, password_hash, user_uuid, locale, trust_level, 1 if approved else 0),
+            (username, password_hash, user_uuid, locale, trust_level.value, 1 if approved else 0),
         )
         self._conn.commit()
         return UserRecord(
@@ -257,11 +259,11 @@ class Database:
         """
         Initialize trust levels for users who don't have one set.
 
-        Sets all users without a trust level to 1 (player).
-        If there's exactly one user and they have no trust level, sets them to 2 (admin).
+        Sets all users without a trust level to USER.
+        If there's exactly one user and they have no trust level, sets them to SERVER_OWNER.
 
         Returns:
-            The username of the user promoted to admin, or None if no promotion occurred.
+            The username of the user promoted to server owner, or None if no promotion occurred.
         """
         cursor = self._conn.cursor()
 
@@ -277,26 +279,26 @@ class Database:
             total_users = cursor.fetchone()[0]
 
             if total_users == 1:
-                # First and only user - make them admin
+                # First and only user - make them server owner
                 username = users_without_trust[0]["username"]
                 cursor.execute(
-                    "UPDATE users SET trust_level = 2 WHERE id = ?",
-                    (users_without_trust[0]["id"],),
+                    "UPDATE users SET trust_level = ? WHERE id = ?",
+                    (TrustLevel.SERVER_OWNER.value, users_without_trust[0]["id"]),
                 )
                 promoted_user = username
 
-        # Set all remaining users without trust level to 1 (player)
-        cursor.execute("UPDATE users SET trust_level = 1 WHERE trust_level IS NULL")
+        # Set all remaining users without trust level to USER
+        cursor.execute("UPDATE users SET trust_level = ? WHERE trust_level IS NULL", (TrustLevel.USER.value,))
         self._conn.commit()
 
         return promoted_user
 
-    def update_user_trust_level(self, username: str, trust_level: int) -> None:
+    def update_user_trust_level(self, username: str, trust_level: TrustLevel) -> None:
         """Update a user's trust level."""
         cursor = self._conn.cursor()
         cursor.execute(
             "UPDATE users SET trust_level = ? WHERE username = ?",
-            (trust_level, username),
+            (trust_level.value, username),
         )
         self._conn.commit()
 
@@ -308,6 +310,7 @@ class Database:
         )
         users = []
         for row in cursor.fetchall():
+            trust_level_int = row["trust_level"] if row["trust_level"] is not None else 1
             users.append(UserRecord(
                 id=row["id"],
                 username=row["username"],
@@ -315,7 +318,7 @@ class Database:
                 uuid=row["uuid"],
                 locale=row["locale"] or "en",
                 preferences_json=row["preferences_json"] or "{}",
-                trust_level=row["trust_level"] if row["trust_level"] is not None else 1,
+                trust_level=TrustLevel(trust_level_int),
                 approved=False,
             ))
         return users
@@ -338,13 +341,15 @@ class Database:
         return cursor.rowcount > 0
 
     def get_non_admin_users(self) -> list[UserRecord]:
-        """Get all approved users who are not admins (trust_level < 2)."""
+        """Get all approved users who are not admins (trust_level < ADMIN)."""
         cursor = self._conn.cursor()
         cursor.execute(
-            "SELECT id, username, password_hash, uuid, locale, preferences_json, trust_level, approved FROM users WHERE approved = 1 AND trust_level < 2 ORDER BY username"
+            "SELECT id, username, password_hash, uuid, locale, preferences_json, trust_level, approved FROM users WHERE approved = 1 AND trust_level < ? ORDER BY username",
+            (TrustLevel.ADMIN.value,),
         )
         users = []
         for row in cursor.fetchall():
+            trust_level_int = row["trust_level"] if row["trust_level"] is not None else 1
             users.append(UserRecord(
                 id=row["id"],
                 username=row["username"],
@@ -352,17 +357,50 @@ class Database:
                 uuid=row["uuid"],
                 locale=row["locale"] or "en",
                 preferences_json=row["preferences_json"] or "{}",
-                trust_level=row["trust_level"] if row["trust_level"] is not None else 1,
+                trust_level=TrustLevel(trust_level_int),
                 approved=True,
             ))
         return users
 
-    def get_admin_users(self) -> list[UserRecord]:
-        """Get all users who are admins (trust_level >= 2)."""
+    def get_server_owner(self) -> UserRecord | None:
+        """Get the server owner (there should only be one)."""
         cursor = self._conn.cursor()
         cursor.execute(
-            "SELECT id, username, password_hash, uuid, locale, preferences_json, trust_level, approved FROM users WHERE trust_level >= 2 ORDER BY username"
+            "SELECT id, username, password_hash, uuid, locale, preferences_json, trust_level, approved FROM users WHERE trust_level = ?",
+            (TrustLevel.SERVER_OWNER.value,),
         )
+        row = cursor.fetchone()
+        if row:
+            return UserRecord(
+                id=row["id"],
+                username=row["username"],
+                password_hash=row["password_hash"],
+                uuid=row["uuid"],
+                locale=row["locale"] or "en",
+                preferences_json=row["preferences_json"] or "{}",
+                trust_level=TrustLevel(row["trust_level"]),
+                approved=bool(row["approved"]) if row["approved"] is not None else False,
+            )
+        return None
+
+    def get_admin_users(self, include_server_owner: bool = True) -> list[UserRecord]:
+        """Get all users who are admins (trust_level >= ADMIN).
+
+        Args:
+            include_server_owner: If True, includes the server owner in the list.
+                                  If False, only returns admins (not server owner).
+        """
+        cursor = self._conn.cursor()
+        if include_server_owner:
+            cursor.execute(
+                "SELECT id, username, password_hash, uuid, locale, preferences_json, trust_level, approved FROM users WHERE trust_level >= ? ORDER BY username",
+                (TrustLevel.ADMIN.value,),
+            )
+        else:
+            cursor.execute(
+                "SELECT id, username, password_hash, uuid, locale, preferences_json, trust_level, approved FROM users WHERE trust_level = ? ORDER BY username",
+                (TrustLevel.ADMIN.value,),
+            )
         users = []
         for row in cursor.fetchall():
             users.append(UserRecord(
@@ -372,7 +410,7 @@ class Database:
                 uuid=row["uuid"],
                 locale=row["locale"] or "en",
                 preferences_json=row["preferences_json"] or "{}",
-                trust_level=row["trust_level"],
+                trust_level=TrustLevel(row["trust_level"]),
                 approved=bool(row["approved"]) if row["approved"] is not None else False,
             ))
         return users

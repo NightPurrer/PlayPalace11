@@ -72,6 +72,7 @@ goodbye = Goodbye!
 user-online = { $player } came online.
 user-offline = { $player } went offline.
 user-is-admin = { $player } is an administrator of PlayPalace.
+user-is-server-owner = { $player } is the server owner of PlayPalace.
 online-users-none = No users online.
 online-users-one = 1 user: { $users }
 online-users-many = { $count } users: { $users }
@@ -274,3 +275,12 @@ promote-announcement-you = You have been promoted to admin!
 demote-announcement = { $player } has been demoted from admin.
 demote-announcement-you = You have been demoted from admin.
 not-admin-anymore = You are no longer an admin and cannot perform this action.
+not-server-owner = Only the server owner can perform this action.
+
+# Server ownership transfer
+transfer-ownership = Transfer Ownership
+transfer-ownership-menu-title = Transfer Ownership
+no-admins-for-transfer = No admins available to transfer ownership to.
+confirm-transfer-ownership = Are you sure you want to transfer server ownership to { $player }? You will be demoted to admin.
+transfer-ownership-announcement = { $player } is now the server owner!
+transfer-ownership-announcement-you = You are now the server owner!

@@ -2,7 +2,7 @@
 
 from typing import Any, TYPE_CHECKING
 
-from .base import User, MenuItem, EscapeBehavior, generate_uuid
+from .base import User, MenuItem, EscapeBehavior, TrustLevel, generate_uuid
 from .preferences import UserPreferences
 
 if TYPE_CHECKING:
@@ -23,7 +23,7 @@ class NetworkUser(User):
         connection: "ClientConnection",
         uuid: str | None = None,
         preferences: UserPreferences | None = None,
-        trust_level: int = 1,
+        trust_level: TrustLevel = TrustLevel.USER,
         approved: bool = False,
     ):
         self._uuid = uuid or generate_uuid()
@@ -57,7 +57,7 @@ class NetworkUser(User):
         self._locale = locale
 
     @property
-    def trust_level(self) -> int:
+    def trust_level(self) -> TrustLevel:
         return self._trust_level
 
     @property
@@ -68,7 +68,7 @@ class NetworkUser(User):
         """Set the user's approval status."""
         self._approved = approved
 
-    def set_trust_level(self, trust_level: int) -> None:
+    def set_trust_level(self, trust_level: TrustLevel) -> None:
         """Set the user's trust level."""
         self._trust_level = trust_level
 

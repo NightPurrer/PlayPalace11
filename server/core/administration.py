@@ -4,7 +4,7 @@ import functools
 from typing import TYPE_CHECKING
 
 from ..users.network_user import NetworkUser
-from ..users.base import MenuItem, EscapeBehavior
+from ..users.base import MenuItem, EscapeBehavior, TrustLevel
 from ..messages.localization import Localization
 
 if TYPE_CHECKING:
@@ -15,11 +15,23 @@ def require_admin(func):
     """Decorator that checks if the user is still an admin before executing an admin action."""
     @functools.wraps(func)
     async def wrapper(self, admin, *args, **kwargs):
-        if admin.trust_level < 2:
+        if admin.trust_level.value < TrustLevel.ADMIN.value:
             admin.speak_l("not-admin-anymore")
             self._show_main_menu(admin)
             return
         return await func(self, admin, *args, **kwargs)
+    return wrapper
+
+
+def require_server_owner(func):
+    """Decorator that checks if the user is the server owner before executing a server owner action."""
+    @functools.wraps(func)
+    async def wrapper(self, owner, *args, **kwargs):
+        if owner.trust_level.value < TrustLevel.SERVER_OWNER.value:
+            owner.speak_l("not-server-owner")
+            self._show_main_menu(owner)
+            return
+        return await func(self, owner, *args, **kwargs)
     return wrapper
 
 
@@ -47,7 +59,7 @@ class AdministrationMixin:
     ) -> None:
         """Notify all online admins with a message and sound, optionally excluding one admin."""
         for username, user in self._users.items():
-            if user.trust_level < 2:
+            if user.trust_level.value < TrustLevel.ADMIN.value:
                 continue  # Not an admin
             if exclude_username and username == exclude_username:
                 continue  # Skip the excluded admin
@@ -63,16 +75,28 @@ class AdministrationMixin:
                 text=Localization.get(user.locale, "account-approval"),
                 id="account_approval",
             ),
-            MenuItem(
-                text=Localization.get(user.locale, "promote-admin"),
-                id="promote_admin",
-            ),
-            MenuItem(
-                text=Localization.get(user.locale, "demote-admin"),
-                id="demote_admin",
-            ),
-            MenuItem(text=Localization.get(user.locale, "back"), id="back"),
         ]
+        # Only server owners can promote/demote admins and transfer ownership
+        if user.trust_level.value >= TrustLevel.SERVER_OWNER.value:
+            items.append(
+                MenuItem(
+                    text=Localization.get(user.locale, "promote-admin"),
+                    id="promote_admin",
+                )
+            )
+            items.append(
+                MenuItem(
+                    text=Localization.get(user.locale, "demote-admin"),
+                    id="demote_admin",
+                )
+            )
+            items.append(
+                MenuItem(
+                    text=Localization.get(user.locale, "transfer-ownership"),
+                    id="transfer_ownership",
+                )
+            )
+        items.append(MenuItem(text=Localization.get(user.locale, "back"), id="back"))
         user.show_menu(
             "admin_menu",
             items,
@@ -145,7 +169,8 @@ class AdministrationMixin:
 
     def _show_demote_admin_menu(self, user: NetworkUser) -> None:
         """Show demote admin menu with list of admin users."""
-        admins = self._db.get_admin_users()
+        # Exclude server owner from demotion list
+        admins = self._db.get_admin_users(include_server_owner=False)
 
         # Filter out the current user (can't demote yourself)
         admins = [a for a in admins if a.username != user.username]
@@ -223,6 +248,65 @@ class AdministrationMixin:
             "target_username": target_username,
         }
 
+    def _show_transfer_ownership_menu(self, user: NetworkUser) -> None:
+        """Show transfer ownership menu with list of admin users."""
+        # Only admins can receive ownership (exclude server owner)
+        admins = self._db.get_admin_users(include_server_owner=False)
+
+        if not admins:
+            user.speak_l("no-admins-for-transfer")
+            self._show_admin_menu(user)
+            return
+
+        items = []
+        for admin in admins:
+            items.append(MenuItem(text=admin.username, id=f"transfer_{admin.username}"))
+        items.append(MenuItem(text=Localization.get(user.locale, "back"), id="back"))
+
+        user.show_menu(
+            "transfer_ownership_menu",
+            items,
+            multiletter=True,
+            escape_behavior=EscapeBehavior.SELECT_LAST,
+        )
+        self._user_states[user.username] = {"menu": "transfer_ownership_menu"}
+
+    def _show_transfer_ownership_confirm_menu(self, user: NetworkUser, target_username: str) -> None:
+        """Show confirmation menu for transferring ownership."""
+        user.speak_l("confirm-transfer-ownership", player=target_username)
+        items = [
+            MenuItem(text=Localization.get(user.locale, "confirm-yes"), id="yes"),
+            MenuItem(text=Localization.get(user.locale, "confirm-no"), id="no"),
+        ]
+        user.show_menu(
+            "transfer_ownership_confirm_menu",
+            items,
+            multiletter=True,
+            escape_behavior=EscapeBehavior.SELECT_LAST,
+        )
+        self._user_states[user.username] = {
+            "menu": "transfer_ownership_confirm_menu",
+            "target_username": target_username,
+        }
+
+    def _show_transfer_broadcast_choice_menu(self, user: NetworkUser, target_username: str) -> None:
+        """Show menu to choose broadcast audience for ownership transfer."""
+        items = [
+            MenuItem(text=Localization.get(user.locale, "broadcast-to-all"), id="all"),
+            MenuItem(text=Localization.get(user.locale, "broadcast-to-admins"), id="admins"),
+            MenuItem(text=Localization.get(user.locale, "broadcast-to-nobody"), id="nobody"),
+        ]
+        user.show_menu(
+            "transfer_broadcast_choice_menu",
+            items,
+            multiletter=True,
+            escape_behavior=EscapeBehavior.SELECT_LAST,
+        )
+        self._user_states[user.username] = {
+            "menu": "transfer_broadcast_choice_menu",
+            "target_username": target_username,
+        }
+
     # ==================== Menu Selection Handlers ====================
 
     async def _handle_admin_menu_selection(
@@ -235,6 +319,8 @@ class AdministrationMixin:
             self._show_promote_admin_menu(user)
         elif selection_id == "demote_admin":
             self._show_demote_admin_menu(user)
+        elif selection_id == "transfer_ownership":
+            self._show_transfer_ownership_menu(user)
         elif selection_id == "back":
             self._show_main_menu(user)
 
@@ -335,6 +421,47 @@ class AdministrationMixin:
         elif action == "demote":
             await self._demote_from_admin(user, target_username, broadcast_scope)
 
+    async def _handle_transfer_ownership_selection(
+        self, user: NetworkUser, selection_id: str
+    ) -> None:
+        """Handle transfer ownership menu selection."""
+        if selection_id == "back":
+            self._show_admin_menu(user)
+        elif selection_id.startswith("transfer_"):
+            target_username = selection_id[9:]  # Remove "transfer_" prefix
+            self._show_transfer_ownership_confirm_menu(user, target_username)
+
+    async def _handle_transfer_ownership_confirm_selection(
+        self, user: NetworkUser, selection_id: str, state: dict
+    ) -> None:
+        """Handle transfer ownership confirmation menu selection."""
+        target_username = state.get("target_username")
+        if not target_username:
+            self._show_transfer_ownership_menu(user)
+            return
+
+        if selection_id == "yes":
+            # Show broadcast choice menu
+            self._show_transfer_broadcast_choice_menu(user, target_username)
+        else:
+            # No or back - return to transfer ownership menu
+            self._show_transfer_ownership_menu(user)
+
+    async def _handle_transfer_broadcast_choice_selection(
+        self, user: NetworkUser, selection_id: str, state: dict
+    ) -> None:
+        """Handle transfer broadcast choice menu selection."""
+        target_username = state.get("target_username")
+
+        if not target_username:
+            self._show_admin_menu(user)
+            return
+
+        # Determine broadcast scope: "all", "admins", or "nobody"
+        broadcast_scope = selection_id
+
+        await self._transfer_ownership(user, target_username, broadcast_scope)
+
     # ==================== Admin Actions ====================
 
     @require_admin
@@ -384,18 +511,18 @@ class AdministrationMixin:
 
         self._show_account_approval_menu(admin)
 
-    @require_admin
+    @require_server_owner
     async def _promote_to_admin(
-        self, admin: NetworkUser, username: str, broadcast_scope: str
+        self, owner: NetworkUser, username: str, broadcast_scope: str
     ) -> None:
-        """Promote a user to admin."""
+        """Promote a user to admin. Only server owner can do this."""
         # Update trust level in database
-        self._db.update_user_trust_level(username, 2)
+        self._db.update_user_trust_level(username, TrustLevel.ADMIN)
 
         # Update the user's trust level if they are online
         target_user = self._users.get(username)
         if target_user:
-            target_user.set_trust_level(2)
+            target_user.set_trust_level(TrustLevel.ADMIN)
 
         # Always notify the target user with personalized message
         if target_user:
@@ -404,9 +531,9 @@ class AdministrationMixin:
 
         # Broadcast the announcement to others based on scope
         if broadcast_scope == "nobody":
-            # Silent mode - only notify the admin who performed the action
-            admin.speak_l("promote-announcement", player=username)
-            admin.play_sound("accountpromoteadmin.ogg")
+            # Silent mode - only notify the server owner who performed the action
+            owner.speak_l("promote-announcement", player=username)
+            owner.play_sound("accountpromoteadmin.ogg")
         else:
             # Broadcast to all or admins (excluding the target user who already got personalized message)
             self._broadcast_admin_change(
@@ -417,20 +544,20 @@ class AdministrationMixin:
                 exclude_username=username,
             )
 
-        self._show_admin_menu(admin)
+        self._show_admin_menu(owner)
 
-    @require_admin
+    @require_server_owner
     async def _demote_from_admin(
-        self, admin: NetworkUser, username: str, broadcast_scope: str
+        self, owner: NetworkUser, username: str, broadcast_scope: str
     ) -> None:
-        """Demote an admin to regular user."""
+        """Demote an admin to regular user. Only server owner can do this."""
         # Update trust level in database
-        self._db.update_user_trust_level(username, 1)
+        self._db.update_user_trust_level(username, TrustLevel.USER)
 
         # Update the user's trust level if they are online
         target_user = self._users.get(username)
         if target_user:
-            target_user.set_trust_level(1)
+            target_user.set_trust_level(TrustLevel.USER)
 
         # Always notify the target user with personalized message
         if target_user:
@@ -439,9 +566,9 @@ class AdministrationMixin:
 
         # Broadcast the announcement to others based on scope
         if broadcast_scope == "nobody":
-            # Silent mode - only notify the admin who performed the action
-            admin.speak_l("demote-announcement", player=username)
-            admin.play_sound("accountdemoteadmin.ogg")
+            # Silent mode - only notify the server owner who performed the action
+            owner.speak_l("demote-announcement", player=username)
+            owner.play_sound("accountdemoteadmin.ogg")
         else:
             # Broadcast to all or admins (excluding the target user who already got personalized message)
             self._broadcast_admin_change(
@@ -452,7 +579,7 @@ class AdministrationMixin:
                 exclude_username=username,
             )
 
-        self._show_admin_menu(admin)
+        self._show_admin_menu(owner)
 
     def _broadcast_admin_change(
         self,
@@ -468,7 +595,48 @@ class AdministrationMixin:
                 continue  # Don't send broadcasts to unapproved users
             if exclude_username and username == exclude_username:
                 continue  # Skip the excluded user
-            if broadcast_scope == "admins" and user.trust_level < 2:
+            if broadcast_scope == "admins" and user.trust_level.value < TrustLevel.ADMIN.value:
                 continue  # Only admins if broadcasting to admins only
             user.speak_l(message_id, player=player_name)
             user.play_sound(sound)
+
+    @require_server_owner
+    async def _transfer_ownership(
+        self, owner: NetworkUser, username: str, broadcast_scope: str
+    ) -> None:
+        """Transfer server ownership to another admin. Only server owner can do this."""
+        # Update new owner to SERVER_OWNER
+        self._db.update_user_trust_level(username, TrustLevel.SERVER_OWNER)
+
+        # Demote current owner to ADMIN
+        self._db.update_user_trust_level(owner.username, TrustLevel.ADMIN)
+
+        # Update the new owner's trust level if they are online
+        target_user = self._users.get(username)
+        if target_user:
+            target_user.set_trust_level(TrustLevel.SERVER_OWNER)
+
+        # Update current owner's trust level
+        owner.set_trust_level(TrustLevel.ADMIN)
+
+        # Always notify the target user with personalized message
+        if target_user:
+            target_user.speak_l("transfer-ownership-announcement-you")
+            target_user.play_sound("accounttransferownership.ogg")
+
+        # Broadcast the announcement to others based on scope
+        if broadcast_scope == "nobody":
+            # Silent mode - only notify the former owner who performed the action
+            owner.speak_l("transfer-ownership-announcement", player=username)
+            owner.play_sound("accounttransferownership.ogg")
+        else:
+            # Broadcast to all or admins (excluding the target user who already got personalized message)
+            self._broadcast_admin_change(
+                "transfer-ownership-announcement",
+                "accounttransferownership.ogg",
+                username,
+                broadcast_scope,
+                exclude_username=username,
+            )
+
+        self._show_admin_menu(owner)

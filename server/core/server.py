@@ -14,7 +14,7 @@ from ..persistence.database import Database
 from ..auth.auth import AuthManager
 from ..tables.manager import TableManager
 from ..users.network_user import NetworkUser
-from ..users.base import MenuItem, EscapeBehavior
+from ..users.base import MenuItem, EscapeBehavior, TrustLevel
 from ..users.preferences import UserPreferences, DiceKeepingStyle
 from ..games.registry import GameRegistry, get_game_class
 from ..messages.localization import Localization
@@ -77,7 +77,7 @@ class Server(AdministrationMixin):
         # Initialize trust levels for users
         promoted_user = self._db.initialize_trust_levels()
         if promoted_user:
-            print(f"User '{promoted_user}' has been promoted to admin (trust level 2).")
+            print(f"User '{promoted_user}' has been promoted to server owner (trust level 3).")
 
         # Load existing tables
         self._load_tables()
@@ -191,7 +191,7 @@ class Server(AdministrationMixin):
         if client.username:
             # Check if the disconnecting user is an admin before cleanup
             user = self._users.get(client.username)
-            is_admin = user and user.trust_level >= 2
+            is_admin = user and user.trust_level.value >= TrustLevel.ADMIN.value
 
             # Broadcast offline announcement to all users with appropriate sound
             offline_sound = "offlineadmin.ogg" if is_admin else "offline.ogg"
@@ -217,6 +217,13 @@ class Server(AdministrationMixin):
             if not user.approved:
                 continue  # Don't send broadcasts to unapproved users
             user.speak_l("user-is-admin", player=admin_name)
+
+    def _broadcast_server_owner_announcement(self, owner_name: str) -> None:
+        """Broadcast a server owner announcement to all approved online users."""
+        for username, user in self._users.items():
+            if not user.approved:
+                continue  # Don't send broadcasts to unapproved users
+            user.speak_l("user-is-server-owner", player=owner_name)
 
     async def _on_client_message(self, client: ClientConnection, packet: dict) -> None:
         """Handle incoming message from client."""
@@ -286,7 +293,7 @@ class Server(AdministrationMixin):
         user_record = self._auth.get_user(username)
         locale = user_record.locale if user_record else "en"
         user_uuid = user_record.uuid if user_record else None
-        trust_level = user_record.trust_level if user_record else 1
+        trust_level = user_record.trust_level if user_record else TrustLevel.USER
         is_approved = user_record.approved if user_record else False
         preferences = UserPreferences()
         if user_record and user_record.preferences_json:
@@ -302,11 +309,13 @@ class Server(AdministrationMixin):
         self._users[username] = user
 
         # Broadcast online announcement to all users with appropriate sound
-        online_sound = "onlineadmin.ogg" if trust_level >= 2 else "online.ogg"
+        online_sound = "onlineadmin.ogg" if trust_level.value >= TrustLevel.ADMIN.value else "online.ogg"
         self._broadcast_presence_l("user-online", username, online_sound)
 
-        # If user is an admin, announce that as well
-        if trust_level >= 2:
+        # If user is server owner, announce that; otherwise if admin, announce that
+        if trust_level.value >= TrustLevel.SERVER_OWNER.value:
+            self._broadcast_server_owner_announcement(username)
+        elif trust_level.value >= TrustLevel.ADMIN.value:
             self._broadcast_admin_announcement(username)
 
         # Send success response
@@ -421,7 +430,7 @@ class Server(AdministrationMixin):
             MenuItem(text=Localization.get(user.locale, "options"), id="options"),
         ]
         # Add administration menu for admins
-        if user.trust_level >= 2:
+        if user.trust_level.value >= TrustLevel.ADMIN.value:
             items.append(
                 MenuItem(text=Localization.get(user.locale, "administration"), id="administration")
             )
@@ -796,6 +805,12 @@ class Server(AdministrationMixin):
             await self._handle_demote_confirm_selection(user, selection_id, state)
         elif current_menu == "broadcast_choice_menu":
             await self._handle_broadcast_choice_selection(user, selection_id, state)
+        elif current_menu == "transfer_ownership_menu":
+            await self._handle_transfer_ownership_selection(user, selection_id)
+        elif current_menu == "transfer_ownership_confirm_menu":
+            await self._handle_transfer_ownership_confirm_selection(user, selection_id, state)
+        elif current_menu == "transfer_broadcast_choice_menu":
+            await self._handle_transfer_broadcast_choice_selection(user, selection_id, state)
 
     async def _handle_main_menu_selection(
         self, user: NetworkUser, selection_id: str
@@ -814,7 +829,7 @@ class Server(AdministrationMixin):
         elif selection_id == "options":
             self._show_options_menu(user)
         elif selection_id == "administration":
-            if user.trust_level >= 2:
+            if user.trust_level.value >= TrustLevel.ADMIN.value:
                 self._show_admin_menu(user)
         elif selection_id == "logout":
             user.speak_l("goodbye")
