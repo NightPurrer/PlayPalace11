@@ -15,7 +15,7 @@ tables-menu-title = Danh sách Bàn
 
 # Các mục trong menu
 play = Chơi
-view-active-tables = Xem bàn đang hoạt động
+view-active-tables = Xem các bàn đang hoạt động
 options = Tùy chọn
 logout = Đăng xuất
 back = Quay lại
@@ -32,7 +32,7 @@ remove-bot = Xóa Bot
 actions-menu = Menu hành động
 save-table = Lưu bàn
 whose-turn = Đến lượt ai?
-whos-at-table = Ai đang ở bàn
+whos-at-table = Ai đang ở trong bàn
 check-scores = Xem điểm
 check-scores-detailed = Chi tiết điểm số
 
@@ -44,29 +44,25 @@ table-created = { $host } đã tạo một bàn { $game } mới.
 table-joined = { $player } đã tham gia bàn.
 table-left = { $player } đã rời bàn.
 new-host = { $player } giờ là chủ bàn.
-waiting-for-players = Đang chờ người chơi. Tối thiểu { $current }/{ $min }, tối đa { $max }.
+waiting-for-players = Đang chờ người chơi. Tối thiểu { $min }, tối đa { $max }.
 game-starting = Trò chơi bắt đầu!
-table-listing = Bàn của { $host } ({ $count } người dùng)
-table-listing-one = Bàn của { $host } ({ $count } người dùng)
-table-listing-with = Bàn của { $host } ({ $count } người dùng) với { $members }
-table-listing-game = { $game }: bàn của { $host } ({ $count } người dùng)
-table-listing-game-one = { $game }: bàn của { $host } ({ $count } người dùng)
-table-listing-game-with = { $game }: bàn của { $host } ({ $count } người dùng) với { $members }
+table-listing = Bàn của { $host } ({ $count } người)
+table-listing-one = Bàn của { $host } ({ $count } người)
+table-listing-with = Bàn của { $host } ({ $count } người) với { $members }
+table-listing-game = { $game }: Bàn của { $host } ({ $count } người)
+table-listing-game-one = { $game }: Bàn của { $host } ({ $count } người)
+table-listing-game-with = { $game }: Bàn của { $host } ({ $count } người) với { $members }
 table-not-exists = Bàn không còn tồn tại.
 table-full = Bàn đã đầy.
 player-replaced-by-bot = { $player } đã thoát và được thay thế bởi Bot.
 player-took-over = { $player } đã thế chỗ cho Bot.
 spectator-joined = Đã vào xem bàn của { $host }.
-table-no-players = Không có người chơi.
-table-players-one = { $count } người chơi: { $players }.
-table-players-many = { $count } người chơi: { $players }.
-table-spectators = Khán giả: { $spectators }.
 
 # Chế độ khán giả
 spectate = Xem
 now-playing = { $player } đang chơi.
 now-spectating = { $player } đang xem.
-spectator-left = { $player } đã ngừng xem.
+spectator-left = { $player } đã dừng xem.
 
 # Chung
 welcome = Chào mừng đến với PlayPalace!
@@ -75,9 +71,12 @@ goodbye = Tạm biệt!
 # Thông báo trạng thái người dùng
 user-online = { $player } vừa online.
 user-offline = { $player } đã offline.
-online-users-none = Không có người dùng trực tuyến.
+user-is-admin = { $player } là quản trị viên của PlayPalace.
+online-users-none = Không có ai online.
 online-users-one = 1 người dùng: { $users }
 online-users-many = { $count } người dùng: { $users }
+online-user-not-in-game = Không trong game
+online-user-waiting-approval = Đang chờ phê duyệt
 
 # Tùy chọn
 language = Ngôn ngữ
@@ -95,8 +94,8 @@ turn-sound-option = Âm thanh báo lượt: { $status }
 clear-kept-option = Bỏ chọn xúc xắc đã giữ khi gieo lại: { $status }
 dice-keeping-style-option = Kiểu giữ xúc xắc: { $style }
 dice-keeping-style-changed = Kiểu giữ xúc xắc đã đặt là { $style }.
-dice-keeping-style-indexes = Chỉ số xúc xắc
-dice-keeping-style-values = Giá trị xúc xắc
+dice-keeping-style-indexes = Theo thứ tự (vị trí)
+dice-keeping-style-values = Theo giá trị (mặt số)
 
 # Tên Bot
 cancel = Hủy
@@ -116,7 +115,7 @@ estimate-already-running = Đang trong quá trình ước tính thời gian.
 # Lưu/Khôi phục
 saved-tables = Bàn đã lưu
 no-saved-tables = Bạn chưa lưu bàn nào.
-no-active-tables = Không có bàn đang hoạt động.
+no-active-tables = Không có bàn nào đang hoạt động.
 restore-table = Khôi phục
 delete-saved-table = Xóa
 saved-table-deleted = Đã xóa bàn đã lưu.
@@ -145,6 +144,10 @@ dice-no-dice = Không có xúc xắc.
 # Hành động trong game
 game-turn-start = Lượt của { $player }.
 game-no-turn = Hiện không phải lượt của ai.
+table-no-players = Không có người chơi.
+table-players-one = { $count } người chơi: { $players }.
+table-players-many = { $count } người chơi: { $players }.
+table-spectators = Khán giả: { $spectators }.
 game-leave = Rời bỏ
 game-over = Kết thúc
 game-final-scores = Điểm tổng kết
@@ -231,3 +234,43 @@ action-need-more-humans = Cần thêm người chơi thực.
 confirm-leave-game = Bạn có chắc muốn rời bàn không?
 confirm-yes = Có
 confirm-no = Không
+
+# Quản trị (Administration)
+administration = Quản trị
+admin-menu-title = Quản trị
+
+# Phê duyệt tài khoản
+account-approval = Phê duyệt tài khoản
+account-approval-menu-title = Phê duyệt tài khoản
+no-pending-accounts = Không có tài khoản nào chờ duyệt.
+approve-account = Phê duyệt
+decline-account = Từ chối
+account-approved = Tài khoản của { $player } đã được phê duyệt.
+account-declined = Tài khoản của { $player } đã bị từ chối và xóa bỏ.
+
+# Chờ phê duyệt (hiện cho người dùng chưa được duyệt)
+waiting-for-approval = Tài khoản của bạn đang chờ quản trị viên phê duyệt. Vui lòng đợi...
+account-approved-welcome = Tài khoản của bạn đã được phê duyệt! Chào mừng đến với PlayPalace!
+account-declined-goodbye = Yêu cầu tạo tài khoản của bạn đã bị từ chối.
+
+# Thông báo Admin về yêu cầu tài khoản
+account-request = yêu cầu tài khoản
+account-action = đã xử lý tài khoản
+
+# Thăng chức/Giáng chức Admin
+promote-admin = Thăng chức Admin
+demote-admin = Giáng chức Admin
+promote-admin-menu-title = Thăng chức Admin
+demote-admin-menu-title = Giáng chức Admin
+no-users-to-promote = Không có người dùng nào để thăng chức.
+no-admins-to-demote = Không có Admin nào để giáng chức.
+confirm-promote = Bạn có chắc muốn thăng chức { $player } lên Admin không?
+confirm-demote = Bạn có chắc muốn giáng chức Admin của { $player } không?
+broadcast-to-all = Thông báo cho tất cả người dùng
+broadcast-to-admins = Chỉ thông báo cho các Admin
+broadcast-to-nobody = Im lặng (không thông báo)
+promote-announcement = { $player } đã được thăng chức lên Admin!
+promote-announcement-you = Bạn đã được thăng chức lên Admin!
+demote-announcement = { $player } đã bị bãi nhiệm Admin.
+demote-announcement-you = Bạn đã bị bãi nhiệm Admin.
+not-admin-anymore = Bạn không còn là Admin và không thể thực hiện hành động này.
