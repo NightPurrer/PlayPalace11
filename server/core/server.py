@@ -824,6 +824,14 @@ class Server(AdministrationMixin):
             await self._handle_transfer_ownership_confirm_selection(user, selection_id, state)
         elif current_menu == "transfer_broadcast_choice_menu":
             await self._handle_transfer_broadcast_choice_selection(user, selection_id, state)
+        elif current_menu == "ban_user_menu":
+            await self._handle_ban_user_selection(user, selection_id)
+        elif current_menu == "unban_user_menu":
+            await self._handle_unban_user_selection(user, selection_id)
+        elif current_menu == "ban_confirm_menu":
+            await self._handle_ban_confirm_selection(user, selection_id, state)
+        elif current_menu == "unban_confirm_menu":
+            await self._handle_unban_confirm_selection(user, selection_id, state)
 
     async def _handle_main_menu_selection(
         self, user: NetworkUser, selection_id: str
@@ -2253,6 +2261,16 @@ class Server(AdministrationMixin):
         if current_menu == "decline_reason_editbox":
             text = packet.get("text", "")
             await self._handle_decline_reason_editbox(user, text, state)
+            return
+
+        if current_menu == "ban_reason_editbox":
+            text = packet.get("text", "")
+            await self._handle_ban_reason_editbox(user, text, state)
+            return
+
+        if current_menu == "unban_reason_editbox":
+            text = packet.get("text", "")
+            await self._handle_unban_reason_editbox(user, text, state)
             return
 
         # Forward to game if user is in a table

@@ -250,11 +250,12 @@ account-declined = Konto gracza { $player } zostało odrzucone i usunięte.
 waiting-for-approval = Twoje konto oczekuje na zatwierdzenie przez administratora. Proszę czekać...
 account-approved-welcome = Twoje konto zostało zatwierdzone! Witaj w PlayPalace!
 account-declined-goodbye = Twoja prośba o konto została odrzucona.
+    Powód:
 account-banned = Twoje konto zostało zbanowane i nie można uzyskać do niego dostępu.
 
 # Powód odrzucenia
 decline-reason-prompt = Podaj powód odrzucenia (lub naciśnij Escape, aby anulować):
-approval-reject-no-reason = Nie podano powodu.
+account-action-empty-reason = Nie podano powodu.
 
 # Admin notifications for account requests
 account-request = prośba o konto
@@ -286,3 +287,19 @@ no-admins-for-transfer = Brak adminów, którym można przekazać własność.
 confirm-transfer-ownership = Czy na pewno chcesz przekazać własność serwera graczowi { $player }? Zostaniesz zdegradowany do admina.
 transfer-ownership-announcement = { $player } jest teraz właścicielem serwera Play Palace!
 transfer-ownership-announcement-you = Jesteś teraz właścicielem serwera Play Palace!
+
+# Banowanie użytkowników
+ban-user = Zbanuj użytkownika
+unban-user = Odbanuj użytkownika
+no-users-to-ban = Brak użytkowników do zbanowania.
+no-users-to-unban = Brak zbanowanych użytkowników do odbanowania.
+confirm-ban = Czy na pewno chcesz zbanować { $player }?
+confirm-unban = Czy na pewno chcesz odbanować { $player }?
+ban-reason-prompt = Podaj powód bana (opcjonalnie):
+unban-reason-prompt = Podaj powód odbanowania (opcjonalnie):
+user-banned = { $player } został zbanowany.
+user-unbanned = { $player } został odbanowany.
+you-have-been-banned = Zostałeś zbanowany na tym serwerze.
+    Powód:
+you-have-been-unbanned = Zostałeś odbanowany na tym serwerze.
+    Powód:

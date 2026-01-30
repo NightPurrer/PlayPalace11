@@ -253,11 +253,12 @@ account-declined = { $player }'s account has been declined and deleted.
 waiting-for-approval = Your account is waiting for approval by an administrator. Please wait...
 account-approved-welcome = Your account has been approved! Welcome to PlayPalace!
 account-declined-goodbye = Your account request has been declined.
+    Reason:
 account-banned = Your account is banned and cannot be accessed.
 
 # Decline reason
 decline-reason-prompt = Enter a reason for declining (or press Escape to cancel):
-approval-reject-no-reason = No reason given.
+account-action-empty-reason = No reason given.
 
 # Admin notifications for account requests
 account-request = account request
@@ -289,3 +290,19 @@ no-admins-for-transfer = No admins available to transfer ownership to.
 confirm-transfer-ownership = Are you sure you want to transfer server ownership to { $player }? You will be demoted to admin.
 transfer-ownership-announcement = { $player } is now the Play Palace server owner!
 transfer-ownership-announcement-you = You are now the Play palace server owner!
+
+# User banning
+ban-user = Ban User
+unban-user = Unban User
+no-users-to-ban = No users available to ban.
+no-users-to-unban = No banned users to unban.
+confirm-ban = Are you sure you want to ban { $player }?
+confirm-unban = Are you sure you want to unban { $player }?
+ban-reason-prompt = Enter a reason for the ban (optional):
+unban-reason-prompt = Enter a reason for the unban (optional):
+user-banned = { $player } has been banned.
+user-unbanned = { $player } has been unbanned.
+you-have-been-banned = You have been banned from this server.
+    Reason:
+you-have-been-unbanned = You have been unbanned from this server.
+    Reason:

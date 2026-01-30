@@ -253,11 +253,12 @@ account-declined = Tài khoản của { $player } đã bị từ chối và xóa
 waiting-for-approval = Tài khoản của bạn đang chờ quản trị viên phê duyệt. Vui lòng đợi...
 account-approved-welcome = Tài khoản của bạn đã được phê duyệt! Chào mừng đến với PlayPalace!
 account-declined-goodbye = Yêu cầu tạo tài khoản của bạn đã bị từ chối.
+    Lý do:
 account-banned = Tài khoản của bạn đã bị cấm và không thể truy cập.
 
 # Lý do từ chối
 decline-reason-prompt = Nhập lý do từ chối (hoặc nhấn Escape để hủy):
-approval-reject-no-reason = Không có lý do được cung cấp.
+account-action-empty-reason = Không có lý do được cung cấp.
 
 # Thông báo Admin về yêu cầu tài khoản
 account-request = yêu cầu tài khoản
@@ -289,3 +290,19 @@ no-admins-for-transfer = Không có Admin nào để chuyển quyền sở hữu
 confirm-transfer-ownership = Bạn có chắc muốn chuyển quyền sở hữu máy chủ cho { $player } không? Bạn sẽ trở thành Admin.
 transfer-ownership-announcement = { $player } giờ là chủ sở hữu máy chủ Play Palace!
 transfer-ownership-announcement-you = Bạn giờ là chủ sở hữu máy chủ Play Palace!
+
+# Cấm người dùng
+ban-user = Cấm người dùng
+unban-user = Bỏ cấm người dùng
+no-users-to-ban = Không có người dùng nào để cấm.
+no-users-to-unban = Không có người dùng bị cấm nào để bỏ cấm.
+confirm-ban = Bạn có chắc muốn cấm { $player } không?
+confirm-unban = Bạn có chắc muốn bỏ cấm { $player } không?
+ban-reason-prompt = Nhập lý do cấm (tùy chọn):
+unban-reason-prompt = Nhập lý do bỏ cấm (tùy chọn):
+user-banned = { $player } đã bị cấm.
+user-unbanned = { $player } đã được bỏ cấm.
+you-have-been-banned = Bạn đã bị cấm khỏi máy chủ này.
+    Lý do:
+you-have-been-unbanned = Bạn đã được bỏ cấm khỏi máy chủ này.
+    Lý do:

@@ -200,11 +200,12 @@ account-declined = { $player } 的账户已被拒绝并删除。
 waiting-for-approval = 您的账户正在等待管理员审批，请稍候...
 account-approved-welcome = 您的账户已获批准！欢迎来到 PlayPalace！
 account-declined-goodbye = 您的账户申请已被拒绝。
+    原因：
 account-banned = 您的账户已被封禁，无法访问。
 
 # 拒绝原因
 decline-reason-prompt = 请输入拒绝原因（或按Escape键取消）：
-approval-reject-no-reason = 未提供原因。
+account-action-empty-reason = 未提供原因。
 
 # 账户请求的管理员通知
 account-request = 账户请求
@@ -236,3 +237,19 @@ no-admins-for-transfer = 没有可转移所有权的管理员。
 confirm-transfer-ownership = 确定要将服务器所有权转移给 { $player } 吗？您将被降级为管理员。
 transfer-ownership-announcement = { $player } 现在是 Play Palace 服务器的所有者！
 transfer-ownership-announcement-you = 您现在是 Play Palace 服务器的所有者！
+
+# 用户封禁
+ban-user = 封禁用户
+unban-user = 解封用户
+no-users-to-ban = 没有可封禁的用户。
+no-users-to-unban = 没有被封禁的用户可解封。
+confirm-ban = 确定要封禁 { $player } 吗？
+confirm-unban = 确定要解封 { $player } 吗？
+ban-reason-prompt = 输入封禁原因（可选）：
+unban-reason-prompt = 输入解封原因（可选）：
+user-banned = { $player } 已被封禁。
+user-unbanned = { $player } 已被解封。
+you-have-been-banned = 您已被此服务器封禁。
+    原因：
+you-have-been-unbanned = 您已被此服务器解封。
+    原因：

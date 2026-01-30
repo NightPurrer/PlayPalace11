@@ -210,11 +210,12 @@ account-declined = A conta de { $player } foi recusada e excluída.
 waiting-for-approval = Sua conta está aguardando aprovação de um administrador. Por favor, aguarde...
 account-approved-welcome = Sua conta foi aprovada! Bem-vindo ao PlayPalace!
 account-declined-goodbye = Sua solicitação de conta foi recusada.
+    Motivo:
 account-banned = Sua conta está banida e não pode ser acessada.
 
 # Motivo da recusa
 decline-reason-prompt = Digite um motivo para a recusa (ou pressione Escape para cancelar):
-approval-reject-no-reason = Nenhum motivo fornecido.
+account-action-empty-reason = Nenhum motivo fornecido.
 
 # Notificações de admin para solicitações de conta
 account-request = solicitação de conta
@@ -246,3 +247,19 @@ no-admins-for-transfer = Não há admins disponíveis para transferir a propried
 confirm-transfer-ownership = Tem certeza de que deseja transferir a propriedade do servidor para { $player }? Você será rebaixado a admin.
 transfer-ownership-announcement = { $player } agora é o proprietário do servidor Play Palace!
 transfer-ownership-announcement-you = Você agora é o proprietário do servidor Play Palace!
+
+# Banimento de usuários
+ban-user = Banir Usuário
+unban-user = Desbanir Usuário
+no-users-to-ban = Não há usuários disponíveis para banir.
+no-users-to-unban = Não há usuários banidos para desbanir.
+confirm-ban = Tem certeza de que deseja banir { $player }?
+confirm-unban = Tem certeza de que deseja desbanir { $player }?
+ban-reason-prompt = Digite um motivo para o banimento (opcional):
+unban-reason-prompt = Digite um motivo para o desbanimento (opcional):
+user-banned = { $player } foi banido.
+user-unbanned = { $player } foi desbanido.
+you-have-been-banned = Você foi banido deste servidor.
+    Motivo:
+you-have-been-unbanned = Você foi desbanido deste servidor.
+    Motivo:

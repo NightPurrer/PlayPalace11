@@ -96,6 +96,18 @@ class AdministrationMixin:
                     id="transfer_ownership",
                 )
             )
+            items.append(
+                MenuItem(
+                    text=Localization.get(user.locale, "ban-user"),
+                    id="ban_user",
+                )
+            )
+            items.append(
+                MenuItem(
+                    text=Localization.get(user.locale, "unban-user"),
+                    id="unban_user",
+                )
+            )
         items.append(MenuItem(text=Localization.get(user.locale, "back"), id="back"))
         user.show_menu(
             "admin_menu",
@@ -244,7 +256,7 @@ class AdministrationMixin:
         )
         self._user_states[user.username] = {
             "menu": "broadcast_choice_menu",
-            "action": action,  # "promote" or "demote"
+            "action": action,  # "promote", "demote", "ban", or "unban"
             "target_username": target_username,
         }
 
@@ -307,6 +319,123 @@ class AdministrationMixin:
             "target_username": target_username,
         }
 
+    def _show_ban_user_menu(self, user: NetworkUser) -> None:
+        """Show ban user menu with list of non-admin users who aren't banned."""
+        # Get non-admin users who aren't banned (admins must be demoted first)
+        bannable_users = self._db.get_non_admin_users(exclude_banned=True)
+
+        if not bannable_users:
+            user.speak_l("no-users-to-ban")
+            self._show_admin_menu(user)
+            return
+
+        items = []
+        for bannable_user in bannable_users:
+            items.append(MenuItem(text=bannable_user.username, id=f"ban_{bannable_user.username}"))
+        items.append(MenuItem(text=Localization.get(user.locale, "back"), id="back"))
+
+        user.show_menu(
+            "ban_user_menu",
+            items,
+            multiletter=True,
+            escape_behavior=EscapeBehavior.SELECT_LAST,
+        )
+        self._user_states[user.username] = {"menu": "ban_user_menu"}
+
+    def _show_unban_user_menu(self, user: NetworkUser) -> None:
+        """Show unban user menu with list of banned users."""
+        banned_users = self._db.get_banned_users()
+
+        if not banned_users:
+            user.speak_l("no-users-to-unban")
+            self._show_admin_menu(user)
+            return
+
+        items = []
+        for banned_user in banned_users:
+            items.append(MenuItem(text=banned_user.username, id=f"unban_{banned_user.username}"))
+        items.append(MenuItem(text=Localization.get(user.locale, "back"), id="back"))
+
+        user.show_menu(
+            "unban_user_menu",
+            items,
+            multiletter=True,
+            escape_behavior=EscapeBehavior.SELECT_LAST,
+        )
+        self._user_states[user.username] = {"menu": "unban_user_menu"}
+
+    def _show_ban_confirm_menu(self, user: NetworkUser, target_username: str) -> None:
+        """Show confirmation menu for banning a user."""
+        user.speak_l("confirm-ban", player=target_username)
+        items = [
+            MenuItem(text=Localization.get(user.locale, "confirm-yes"), id="yes"),
+            MenuItem(text=Localization.get(user.locale, "confirm-no"), id="no"),
+        ]
+        user.show_menu(
+            "ban_confirm_menu",
+            items,
+            multiletter=True,
+            escape_behavior=EscapeBehavior.SELECT_LAST,
+        )
+        self._user_states[user.username] = {
+            "menu": "ban_confirm_menu",
+            "target_username": target_username,
+        }
+
+    def _show_unban_confirm_menu(self, user: NetworkUser, target_username: str) -> None:
+        """Show confirmation menu for unbanning a user."""
+        user.speak_l("confirm-unban", player=target_username)
+        items = [
+            MenuItem(text=Localization.get(user.locale, "confirm-yes"), id="yes"),
+            MenuItem(text=Localization.get(user.locale, "confirm-no"), id="no"),
+        ]
+        user.show_menu(
+            "unban_confirm_menu",
+            items,
+            multiletter=True,
+            escape_behavior=EscapeBehavior.SELECT_LAST,
+        )
+        self._user_states[user.username] = {
+            "menu": "unban_confirm_menu",
+            "target_username": target_username,
+        }
+
+    def _show_ban_reason_editbox(
+        self, user: NetworkUser, target_username: str, broadcast_scope: str
+    ) -> None:
+        """Show editbox for entering ban reason."""
+        prompt = Localization.get(user.locale, "ban-reason-prompt")
+        user.show_editbox(
+            "ban_reason",
+            prompt,
+            default_value="",
+            multiline=False,
+            read_only=False,
+        )
+        self._user_states[user.username] = {
+            "menu": "ban_reason_editbox",
+            "target_username": target_username,
+            "broadcast_scope": broadcast_scope,
+        }
+
+    def _show_unban_reason_editbox(
+        self, user: NetworkUser, target_username: str, broadcast_scope: str
+    ) -> None:
+        """Show editbox for entering unban reason."""
+        prompt = Localization.get(user.locale, "unban-reason-prompt")
+        user.show_editbox(
+            "unban_reason",
+            prompt,
+            default_value="",
+            multiline=False,
+            read_only=False,
+        )
+        self._user_states[user.username] = {
+            "menu": "unban_reason_editbox",
+            "target_username": target_username,
+            "broadcast_scope": broadcast_scope,
+        }
+
     # ==================== Menu Selection Handlers ====================
 
     async def _handle_admin_menu_selection(
@@ -321,6 +450,10 @@ class AdministrationMixin:
             self._show_demote_admin_menu(user)
         elif selection_id == "transfer_ownership":
             self._show_transfer_ownership_menu(user)
+        elif selection_id == "ban_user":
+            self._show_ban_user_menu(user)
+        elif selection_id == "unban_user":
+            self._show_unban_user_menu(user)
         elif selection_id == "back":
             self._show_main_menu(user)
 
@@ -447,6 +580,10 @@ class AdministrationMixin:
             await self._promote_to_admin(user, target_username, broadcast_scope)
         elif action == "demote":
             await self._demote_from_admin(user, target_username, broadcast_scope)
+        elif action == "ban":
+            self._show_ban_reason_editbox(user, target_username, broadcast_scope)
+        elif action == "unban":
+            self._show_unban_reason_editbox(user, target_username, broadcast_scope)
 
     async def _handle_transfer_ownership_selection(
         self, user: NetworkUser, selection_id: str
@@ -488,6 +625,84 @@ class AdministrationMixin:
         broadcast_scope = selection_id
 
         await self._transfer_ownership(user, target_username, broadcast_scope)
+
+    async def _handle_ban_user_selection(
+        self, user: NetworkUser, selection_id: str
+    ) -> None:
+        """Handle ban user menu selection."""
+        if selection_id == "back":
+            self._show_admin_menu(user)
+        elif selection_id.startswith("ban_"):
+            target_username = selection_id[4:]  # Remove "ban_" prefix
+            self._show_ban_confirm_menu(user, target_username)
+
+    async def _handle_unban_user_selection(
+        self, user: NetworkUser, selection_id: str
+    ) -> None:
+        """Handle unban user menu selection."""
+        if selection_id == "back":
+            self._show_admin_menu(user)
+        elif selection_id.startswith("unban_"):
+            target_username = selection_id[6:]  # Remove "unban_" prefix
+            self._show_unban_confirm_menu(user, target_username)
+
+    async def _handle_ban_confirm_selection(
+        self, user: NetworkUser, selection_id: str, state: dict
+    ) -> None:
+        """Handle ban confirmation menu selection."""
+        target_username = state.get("target_username")
+        if not target_username:
+            self._show_ban_user_menu(user)
+            return
+
+        if selection_id == "yes":
+            # Show broadcast choice menu
+            self._show_broadcast_choice_menu(user, "ban", target_username)
+        else:
+            # No or back - return to ban user menu
+            self._show_ban_user_menu(user)
+
+    async def _handle_unban_confirm_selection(
+        self, user: NetworkUser, selection_id: str, state: dict
+    ) -> None:
+        """Handle unban confirmation menu selection."""
+        target_username = state.get("target_username")
+        if not target_username:
+            self._show_unban_user_menu(user)
+            return
+
+        if selection_id == "yes":
+            # Show broadcast choice menu
+            self._show_broadcast_choice_menu(user, "unban", target_username)
+        else:
+            # No or back - return to unban user menu
+            self._show_unban_user_menu(user)
+
+    async def _handle_ban_reason_editbox(
+        self, owner: NetworkUser, text: str, state: dict
+    ) -> None:
+        """Handle ban reason editbox submission."""
+        target_username = state.get("target_username")
+        broadcast_scope = state.get("broadcast_scope", "nobody")
+        if not target_username:
+            self._show_ban_user_menu(owner)
+            return
+
+        # Proceed with ban, passing the reason and broadcast scope
+        await self._ban_user(owner, target_username, reason=text, broadcast_scope=broadcast_scope)
+
+    async def _handle_unban_reason_editbox(
+        self, owner: NetworkUser, text: str, state: dict
+    ) -> None:
+        """Handle unban reason editbox submission."""
+        target_username = state.get("target_username")
+        broadcast_scope = state.get("broadcast_scope", "nobody")
+        if not target_username:
+            self._show_unban_user_menu(owner)
+            return
+
+        # Proceed with unban, passing the reason and broadcast scope
+        await self._unban_user(owner, target_username, reason=text, broadcast_scope=broadcast_scope)
 
     # ==================== Admin Actions ====================
 
@@ -685,3 +900,79 @@ class AdministrationMixin:
             )
 
         self._show_admin_menu(owner)
+
+    @require_server_owner
+    async def _ban_user(
+        self, owner: NetworkUser, username: str, reason: str = "", broadcast_scope: str = "nobody"
+    ) -> None:
+        """Ban a user. Only server owner can do this."""
+        # Check if the user is online first
+        target_user = self._users.get(username)
+
+        # Update trust level in database to BANNED
+        self._db.update_user_trust_level(username, TrustLevel.BANNED)
+
+        # Broadcast the ban announcement based on scope
+        if broadcast_scope == "nobody":
+            # Silent mode - only notify the server owner who performed the action
+            owner.speak_l("user-banned", player=username)
+            owner.play_sound("accountban.ogg")
+        else:
+            # Broadcast to all or admins
+            self._broadcast_admin_change(
+                "user-banned",
+                "accountban.ogg",
+                username,
+                broadcast_scope,
+            )
+
+        # If user is online, disconnect them with the reason
+        if target_user:
+            # Update the user's trust level
+            target_user.set_trust_level(TrustLevel.BANNED)
+
+            # Build the full ban message with reason
+            ban_message = Localization.get(target_user.locale, "you-have-been-banned")
+            display_reason = reason.strip() if reason else ""
+            if not display_reason:
+                display_reason = Localization.get(target_user.locale, "ban-no-reason")
+            # Combine into single message for the dialog
+            full_message = f"{ban_message}\n{display_reason}"
+            target_user.speak(full_message)
+            # Flush queued messages before disconnect so client receives them
+            for msg in target_user.get_queued_messages():
+                await target_user.connection.send(msg)
+            await target_user.connection.send({
+                "type": "disconnect",
+                "reconnect": False,
+                "show_message": True,
+            })
+
+        self._show_ban_user_menu(owner)
+
+    @require_server_owner
+    async def _unban_user(
+        self, owner: NetworkUser, username: str, reason: str = "", broadcast_scope: str = "nobody"
+    ) -> None:
+        """Unban a user. Only server owner can do this."""
+        # Update trust level in database to USER
+        self._db.update_user_trust_level(username, TrustLevel.USER)
+
+        # Also set approved to True when unbanning
+        self._db.approve_user(username)
+
+        # Broadcast the unban announcement based on scope
+        if broadcast_scope == "nobody":
+            # Silent mode - only notify the server owner who performed the action
+            owner.speak_l("user-unbanned", player=username)
+            owner.play_sound("accountunban.ogg")
+        else:
+            # Broadcast to all or admins
+            self._broadcast_admin_change(
+                "user-unbanned",
+                "accountunban.ogg",
+                username,
+                broadcast_scope,
+            )
+
+        self._show_unban_user_menu(owner)
