@@ -93,7 +93,6 @@ def test_broadcast_helpers_respect_approval(server):
     assert unapproved.sounds == []
 
 
-@pytest.mark.slow
 def test_on_client_disconnect_broadcasts_only_for_approved(server):
     approved = DummyNetworkUser(approved=True)
     banned = DummyNetworkUser(approved=True)
@@ -112,7 +111,6 @@ def test_on_client_disconnect_broadcasts_only_for_approved(server):
     assert approved.sounds[-1] == "offlineadmin.ogg"
 
 
-@pytest.mark.slow
 def test_on_client_disconnect_keeps_members_when_not_last(server):
     user = DummyNetworkUser(approved=True)
     user.uuid = "user-1"
@@ -149,7 +147,6 @@ def test_on_client_disconnect_keeps_members_when_not_last(server):
     assert [m.username for m in members] == ["alice", "bob"]
 
 
-@pytest.mark.slow
 def test_on_client_disconnect_removes_last_member(server):
     user = DummyNetworkUser(approved=True)
     user.uuid = "user-1"
