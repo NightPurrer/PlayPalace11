@@ -452,12 +452,6 @@ class CrazyEightsGame(Game):
         BotHelper.on_tick(self)
 
     def _start_new_hand(self) -> None:
-        active_players = [p for p in self.players if not p.is_spectator]
-        winner = max(active_players, key=lambda p: p.score, default=None)
-        if winner and winner.score >= self.options.winning_score:
-            self._end_game(winner)
-            return
-
         self.round += 1
         self.turn_direction = 1
         self.turn_skip_count = 0
@@ -477,6 +471,7 @@ class CrazyEightsGame(Game):
         self.discard_pile = []
         self.current_suit = None
 
+        active_players = [p for p in self.players if not p.is_spectator]
         self.set_turn_players(active_players, reset_index=False)
         for p in active_players:
             p.hand = []
