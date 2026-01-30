@@ -1,5 +1,19 @@
 # PlayPalace Server Configuration
 
+[auth]
+username_min_length = 3
+username_max_length = 32
+password_min_length = 8
+password_max_length = 128
+[auth.rate_limits]
+login_per_minute = 5
+login_failures_per_minute = 3
+registration_per_minute = 2
+
+[network]
+max_message_bytes = 1048576
+allow_insecure_ws = false
+
 [virtual_bots]
 # Bot names - these will be used for virtual bot usernames
 names = [

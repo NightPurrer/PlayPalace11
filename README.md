@@ -75,6 +75,37 @@ Use the **Server Manager** button on the login screen to add/edit servers (name,
 
 PlayPalace now enforces TLS hostname and certificate verification for all `wss://` connections. When the server presents an unknown or self-signed certificate, the client shows the certificate details (CN, SANs, issuer, validity window, and SHA-256 fingerprint) and lets you explicitly trust it. Trusted certificates are pinned per server entry—subsequent connections will only succeed if the fingerprint matches, and you can remove a stored certificate from the Server Manager dialog at any time.
 
+### Server Configuration
+
+Copy `server/config.example.toml` to `server/config.toml` to tweak runtime behavior. Alongside the existing `[virtual_bots]` settings, the `[auth]` section lets you clamp username and password lengths that the server will accept:
+
+```toml
+[auth]
+username_min_length = 3
+username_max_length = 32
+password_min_length = 8
+password_max_length = 128
+
+[auth.rate_limits]
+login_per_minute = 5
+login_failures_per_minute = 3
+registration_per_minute = 2
+```
+
+If the `[auth]` table is omitted, PlayPalace falls back to the defaults shown above. Adjust these values to match your policies (for example, force longer passwords on public deployments).
+
+To limit the maximum inbound websocket payload size (guarding against giant packets), add a `[network]` section:
+
+```toml
+[network]
+max_message_bytes = 1_048_576  # 1 MB default
+allow_insecure_ws = false      # force TLS by default
+```
+
+Values are in bytes and map directly to the `max_size` setting used by the underlying websockets server.
+Set `allow_insecure_ws` to `true` only for trusted development setups where TLS certificates are unavailable; the server will refuse to start without TLS when this flag is `false`, and it will print a loud warning whenever it runs in plaintext mode.
+`[auth.rate_limits]` caps how many login attempts each IP can make per minute, how many failed attempts a specific username can accrue, and how many registrations are allowed per minute from the same IP. Setting any of the limits to `0` disables that particular throttle.
+
 ## Project Structure
 
 The server and client are separate codebases with different philosophies.

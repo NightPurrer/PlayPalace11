@@ -1,6 +1,23 @@
 # PlayPalace Server Configuration
 # Copy this file to config.toml and customize as needed.
 
+[auth]
+# These limits are enforced during both login and registration.
+username_min_length = 3
+username_max_length = 32
+password_min_length = 8
+password_max_length = 128
+[auth.rate_limits]
+login_per_minute = 5
+login_failures_per_minute = 3
+registration_per_minute = 2
+
+[network]
+# Maximum bytes accepted per websocket message (maps to websockets' max_size)
+max_message_bytes = 1048576
+# Allow ws:// without TLS (only for trusted local development)
+allow_insecure_ws = false
+
 [virtual_bots]
 # Bot names - these will be used for virtual bot usernames
 names = [
