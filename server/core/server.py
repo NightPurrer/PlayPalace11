@@ -37,7 +37,7 @@ class Server(AdministrationMixin):
 
     def __init__(
         self,
-        host: str = "0.0.0.0",
+        host: str = "::",
         port: int = 8000,
         db_path: str = "playpalace.db",
         locales_dir: str | Path | None = None,
@@ -2507,7 +2507,7 @@ class Server(AdministrationMixin):
 
 
 async def run_server(
-    host: str = "0.0.0.0",
+    host: str = "::",
     port: int = 8000,
     ssl_cert: str | Path | None = None,
     ssl_key: str | Path | None = None,

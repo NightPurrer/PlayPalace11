@@ -43,7 +43,7 @@ class WebSocketServer:
 
     def __init__(
         self,
-        host: str = "0.0.0.0",
+        host: str = "::",
         port: int = 8000,
         on_connect: Callable[[ClientConnection], Coroutine] | None = None,
         on_disconnect: Callable[[ClientConnection], Coroutine] | None = None,
