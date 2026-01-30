@@ -410,7 +410,9 @@ class CrazyEightsGame(Game):
         self.play_music("game_crazyeights/mus.ogg")
 
         self._team_manager.team_mode = "individual"
-        self._team_manager.setup_teams([p.name for p in self.players])
+        self._team_manager.setup_teams(
+            [p.name for p in self.players if not p.is_spectator]
+        )
         self._sync_team_scores()
 
         self.play_sound("game_crazyeights/intro.ogg")
@@ -1343,6 +1345,8 @@ class CrazyEightsGame(Game):
         for team in self._team_manager.teams:
             team.total_score = 0
         for p in self.players:
+            if p.is_spectator:
+                continue
             team = self._team_manager.get_team(p.name)
             if team and isinstance(p, CrazyEightsPlayer):
                 team.total_score = p.score
