@@ -229,3 +229,5 @@ class NetworkManager:
             self.main_window.on_table_create(packet)
         elif packet_type == "pong":
             self.main_window.on_server_pong(packet)
+        elif packet_type == "chat":
+            self.main_window.on_receive_chat(packet)

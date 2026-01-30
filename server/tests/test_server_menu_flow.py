@@ -288,10 +288,8 @@ async def test_handle_chat_local_only_reaches_approved(server):
     client = SimpleNamespace(username=host.username)
     await server._handle_chat(client, {"convo": "local", "message": "hi"})
 
-    packets = approved.get_queued_messages()
-    assert packets and packets[-1]["type"] == "speak"
-    assert packets[-1]["buffer"] == "chats"
-    assert "hi" in packets[-1]["text"]
+    assert approved.connection.sent and approved.connection.sent[-1]["type"] == "chat"
+    assert approved.connection.sent[-1]["message"] == "hi"
     assert not pending.connection.sent
 
 
@@ -322,16 +320,12 @@ async def test_handle_chat_local_not_in_table_reaches_lobby(server):
     client = SimpleNamespace(username=host.username)
     await server._handle_chat(client, {"convo": "local", "message": "hi"})
 
-    lobby_packets = lobby_friend.get_queued_messages()
-    lobby_speaks = [p for p in lobby_packets if p.get("type") == "speak"]
-    assert lobby_speaks
-    assert lobby_speaks[-1]["buffer"] == "chats"
-    assert "hi" in lobby_speaks[-1]["text"]
-    host_packets = host.get_queued_messages()
-    host_speaks = [p for p in host_packets if p.get("type") == "speak"]
-    assert host_speaks
-    assert host_speaks[-1]["buffer"] == "chats"
-    assert "hi" in host_speaks[-1]["text"]
+    assert lobby_friend.connection.sent
+    assert lobby_friend.connection.sent[-1]["type"] == "chat"
+    assert lobby_friend.connection.sent[-1]["message"] == "hi"
+    assert host.connection.sent
+    assert host.connection.sent[-1]["type"] == "chat"
+    assert host.connection.sent[-1]["message"] == "hi"
     assert not in_table.connection.sent
     assert not pending.connection.sent
 
@@ -351,16 +345,8 @@ async def test_handle_chat_global_reaches_all_approved(server):
     client = SimpleNamespace(username=sender.username)
     await server._handle_chat(client, {"convo": "global", "message": "wave"})
 
-    sender_packets = sender.get_queued_messages()
-    assert sender_packets
-    assert sender_packets[-1]["type"] == "speak"
-    assert sender_packets[-1]["buffer"] == "chats"
-    assert "wave" in sender_packets[-1]["text"]
-    approved_packets = approved.get_queued_messages()
-    assert approved_packets
-    assert approved_packets[-1]["type"] == "speak"
-    assert approved_packets[-1]["buffer"] == "chats"
-    assert "wave" in approved_packets[-1]["text"]
+    assert sender.connection.sent and sender.connection.sent[-1]["message"] == "wave"
+    assert approved.connection.sent and approved.connection.sent[-1]["message"] == "wave"
     assert not pending.connection.sent
 
 

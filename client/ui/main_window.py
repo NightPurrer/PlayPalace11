@@ -1424,6 +1424,48 @@ class MainWindow(wx.Frame):
             # Add to history regardless of mute status
             self.add_history(text, buffer_name, speak_aloud=(not is_muted))
 
+    def on_receive_chat(self, packet):
+        """Handle chat packet from server."""
+        convo = packet.get("convo")
+        lang = packet.get("language")
+        # For now all chats are in English
+        same_user = packet.get("sender") == self.credentials["username"]
+        """comment out all of this code for now
+        if lang not in self.lang_codes.values():
+            lang = "Other"
+        # If language matches, ignore subscription tracking
+        if (
+            not same_user
+            and lang != self.client_options["social"]["chat_input_language"]
+        ):
+            if convo == "global" or (
+                convo == "local"
+                and self.client_options["social"][
+                    "include_language_filters_for_table_chat"
+                ]
+            ):
+                # Check if the user is ignoring this language
+                if not self.client_options["social"]["language_subscriptions"][lang]:
+                    return
+        end this comment"""
+        if convo == "global":
+            message = f"{packet.get('sender')} globally: {packet.get('message')}"
+        else:
+            message = f"{packet.get('sender')}: {packet.get('message')}"
+        # Convo doesn't support muting, or the mute flag is disabled
+        if True:
+            """(
+            same_user
+            or convo not in {"global", "local"}
+            or not self.client_options["social"][f"mute_{convo}_chat"]
+        ):"""
+            sound = "chat"
+            if convo == "local":
+                sound += "local"
+            self.sound_manager.play(sound + ".ogg")
+            self.speaker.speak(message)
+        self.add_history(message, "chats", False)
+
     def on_server_play_sound(self, packet):
         """Handle play_sound packet from server."""
         sound = packet.get("name", packet.get("sound", ""))  # Server sends "name"

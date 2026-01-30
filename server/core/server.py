@@ -2399,11 +2399,13 @@ class Server(AdministrationMixin):
         message = packet.get("message", "")
         language = packet.get("language", "Other")
 
-        if convo == "global":
-            chat_text = f"{username} globally: {message}"
-        else:
-            chat_text = f"{username}: {message}"
-        chat_sound = "chatlocal.ogg" if convo == "local" else "chat.ogg"
+        chat_packet = {
+            "type": "chat",
+            "convo": convo,
+            "sender": username,
+            "message": message,
+            "language": language,
+        }
 
         if convo == "local":
             table = self._tables.find_user_table(username)
@@ -2411,22 +2413,19 @@ class Server(AdministrationMixin):
                 for member_name in [m.username for m in table.members]:
                     user = self._users.get(member_name)
                     if user and user.approved:  # Only send to approved users
-                        user.speak(chat_text, buffer="chats")
-                        user.play_sound(chat_sound)
+                        await user.connection.send(chat_packet)
             else:
                 for user in self._users.values():
                     if not user.approved:
                         continue
                     if self._tables.find_user_table(user.username):
                         continue
-                    user.speak(chat_text, buffer="chats")
-                    user.play_sound(chat_sound)
+                    await user.connection.send(chat_packet)
         elif convo == "global":
             # Broadcast to all approved users only
             for user in self._users.values():
                 if user.approved:
-                    user.speak(chat_text, buffer="chats")
-                    user.play_sound(chat_sound)
+                    await user.connection.send(chat_packet)
 
     def _get_online_usernames(self) -> list[str]:
         """Return sorted list of online usernames."""
