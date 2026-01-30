@@ -7,12 +7,12 @@ from pathlib import Path
 
 import json
 
-from .tick import TickScheduler
+from .tick import TickScheduler, load_server_config
 from .administration import AdministrationMixin
 from .virtual_bots import VirtualBotManager
 from ..network.websocket_server import WebSocketServer, ClientConnection
 from ..persistence.database import Database
-from ..auth.auth import AuthManager
+from ..auth.auth import AuthManager, AuthResult
 from ..tables.manager import TableManager
 from ..users.network_user import NetworkUser
 from ..users.base import MenuItem, EscapeBehavior, TrustLevel
@@ -37,7 +37,7 @@ class Server(AdministrationMixin):
 
     def __init__(
         self,
-        host: str = "0.0.0.0",
+        host: str = "::",
         port: int = 8000,
         db_path: str = "playpalace.db",
         locales_dir: str | Path | None = None,
@@ -86,6 +86,10 @@ class Server(AdministrationMixin):
         # Load existing tables
         self._load_tables()
 
+        # Load server configuration
+        server_config = load_server_config()
+        tick_interval_ms = server_config.get("tick_interval_ms")
+
         # Initialize virtual bots
         self._virtual_bots.load_config()
         loaded = self._virtual_bots.load_state()
@@ -105,8 +109,10 @@ class Server(AdministrationMixin):
         await self._ws_server.start()
 
         # Start tick scheduler
-        self._tick_scheduler = TickScheduler(self._on_tick)
+        self._tick_scheduler = TickScheduler(self._on_tick, tick_interval_ms)
         await self._tick_scheduler.start()
+        if tick_interval_ms:
+            print(f"Tick interval: {tick_interval_ms}ms ({1000 // tick_interval_ms} ticks/sec)")
 
         protocol = "wss" if self._ssl_cert else "ws"
         print(f"Server running on {protocol}://{self.host}:{self.port}")
@@ -203,20 +209,32 @@ class Server(AdministrationMixin):
 
     async def _on_client_disconnect(self, client: ClientConnection) -> None:
         """Handle client disconnection."""
-        print(f"Client disconnected: {client.address}")
+        username = client.username or "unknown"
+        print(f"Client disconnected: {username}@{client.address}")
         if client.username:
+            username = client.username
+            table = self._tables.find_user_table(username)
             # Check user status before cleanup
-            user = self._users.get(client.username)
+            user = self._users.get(username)
+
+            if table and user:
+                if table.game:
+                    player = table.game.get_player_by_id(user.uuid)
+                    if player:
+                        table.game._perform_leave_game(player)
+                # Keep membership for rejoin unless this was the last member
+                if len(table.members) <= 1:
+                    table.remove_member(username)
 
             # Only broadcast offline if user was approved and not banned
             if user and user.approved and user.trust_level != TrustLevel.BANNED:
                 is_admin = user.trust_level.value >= TrustLevel.ADMIN.value
                 offline_sound = "offlineadmin.ogg" if is_admin else "offline.ogg"
-                self._broadcast_presence_l("user-offline", client.username, offline_sound)
+                self._broadcast_presence_l("user-offline", username, offline_sound)
 
             # Clean up user state
-            self._users.pop(client.username, None)
-            self._user_states.pop(client.username, None)
+            self._users.pop(username, None)
+            self._user_states.pop(username, None)
 
     def _broadcast_presence_l(
         self, message_id: str, player_name: str, sound: str
@@ -225,7 +243,7 @@ class Server(AdministrationMixin):
         for username, user in self._users.items():
             if not user.approved:
                 continue  # Don't send broadcasts to unapproved users
-            user.speak_l(message_id, player=player_name)
+            user.speak_l(message_id, buffer="activity", player=player_name)
             user.play_sound(sound)
 
     def _broadcast_admin_announcement(self, admin_name: str) -> None:
@@ -233,21 +251,21 @@ class Server(AdministrationMixin):
         for username, user in self._users.items():
             if not user.approved:
                 continue  # Don't send broadcasts to unapproved users
-            user.speak_l("user-is-admin", player=admin_name)
+            user.speak_l("user-is-admin", buffer="activity", player=admin_name)
 
     def _broadcast_server_owner_announcement(self, owner_name: str) -> None:
         """Broadcast a server owner announcement to all approved online users."""
         for username, user in self._users.items():
             if not user.approved:
                 continue  # Don't send broadcasts to unapproved users
-            user.speak_l("user-is-server-owner", player=owner_name)
+            user.speak_l("user-is-server-owner", buffer="activity", player=owner_name)
 
     def _broadcast_table_created(self, host_name: str, game_name: str) -> None:
         """Broadcast a table creation announcement to all approved online users."""
         for username, user in self._users.items():
             if not user.approved:
                 continue  # Don't send broadcasts to unapproved users
-            user.speak_l("table-created", host=host_name, game=game_name)
+            user.speak_l("table-created", buffer="activity", host=host_name, game=game_name)
             user.play_sound("table_created.ogg")
 
     async def _on_client_message(self, client: ClientConnection, packet: dict) -> None:
@@ -264,16 +282,17 @@ class Server(AdministrationMixin):
         elif packet_type == "ping":
             # Always allow ping to keep connection alive
             await self._handle_ping(client)
+        elif packet_type == "menu":
+            # Allow menu selections for all authenticated users (including unapproved)
+            await self._handle_menu(client, packet)
         else:
             # For all other packets, check if user is approved
             user = self._users.get(client.username)
             if user and not user.approved:
-                # Unapproved users can only ping - drop all other packets
+                # Unapproved users can only ping and use menus - drop all other packets
                 return
 
-            if packet_type == "menu":
-                await self._handle_menu(client, packet)
-            elif packet_type == "keybind":
+            if packet_type == "keybind":
                 await self._handle_keybind(client, packet)
             elif packet_type == "editbox":
                 await self._handle_editbox(client, packet)
@@ -288,27 +307,57 @@ class Server(AdministrationMixin):
         """Handle authorization packet."""
         username = packet.get("username", "")
         password = packet.get("password", "")
+        locale = packet.get("locale", "en")
 
         # Try to authenticate or register
-        if not self._auth.authenticate(username, password):
-            # Check if this will be a new user that needs approval (not the first user)
+        auth_result = self._auth.authenticate(username, password)
+        if auth_result != AuthResult.SUCCESS:
+            if auth_result == AuthResult.WRONG_PASSWORD:
+                # Username exists but password is wrong - show error dialog
+                error_message = Localization.get(locale, "incorrect-password")
+                await client.send({"type": "play_sound", "name": "accounterror.ogg"})
+                await client.send({"type": "speak", "text": error_message})
+                await client.send({
+                    "type": "disconnect",
+                    "reconnect": False,
+                    "show_message": True,
+                    "return_to_login": True,
+                })
+                return
+
+            # User not found - check if this will be a new user that needs approval
             needs_approval = self._db.get_user_count() > 0
 
             # Try to register
             if not self._auth.register(username, password):
-                # Username taken with different password
-                await client.send(
-                    {
-                        "type": "disconnect",
-                        "reason": "Invalid credentials",
-                        "reconnect": False,
-                    }
-                )
+                # Registration failed (shouldn't happen if user not found, but handle anyway)
+                error_message = Localization.get(locale, "incorrect-username")
+                await client.send({"type": "play_sound", "name": "accounterror.ogg"})
+                await client.send({"type": "speak", "text": error_message})
+                await client.send({
+                    "type": "disconnect",
+                    "reconnect": False,
+                    "show_message": True,
+                    "return_to_login": True,
+                })
                 return
 
             # New user registered - notify admins if approval is needed
             if needs_approval:
                 self._notify_admins("account-request", "accountrequest.ogg")
+
+        # Check if user is already logged in
+        if username in self._users:
+            error_message = Localization.get(locale, "already-logged-in")
+            await client.send({"type": "play_sound", "name": "accounterror.ogg"})
+            await client.send({"type": "speak", "text": error_message})
+            await client.send({
+                "type": "disconnect",
+                "reconnect": False,
+                "show_message": True,
+                "return_to_login": True,
+            })
+            return
 
         # Authentication successful
         client.username = username
@@ -341,6 +390,7 @@ class Server(AdministrationMixin):
                 "version": VERSION,
             }
         )
+        print(f"Client authorized: {username}@{client.address}")
 
         # Send game list
         await self._send_game_list(client)
@@ -348,7 +398,7 @@ class Server(AdministrationMixin):
         # Check if user is banned
         if user.trust_level == TrustLevel.BANNED:
             user.play_sound("accountban.ogg")
-            user.speak_l("account-banned")
+            user.speak_l("account-banned", buffer="activity")
             for msg in user.get_queued_messages():
                 await user.connection.send(msg)
             await user.connection.send({
@@ -360,8 +410,9 @@ class Server(AdministrationMixin):
 
         # Check if user is approved
         if not user.approved:
-            # User needs approval - show waiting screen
-            self._show_waiting_for_approval(user)
+            # User needs approval - show limited main menu
+            user.speak_l("waiting-for-approval", buffer="activity")
+            self._show_main_menu(user)
             return
 
         # Broadcast online announcement (only for approved, non-banned users)
@@ -378,7 +429,7 @@ class Server(AdministrationMixin):
         if trust_level.value >= TrustLevel.ADMIN.value:
             pending_users = self._db.get_pending_users(exclude_banned=True)
             if pending_users:
-                user.speak_l("account-request")
+                user.speak_l("account-request", buffer="activity")
                 user.play_sound("accountrequest.ogg")
 
         # Check if user is in a table
@@ -457,28 +508,39 @@ class Server(AdministrationMixin):
 
     def _show_main_menu(self, user: NetworkUser) -> None:
         """Show the main menu to a user."""
-        items = [
-            MenuItem(text=Localization.get(user.locale, "play"), id="play"),
-            MenuItem(
-                text=Localization.get(user.locale, "view-active-tables"),
-                id="active_tables",
-            ),
-            MenuItem(
-                text=Localization.get(user.locale, "saved-tables"), id="saved_tables"
-            ),
-            MenuItem(
-                text=Localization.get(user.locale, "leaderboards"), id="leaderboards"
-            ),
-            MenuItem(
-                text=Localization.get(user.locale, "my-stats"), id="my_stats"
-            ),
-            MenuItem(text=Localization.get(user.locale, "options"), id="options"),
-        ]
-        # Add administration menu for admins
-        if user.trust_level.value >= TrustLevel.ADMIN.value:
-            items.append(
-                MenuItem(text=Localization.get(user.locale, "administration"), id="administration")
-            )
+        items = []
+        if user.approved:
+            # Full menu for approved users
+            items = [
+                MenuItem(text=Localization.get(user.locale, "play"), id="play"),
+                MenuItem(
+                    text=Localization.get(user.locale, "view-active-tables"),
+                    id="active_tables",
+                ),
+                MenuItem(
+                    text=Localization.get(user.locale, "saved-tables"), id="saved_tables"
+                ),
+                MenuItem(
+                    text=Localization.get(user.locale, "leaderboards"), id="leaderboards"
+                ),
+                MenuItem(
+                    text=Localization.get(user.locale, "my-stats"), id="my_stats"
+                ),
+                MenuItem(text=Localization.get(user.locale, "options"), id="options"),
+            ]
+            # Add administration menu for admins
+            if user.trust_level.value >= TrustLevel.ADMIN.value:
+                items.append(
+                    MenuItem(text=Localization.get(user.locale, "administration"), id="administration")
+                )
+        else:
+            # Limited menu for users waiting for approval
+            items = [
+                MenuItem(
+                    text=Localization.get(user.locale, "leaderboards"), id="leaderboards"
+                ),
+                MenuItem(text=Localization.get(user.locale, "options"), id="options"),
+            ]
         items.append(MenuItem(text=Localization.get(user.locale, "logout"), id="logout"))
         user.show_menu(
             "main_menu",
@@ -496,7 +558,13 @@ class Server(AdministrationMixin):
         items = []
         for category_key in sorted(categories.keys()):
             category_name = Localization.get(user.locale, category_key)
-            items.append(MenuItem(text=category_name, id=f"category_{category_key}"))
+            game_count = len(categories.get(category_key, []))
+            items.append(
+                MenuItem(
+                    text=f"{category_name} ({game_count})",
+                    id=f"category_{category_key}",
+                )
+            )
         items.append(MenuItem(text=Localization.get(user.locale, "back"), id="back"))
 
         user.show_menu(
@@ -723,12 +791,6 @@ class Server(AdministrationMixin):
         )
         self._user_states[user.username] = {"menu": "language_menu"}
 
-    def _show_waiting_for_approval(self, user: NetworkUser) -> None:
-        """Show waiting for approval screen to unapproved user."""
-        user.speak_l("waiting-for-approval")
-        user.clear_ui()
-        self._user_states[user.username] = {"menu": "waiting_for_approval"}
-
     def _show_saved_tables_menu(self, user: NetworkUser) -> None:
         """Show saved tables menu."""
         saved = self._db.get_user_saved_tables(user.username)
@@ -889,7 +951,7 @@ class Server(AdministrationMixin):
             if user.trust_level.value >= TrustLevel.ADMIN.value:
                 self._show_admin_menu(user)
         elif selection_id == "logout":
-            user.speak_l("goodbye")
+            user.speak_l("goodbye", buffer="activity")
             await user.connection.send({"type": "disconnect", "reconnect": False})
 
     async def _handle_options_selection(
@@ -988,7 +1050,7 @@ class Server(AdministrationMixin):
             game_type = selection_id[5:]  # Remove "game_" prefix
             self._show_tables_menu(user, game_type)
         elif selection_id == "back":
-            self._show_main_menu(user)
+            self._show_categories_menu(user)
 
     async def _handle_tables_selection(
         self, user: NetworkUser, selection_id: str, state: dict
@@ -2270,6 +2332,20 @@ class Server(AdministrationMixin):
 
         user = self._users.get(username)
         table = self._tables.find_user_table(username)
+        if not table and user:
+            if packet.get("key") == "w" and packet.get("control"):
+                players = [
+                    u.username
+                    for u in self._users.values()
+                    if u.approved and not self._tables.find_user_table(u.username)
+                ]
+                if not players:
+                    user.speak_l("online-users-none")
+                    return
+                names = Localization.format_list_and(user.locale, players)
+                key = "online-users-one" if len(players) == 1 else "online-users-many"
+                user.speak_l(key, count=len(players), users=names)
+            return
         if table and table.game and user:
             player = table.game.get_player_by_id(user.uuid)
             if player:
@@ -2346,6 +2422,13 @@ class Server(AdministrationMixin):
                     user = self._users.get(member_name)
                     if user and user.approved:  # Only send to approved users
                         await user.connection.send(chat_packet)
+            else:
+                for user in self._users.values():
+                    if not user.approved:
+                        continue
+                    if self._tables.find_user_table(user.username):
+                        continue
+                    await user.connection.send(chat_packet)
         elif convo == "global":
             # Broadcast to all approved users only
             for user in self._users.values():
@@ -2477,7 +2560,7 @@ class Server(AdministrationMixin):
 
 
 async def run_server(
-    host: str = "0.0.0.0",
+    host: str = "::",
     port: int = 8000,
     ssl_cert: str | Path | None = None,
     ssl_key: str | Path | None = None,

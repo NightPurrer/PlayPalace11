@@ -2,12 +2,21 @@
 
 import hashlib
 import secrets
+from enum import Enum, auto
 from typing import TYPE_CHECKING
 
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError, InvalidHashError
 
 from ..users.base import TrustLevel
+
+
+class AuthResult(Enum):
+    """Result of an authentication attempt."""
+
+    SUCCESS = auto()
+    USER_NOT_FOUND = auto()
+    WRONG_PASSWORD = auto()
 
 if TYPE_CHECKING:
     from ..persistence.database import Database, UserRecord
@@ -53,26 +62,26 @@ class AuthManager:
 
         return False
 
-    def authenticate(self, username: str, password: str) -> bool:
+    def authenticate(self, username: str, password: str) -> AuthResult:
         """
         Authenticate a user.
 
-        Returns True if credentials are valid.
+        Returns AuthResult indicating success or specific failure reason.
         Also upgrades legacy SHA-256 hashes to Argon2 on successful login.
         """
         user = self._db.get_user(username)
         if not user:
-            return False
+            return AuthResult.USER_NOT_FOUND
 
         if not self.verify_password(password, user.password_hash):
-            return False
+            return AuthResult.WRONG_PASSWORD
 
         # Upgrade legacy hash to Argon2 on successful login
         if self._is_legacy_hash(user.password_hash):
             new_hash = self.hash_password(password)
             self._db.update_user_password(username, new_hash)
 
-        return True
+        return AuthResult.SUCCESS
 
     def register(self, username: str, password: str, locale: str = "en") -> bool:
         """

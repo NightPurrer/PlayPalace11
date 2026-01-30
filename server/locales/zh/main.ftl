@@ -197,11 +197,16 @@ account-approved = { $player } 的账户已被批准。
 account-declined = { $player } 的账户已被拒绝并删除。
 
 # 等待审批（显示给未审批用户）
-waiting-for-approval = 您的账户正在等待管理员审批，请稍候...
+waiting-for-approval = 您的账户正在等待管理员审批。
 account-approved-welcome = 您的账户已获批准！欢迎来到 PlayPalace！
 account-declined-goodbye = 您的账户申请已被拒绝。
     原因：
 account-banned = 您的账户已被封禁，无法访问。
+
+# 登录错误
+incorrect-username = 您输入的用户名不存在。
+incorrect-password = 您输入的密码不正确。
+already-logged-in = 此账户已登录。
 
 # 拒绝原因
 decline-reason-prompt = 请输入拒绝原因（或按Escape键取消）：

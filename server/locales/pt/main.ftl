@@ -207,11 +207,16 @@ account-approved = A conta de { $player } foi aprovada.
 account-declined = A conta de { $player } foi recusada e excluída.
 
 # Aguardando aprovação (mostrado a usuários não aprovados)
-waiting-for-approval = Sua conta está aguardando aprovação de um administrador. Por favor, aguarde...
+waiting-for-approval = Sua conta está aguardando aprovação de um administrador.
 account-approved-welcome = Sua conta foi aprovada! Bem-vindo ao PlayPalace!
 account-declined-goodbye = Sua solicitação de conta foi recusada.
     Motivo:
 account-banned = Sua conta está banida e não pode ser acessada.
+
+# Erros de login
+incorrect-username = O nome de usuário que você digitou não existe.
+incorrect-password = A senha que você digitou está incorreta.
+already-logged-in = Esta conta já está conectada.
 
 # Motivo da recusa
 decline-reason-prompt = Digite um motivo para a recusa (ou pressione Escape para cancelar):

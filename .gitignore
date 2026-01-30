@@ -5,6 +5,7 @@ server/.ruff_cache
 server/.pytest_cache
 server/errors.log
 server/playpalace.db
+server/config.toml
 
 # PyInstaller artifacts
 client/build/

@@ -45,6 +45,10 @@ class VirtualBotConfig:
     logout_after_game_min_ticks: int = 40  # 2 sec minimum delay before logout
     logout_after_game_max_ticks: int = 100  # 5 sec maximum delay before logout
 
+    # Maximum tables bots can own per game type (0 = unlimited)
+    # This limit applies to each game type separately.
+    max_tables_per_game: int = 0
+
 
 @dataclass
 class VirtualBot:
@@ -116,6 +120,7 @@ class VirtualBotManager:
             logout_after_game_chance=vb_config.get("logout_after_game_chance", 0.33),
             logout_after_game_min_ticks=vb_config.get("logout_after_game_min_ticks", 40),
             logout_after_game_max_ticks=vb_config.get("logout_after_game_max_ticks", 100),
+            max_tables_per_game=vb_config.get("max_tables_per_game", 0),
         )
 
     def save_state(self) -> None:
@@ -560,17 +565,52 @@ class VirtualBotManager:
 
         return True
 
+    def _count_bot_owned_tables(self, game_type: str) -> int:
+        """Count how many tables of a game type are owned by virtual bots."""
+        count = 0
+        for table in self._server._tables.get_all_tables():
+            if not table.game:
+                continue
+            if table.game.get_type() != game_type:
+                continue
+            # Check if the host is a virtual bot
+            host = table.game.host
+            if host and host in self._bots:
+                count += 1
+        return count
+
+    def _can_create_game_type(self, game_type: str) -> bool:
+        """Check if bots can create another table of this game type."""
+        max_tables = self._config.max_tables_per_game
+        if max_tables == 0:
+            return True  # 0 means unlimited
+        current = self._count_bot_owned_tables(game_type)
+        return current < max_tables
+
+    def _get_available_game_types(self) -> list:
+        """Get game classes that bots can still create tables for."""
+        from ..games.registry import GameRegistry
+
+        available = []
+        for game_class in GameRegistry.get_all():
+            game_type = game_class.get_type()
+            if self._can_create_game_type(game_type):
+                available.append(game_class)
+        return available
+
     def _try_create_game(self, bot: VirtualBot) -> bool:
         """Try to create a new game table. Returns True if created."""
-        from ..games.registry import GameRegistry, get_game_class
-
-        # Get all available game types
-        game_classes = GameRegistry.get_all()
-        if not game_classes:
+        # Get game types that aren't at their limit
+        available_game_classes = self._get_available_game_types()
+        if not available_game_classes:
+            # All game types are maxed out, try to join instead
+            if self._try_join_game(bot):
+                return True
+            # Can't join either, silently stop
             return False
 
-        # Pick a random game type
-        game_class = random.choice(game_classes)
+        # Pick a random available game type
+        game_class = random.choice(available_game_classes)
         game_type = game_class.get_type()
 
         user = self._server._users.get(bot.name)

@@ -70,7 +70,10 @@ class TableManager:
 
     def on_tick(self) -> None:
         """Tick all active tables."""
-        for table in self._tables.values():
+        for table in list(self._tables.values()):
+            if not table.members:
+                table.destroy()
+                continue
             table.on_tick()
 
     def add_table(self, table: Table) -> None:

@@ -1,0 +1,67 @@
+"""Tests for WebSocket server helpers and client handling."""
+
+import pytest
+
+from server.network.websocket_server import ClientConnection, WebSocketServer
+
+
+class DummyWebSocket:
+    def __init__(self):
+        self.sent = []
+        self.closed = False
+
+    async def send(self, data):
+        self.sent.append(data)
+
+    async def close(self):
+        self.closed = True
+
+    @property
+    def remote_address(self):
+        return ("127.0.0.1", 1234)
+
+
+@pytest.mark.asyncio
+async def test_client_connection_send_and_close():
+    ws = DummyWebSocket()
+    conn = ClientConnection(websocket=ws, address="127.0.0.1:1234")
+
+    await conn.send({"type": "ping", "value": 1})
+    assert ws.sent == ['{"type": "ping", "value": 1}']
+
+    await conn.close()
+    assert ws.closed
+
+
+@pytest.mark.asyncio
+async def test_websocket_server_broadcast_and_send_to_user():
+    server = WebSocketServer()
+    c1 = ClientConnection(DummyWebSocket(), "a:1")
+    c1.authenticated = True
+    c1.username = "alice"
+
+    c2 = ClientConnection(DummyWebSocket(), "b:1")
+    c2.authenticated = False
+    c2.username = "bob"
+
+    c3 = ClientConnection(DummyWebSocket(), "c:1")
+    c3.authenticated = True
+    c3.username = "carol"
+
+    server.clients.update({
+        c1.address: c1,
+        c2.address: c2,
+        c3.address: c3,
+    })
+
+    await server.broadcast({"msg": "hello"}, exclude=c1)
+    assert c1.websocket.sent == []  # excluded
+    assert c2.websocket.sent == []  # not authenticated
+    assert c3.websocket.sent == ['{"msg": "hello"}']
+
+    sent = await server.send_to_user("alice", {"type": "notice"})
+    assert sent and c1.websocket.sent[-1] == '{"type": "notice"}'
+
+    assert not await server.send_to_user("unknown", {"type": "noop"})
+    assert server.get_client_by_username("carol") is c3
+    assert server.get_client_by_username("nobody") is None

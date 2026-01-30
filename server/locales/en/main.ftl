@@ -250,11 +250,16 @@ account-approved = { $player }'s account has been approved.
 account-declined = { $player }'s account has been declined and deleted.
 
 # Waiting for approval (shown to unapproved users)
-waiting-for-approval = Your account is waiting for approval by an administrator. Please wait...
+waiting-for-approval = Your account is waiting for approval by an administrator.
 account-approved-welcome = Your account has been approved! Welcome to PlayPalace!
 account-declined-goodbye = Your account request has been declined.
     Reason:
 account-banned = Your account is banned and cannot be accessed.
+
+# Login errors
+incorrect-username = The username you entered does not exist.
+incorrect-password = The password you entered is incorrect.
+already-logged-in = This account is already logged in.
 
 # Decline reason
 decline-reason-prompt = Enter a reason for declining (or press Escape to cancel):

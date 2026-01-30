@@ -133,8 +133,14 @@ class NetworkManager:
             if not self.should_stop:
                 wx.CallAfter(self.main_window.on_connection_lost)
 
-    def disconnect(self):
-        """Disconnect from server."""
+    def disconnect(self, wait=False, timeout=3.0):
+        """
+        Disconnect from server.
+
+        Args:
+            wait: If True, wait for the thread to fully stop
+            timeout: Maximum time to wait for thread to stop (seconds)
+        """
         self.should_stop = True
         self.connected = False
 
@@ -145,6 +151,10 @@ class NetworkManager:
                 asyncio.run_coroutine_threadsafe(self.ws.close(), self.loop)
             except Exception:
                 pass  # Ignore errors during cleanup
+
+        # Wait for thread to fully stop if requested
+        if wait and self.thread and self.thread.is_alive():
+            self.thread.join(timeout=timeout)
 
     def send_packet(self, packet):
         """
@@ -217,7 +227,7 @@ class NetworkManager:
             self.main_window.on_open_server_options(packet)
         elif packet_type == "table_create":
             self.main_window.on_table_create(packet)
-        elif packet_type == "chat":
-            self.main_window.on_receive_chat(packet)
         elif packet_type == "pong":
             self.main_window.on_server_pong(packet)
+        elif packet_type == "chat":
+            self.main_window.on_receive_chat(packet)

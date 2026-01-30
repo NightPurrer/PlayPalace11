@@ -2,6 +2,7 @@
 
 import wx
 from .menu_list import MenuList
+from .login_dialog import LoginDialog
 import accessible_output2.outputs.auto as auto_output
 import sys
 import os
@@ -53,9 +54,11 @@ class MainWindow(wx.Frame):
         self.network = NetworkManager(self)
         self.connected = False
         self.expecting_reconnect = False  # Track if we're expecting to reconnect
+        self.returning_to_login = False  # Track if we're returning to login dialog
         self.reconnect_attempts = 0  # Track reconnection attempts
         self.max_reconnect_attempts = 30  # Maximum reconnection attempts
         self.last_server_message = None  # Track last speak message for error display
+        self.connection_timeout_timer = None  # Track connection timeout timer
 
         # Store user's options
         # Client-side options (from config file, per-server)
@@ -1039,19 +1042,19 @@ class MainWindow(wx.Frame):
         # Play connection loop sound
         self.sound_manager.music("connectloop.ogg")
 
-        self.add_history(f"Connecting to {server_url}...")
+        self.add_history(f"Connecting to {server_url}...", "activity")
         if self.network.connect(server_url, username, password):
-            self.add_history(f"Connecting as {username}...")
+            self.add_history(f"Connecting as {username}...", "activity")
 
             # Set a timeout to detect if connection never succeeds
-            wx.CallLater(10000, self._check_connection_timeout)
+            self.connection_timeout_timer = wx.CallLater(10000, self._check_connection_timeout)
         else:
             self._show_connection_error("Failed to start connection to server.")
 
     def _check_connection_timeout(self):
         """Check if connection succeeded within timeout period."""
-        # Don't timeout if we're in the middle of reconnecting
-        if not self.connected and not self.expecting_reconnect:
+        # Don't timeout if we're in the middle of reconnecting or returning to login
+        if not self.connected and not self.expecting_reconnect and not self.returning_to_login:
             self._show_connection_error(
                 "Connection timeout: Could not connect to server."
             )
@@ -1059,18 +1062,23 @@ class MainWindow(wx.Frame):
     def on_connection_lost(self):
         """Handle connection loss."""
         self.connected = False
-        # Don't show error if we're expecting to reconnect
-        if not self.expecting_reconnect:
+        # Don't show error if we're expecting to reconnect or returning to login
+        if not self.expecting_reconnect and not self.returning_to_login:
             self._show_connection_error("Connection lost!")
 
     def on_server_disconnect(self, packet):
         """Handle server disconnect packet."""
         should_reconnect = packet.get("reconnect", False)
         show_message = packet.get("show_message", False)
+        return_to_login = packet.get("return_to_login", False)
 
         if should_reconnect:
             # Server is restarting, reconnect after 3 seconds
             self.expecting_reconnect = True
+            # Cancel any pending timeout timer
+            if self.connection_timeout_timer:
+                self.connection_timeout_timer.Stop()
+                self.connection_timeout_timer = None
             self.speaker.speak(
                 "Server is restarting. Reconnecting in 3 seconds...", interrupt=False
             )
@@ -1093,7 +1101,7 @@ class MainWindow(wx.Frame):
             wx.CallLater(3000, reconnect)
         elif show_message:
             # Explicit disconnect with message dialog (e.g., account declined)
-            self._show_connection_error("Disconnected by server.")
+            self._show_connection_error("Disconnected by server.", return_to_login=return_to_login)
         else:
             # Explicit disconnect, close quietly (e.g., user logout)
             self.speaker.speak("Disconnected.", interrupt=False)
@@ -1136,23 +1144,90 @@ class MainWindow(wx.Frame):
             self.speaker.speak("Failed to reconnect.", interrupt=False)
             self.Close()
 
-    def _show_connection_error(self, message):
-        """Show error modal and quit application."""
+    def _show_connection_error(self, message, return_to_login=False):
+        """Show error modal and either quit application or return to login."""
+        # Set flags and cancel timers BEFORE showing dialog to prevent race conditions
+        if return_to_login:
+            self.returning_to_login = True
+        if self.connection_timeout_timer:
+            self.connection_timeout_timer.Stop()
+            self.connection_timeout_timer = None
+
         # Stop any music
         self.sound_manager.stop_music(fade=False)
+
+        # Disconnect network and wait for thread to fully stop before showing dialog
+        self.network.disconnect(wait=True)
 
         # Build error message, including last server message if available
         error_body = message
         if self.last_server_message:
             error_body += f"\n\nServer message: {self.last_server_message}"
-        error_body += "\n\nThe application will now close."
 
-        # Show error dialog
+        if return_to_login:
+            error_body += "\n\nReturning to the login dialog."
+        else:
+            error_body += "\n\nThe application will now close."
+
+        # Show error dialog (blocking)
         wx.MessageBox(error_body, "Connection Error", wx.OK | wx.ICON_ERROR)
 
-        # Quit the application
-        self.Close()
-        wx.GetApp().ExitMainLoop()
+        if return_to_login:
+            self._return_to_login()
+        else:
+            # Quit the application
+            self.Close()
+            wx.GetApp().ExitMainLoop()
+
+    def _return_to_login(self):
+        """Close main window and show login dialog again."""
+        # Hide the main window
+        self.Hide()
+
+        # Show login dialog
+        login_dialog = LoginDialog(self)
+        if login_dialog.ShowModal() == wx.ID_OK:
+            # Get new credentials and reconnect
+            new_credentials = login_dialog.get_credentials()
+            login_dialog.Destroy()
+
+            # Update credentials
+            self.credentials = new_credentials
+            self.server_id = new_credentials.get("server_id")
+            self.config_manager = new_credentials.get("config_manager")
+
+            # Reset connection state completely
+            self.connected = False
+            self.expecting_reconnect = False
+            self.returning_to_login = False
+            self.reconnect_attempts = 0
+            self.last_server_message = None
+            self.connection_timeout_timer = None
+
+            # Create fresh network manager to ensure clean state
+            self.network = NetworkManager(self)
+
+            # Clear history and show window
+            self.history_text.Clear()
+            self.Show()
+
+            # Connect with new credentials
+            server_url = new_credentials.get("server_url")
+            username = new_credentials.get("username")
+            password = new_credentials.get("password", "")
+
+            self.add_history(f"Connecting to {server_url} as {username}...", "activity")
+            self.sound_manager.music("connectloop.ogg")
+            if self.network.connect(server_url, username, password):
+                # Set connection timeout
+                self.connection_timeout_timer = wx.CallLater(15000, self._check_connection_timeout)
+            else:
+                self._show_connection_error("Failed to start connection to server.")
+        else:
+            # User cancelled, close the application
+            login_dialog.Destroy()
+            self.Close()
+            wx.GetApp().ExitMainLoop()
 
     # Server packet handlers
 
@@ -1160,12 +1235,28 @@ class MainWindow(wx.Frame):
         """Handle authorization success from server."""
         self.connected = True
         version = packet.get("version", "unknown")
+        username = packet.get("username") or self.credentials.get("username", "Guest")
+        server_url = self.credentials.get("server_url", "")
+
+        # Cancel any pending timeout timer
+        if self.connection_timeout_timer:
+            self.connection_timeout_timer.Stop()
+            self.connection_timeout_timer = None
 
         # Stop connection loop and play welcome sound
         self.sound_manager.stop_music(fade=False)
         self.sound_manager.play("welcome.ogg", volume=1.0)
 
-        self.add_history(f"Connected to server version {version}")
+        if server_url:
+            self.add_history(
+                f"Connected to {server_url} as {username} (server {version})",
+                "activity",
+            )
+        else:
+            self.add_history(
+                f"Connected as {username} (server {version})",
+                "activity",
+            )
 
     def on_open_server_options(self, packet):
         """Handle open server options packet from server.
@@ -1182,9 +1273,23 @@ class MainWindow(wx.Frame):
         without requiring the user to open the options dialog.
         """
         self.games_list = packet.get("games", [])
-        self.lang_codes = packet.get("languages", [])
+        languages = packet.get("languages", {})
+        # Server may send list (codes) or dict (code->name). Normalize to dict.
+        if isinstance(languages, list):
+            languages = {code: code for code in languages}
+        self.lang_codes = languages
         if not self.config_manager or not self.server_id:
             return
+
+        # Ensure profile structure exists
+        profiles = self.config_manager.profiles
+        profiles.setdefault("server_options", {})
+        profiles.setdefault("client_options_defaults", {}).setdefault("local_table", {}).setdefault(
+            "creation_notifications", {}
+        )
+        profiles.setdefault("client_options_defaults", {}).setdefault("social", {}).setdefault(
+            "language_subscriptions", {}
+        )
 
         updated = False
 
@@ -1192,9 +1297,9 @@ class MainWindow(wx.Frame):
         # Update games in both default profile and server profile
         if self.games_list:
             # Update default profile
-            default_local_table = self.config_manager.profiles[
-                "client_options_defaults"
-            ].setdefault("local_table", {})
+            default_local_table = profiles["client_options_defaults"].setdefault(
+                "local_table", {}
+            )
             default_creation_notifications = default_local_table.setdefault("creation_notifications", {})
             for game_info in self.games_list:
                 game_name = game_info["name"]
@@ -1203,10 +1308,9 @@ class MainWindow(wx.Frame):
                     updated = True
 
             # Update server profile
-            if self.server_id in self.config_manager.profiles["servers"]:
-                server_overrides = self.config_manager.profiles["servers"][
-                    self.server_id
-                ].setdefault("options_overrides", {})
+            server_profiles = profiles.get("server_options", {})
+            if self.server_id in server_profiles:
+                server_overrides = server_profiles[self.server_id].setdefault("options_overrides", {})
                 server_local_table = server_overrides.setdefault("local_table", {})
                 server_creation_notifications = server_local_table.setdefault(
                     "creation_notifications", {}
@@ -1221,9 +1325,7 @@ class MainWindow(wx.Frame):
         # Rebuild dicts to match server order (alphabetical ascending)
         if languages:
             # Update default profile - rebuild to match server order
-            default_social = self.config_manager.profiles[
-                "client_options_defaults"
-            ].setdefault("social", {})
+            default_social = profiles["client_options_defaults"].setdefault("social", {})
             default_lang_subscriptions = default_social.get(
                 "language_subscriptions", {}
             )
@@ -1237,10 +1339,9 @@ class MainWindow(wx.Frame):
                 updated = True
 
             # Update server profile - rebuild to match server order
-            if self.server_id in self.config_manager.profiles["servers"]:
-                server_overrides = self.config_manager.profiles["servers"][
-                    self.server_id
-                ].setdefault("options_overrides", {})
+            server_profiles = profiles.get("server_options", {})
+            if self.server_id in server_profiles:
+                server_overrides = server_profiles[self.server_id].setdefault("options_overrides", {})
                 social_overrides = server_overrides.setdefault("social", {})
                 lang_subscriptions = social_overrides.get(
                     "language_subscriptions", {}
@@ -1347,13 +1448,10 @@ class MainWindow(wx.Frame):
                 if not self.client_options["social"]["language_subscriptions"][lang]:
                     return
         end this comment"""
-        message = (
-            packet.get("sender")
-            + " says "
-            + ("globally" if convo == "global" else "")
-            + ": "
-            + packet.get("message")
-        )
+        if convo == "global":
+            message = f"{packet.get('sender')} globally: {packet.get('message')}"
+        else:
+            message = f"{packet.get('sender')}: {packet.get('message')}"
         # Convo doesn't support muting, or the mute flag is disabled
         if True:
             """(

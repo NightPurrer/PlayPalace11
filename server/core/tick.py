@@ -1,24 +1,72 @@
 """Tick scheduler for game updates."""
 
 import asyncio
+from pathlib import Path
 from typing import Callable
+
+
+# Default tick interval
+DEFAULT_TICK_INTERVAL_MS = 50
+
+
+def load_server_config(path: str | Path | None = None) -> dict:
+    """
+    Load server configuration from config.toml.
+
+    Args:
+        path: Path to config file. If None, uses server/config.toml.
+
+    Returns:
+        Dictionary with server config values.
+    """
+    if path is None:
+        path = Path(__file__).parent.parent / "config.toml"
+
+    path = Path(path)
+    if not path.exists():
+        return {}
+
+    try:
+        import tomllib
+    except ImportError:
+        import tomli as tomllib
+
+    with open(path, "rb") as f:
+        data = tomllib.load(f)
+
+    return data.get("server", {})
 
 
 class TickScheduler:
     """
-    Schedules game ticks at a fixed interval (50ms).
+    Schedules game ticks at a fixed interval.
 
     The tick callback is called synchronously within the async context.
     This keeps game logic simple while allowing async network I/O.
+
+    The tick interval can be configured via config.toml [server] section
+    or passed directly to the constructor.
     """
 
-    TICK_INTERVAL_MS = 50
-    TICK_INTERVAL_S = TICK_INTERVAL_MS / 1000.0
+    def __init__(
+        self, on_tick: Callable[[], None], tick_interval_ms: int | None = None
+    ):
+        """
+        Initialize the tick scheduler.
 
-    def __init__(self, on_tick: Callable[[], None]):
+        Args:
+            on_tick: Callback function to call on each tick.
+            tick_interval_ms: Tick interval in milliseconds. If None, uses default (50ms).
+        """
         self._on_tick = on_tick
         self._running = False
         self._task: asyncio.Task | None = None
+
+        # Set tick interval
+        if tick_interval_ms is None:
+            tick_interval_ms = DEFAULT_TICK_INTERVAL_MS
+        self.tick_interval_ms = tick_interval_ms
+        self.tick_interval_s = tick_interval_ms / 1000.0
 
     async def start(self) -> None:
         """Start the tick scheduler."""
@@ -45,4 +93,4 @@ class TickScheduler:
                 print(f"Error in tick: {e}")
 
             # Sleep for tick interval
-            await asyncio.sleep(self.TICK_INTERVAL_S)
+            await asyncio.sleep(self.tick_interval_s)

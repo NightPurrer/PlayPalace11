@@ -13,6 +13,19 @@ from server.messages.localization import Localization
 _locales_dir = Path(__file__).parent.parent / "locales"
 Localization.init(_locales_dir)
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--runslow",
+        action="store_true",
+        default=False,
+        help="run tests marked as slow",
+    )
+
+
+def pytest_runtest_setup(item):
+    if "slow" in item.keywords and not item.config.getoption("--runslow"):
+        pytest.skip("use --runslow to run slow tests")
+
 
 @pytest.fixture
 def mock_user():

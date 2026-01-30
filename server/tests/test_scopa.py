@@ -4,6 +4,12 @@ from pathlib import Path
 
 from server.games.scopa.game import ScopaGame, ScopaPlayer, ScopaOptions
 from server.games.scopa.capture import find_captures, select_best_capture
+from server.games.scopa.bot import (
+    find_best_combo_chain,
+    check_combo_potential,
+    evaluate_escoba_empty_table,
+    evaluate_card,
+)
 from server.games.registry import GameRegistry
 from server.game_utils.cards import Card, DeckFactory
 from server.game_utils.teams import TeamManager
@@ -416,3 +422,270 @@ class TestScopaPersistence:
 
         assert len(game2.players[0].captured) == 1
         assert len(game2.table_cards) == 1
+
+
+class TestScopaBotAI:
+    """Tests for Scopa bot AI features."""
+
+    def test_two_card_combo_setup(self):
+        """Test that bot finds simple 2-card combos.
+
+        Table has 5, hand has 4 and 9.
+        Playing 4 creates 5+4=9 on table, which 9 can capture.
+        """
+        table = [Card(id=0, rank=5, suit=1)]
+        hand = [
+            Card(id=1, rank=4, suit=2),
+            Card(id=2, rank=9, suit=3),
+        ]
+
+        # Find combo starting with playing the 4
+        sequence, captured, score = find_best_combo_chain(
+            table=table + [hand[0]],  # After playing 4
+            remaining_hand=[hand[1]],  # Only 9 left
+            escoba=False,
+            cards_played=[hand[0]],  # 4 was played
+        )
+
+        assert score > 0, "Should find a combo"
+        assert len(sequence) == 2, "Sequence should be [4, 9]"
+        assert len(captured) == 2, "Should capture 5 and 4"
+        # Verify the played card (4) is in the capture
+        captured_ids = [c.id for c in captured]
+        assert hand[0].id in captured_ids, "The 4 we played should be captured back"
+
+    def test_three_card_combo_chain(self):
+        """Test that bot finds longer 3-card combos.
+
+        Table is empty, hand has 2, 3, 5.
+        Play 2 -> table: 2
+        Play 3 -> table: 2, 3 (sum=5)
+        Play 5 -> captures 2, 3!
+        """
+        hand = [
+            Card(id=0, rank=2, suit=1),
+            Card(id=1, rank=3, suit=2),
+            Card(id=2, rank=5, suit=3),
+        ]
+
+        # Start with playing the 2
+        sequence, captured, score = find_best_combo_chain(
+            table=[hand[0]],  # After playing 2
+            remaining_hand=[hand[1], hand[2]],  # 3 and 5 left
+            escoba=False,
+            cards_played=[hand[0]],  # 2 was played
+        )
+
+        assert score > 0, "Should find a combo"
+        assert len(sequence) == 3, "Sequence should be [2, 3, 5]"
+        assert len(captured) == 2, "Should capture 2 and 3"
+
+    def test_four_card_combo_chain(self):
+        """Test 4-card combo: 1, 2, 3, 6 -> play 1, 2, 3, then 6 captures all.
+
+        Table is empty, hand has 1, 2, 3, 6.
+        Play 1 -> table: 1
+        Play 2 -> table: 1, 2
+        Play 3 -> table: 1, 2, 3 (sum=6)
+        Play 6 -> captures 1, 2, 3!
+        """
+        hand = [
+            Card(id=0, rank=1, suit=1),
+            Card(id=1, rank=2, suit=2),
+            Card(id=2, rank=3, suit=3),
+            Card(id=3, rank=6, suit=4),
+        ]
+
+        # Start with playing the 1
+        sequence, captured, score = find_best_combo_chain(
+            table=[hand[0]],  # After playing 1
+            remaining_hand=[hand[1], hand[2], hand[3]],  # 2, 3, 6 left
+            escoba=False,
+            cards_played=[hand[0]],
+        )
+
+        assert score > 0, "Should find a combo"
+        assert len(sequence) == 4, "Sequence should be [1, 2, 3, 6]"
+        assert len(captured) == 3, "Should capture 1, 2, 3"
+
+    def test_combo_with_existing_table_cards(self):
+        """Test combo that incorporates existing table cards.
+
+        Table has 2, hand has 3, 5.
+        Play 3 -> table: 2, 3 (sum=5)
+        Play 5 -> captures 2, 3!
+        """
+        table = [Card(id=0, rank=2, suit=1)]
+        hand = [
+            Card(id=1, rank=3, suit=2),
+            Card(id=2, rank=5, suit=3),
+        ]
+
+        # Start with playing the 3
+        sequence, captured, score = find_best_combo_chain(
+            table=table + [hand[0]],  # After playing 3
+            remaining_hand=[hand[1]],  # Only 5 left
+            escoba=False,
+            cards_played=[hand[0]],
+        )
+
+        assert score > 0, "Should find a combo"
+        assert len(captured) == 2, "Should capture 2 and 3"
+
+    def test_escoba_combo_sum_to_15(self):
+        """Test combo in escoba mode (sum to 15).
+
+        Table is empty, hand has 7, 8.
+        Play 7 -> table: 7
+        Play 8 -> captures 7 (7+8=15)!
+        """
+        hand = [
+            Card(id=0, rank=7, suit=1),
+            Card(id=1, rank=8, suit=2),
+        ]
+
+        # Start with playing the 7
+        sequence, captured, score = find_best_combo_chain(
+            table=[hand[0]],  # After playing 7
+            remaining_hand=[hand[1]],  # Only 8 left
+            escoba=True,
+            cards_played=[hand[0]],
+        )
+
+        assert score > 0, "Should find escoba combo"
+        assert len(captured) == 1, "Should capture just the 7"
+        assert captured[0].rank == 7
+
+    def test_check_combo_potential_integration(self):
+        """Test check_combo_potential with a game state."""
+        game = ScopaGame()
+        user1 = MockUser("Player1")
+        user2 = MockUser("Player2")
+        game.add_player("Player1", user1)
+        game.add_player("Player2", user2)
+        game.on_start()
+
+        player = game.players[0]
+        # Set up a known combo situation
+        game.table_cards = [Card(id=100, rank=5, suit=1)]
+        player.hand = [
+            Card(id=101, rank=4, suit=2),
+            Card(id=102, rank=9, suit=3),
+        ]
+
+        # Check combo potential for the 4
+        bonus = check_combo_potential(game, player.hand[0], player)
+        assert bonus > 0, "Playing 4 should have combo potential with 9"
+
+        # Check combo potential for the 9 (can already capture, no setup needed)
+        bonus_9 = check_combo_potential(game, player.hand[1], player)
+        # 9 captures 5+4=9 directly if 4 is on table, but 4 isn't on table yet
+        # So there's no combo potential for 9 in this state
+        assert bonus_9 == 0 or bonus_9 < bonus, "9 doesn't set up a combo"
+
+    def test_escoba_empty_table_safe_cards(self):
+        """Test that cards <= 4 are preferred on empty table in escoba."""
+        # Cards <= 4 cannot be captured alone (15 - 4 = 11 > max rank 10)
+        for rank in [1, 2, 3, 4]:
+            card = Card(id=rank, rank=rank, suit=1)
+            score = evaluate_escoba_empty_table(card, inverse=False)
+            assert score > 0, f"Card rank {rank} should have positive score"
+
+        # Cards > 4 can be captured (e.g., 5 can be captured by 10 since 5+10=15)
+        for rank in [5, 6, 7, 8, 9, 10]:
+            card = Card(id=rank, rank=rank, suit=1)
+            score = evaluate_escoba_empty_table(card, inverse=False)
+            assert score < 0, f"Card rank {rank} should have negative score"
+
+    def test_escoba_empty_table_lower_is_safer(self):
+        """Test that lower cards are preferred (1 is safest)."""
+        scores = []
+        for rank in [1, 2, 3, 4]:
+            card = Card(id=rank, rank=rank, suit=1)
+            score = evaluate_escoba_empty_table(card, inverse=False)
+            scores.append(score)
+
+        # Scores should be in descending order (1 > 2 > 3 > 4)
+        for i in range(len(scores) - 1):
+            assert scores[i] > scores[i + 1], f"Rank {i+1} should score higher than {i+2}"
+
+    def test_escoba_empty_table_inverse_mode(self):
+        """Test escoba empty table in inverse mode (want opponent to capture)."""
+        # In inverse mode, safe cards (<=4) should be penalized
+        card_safe = Card(id=1, rank=1, suit=1)
+        score_safe = evaluate_escoba_empty_table(card_safe, inverse=True)
+        assert score_safe < 0, "Safe card should be penalized in inverse mode"
+
+        # Risky cards (>4) should be preferred
+        card_risky = Card(id=5, rank=5, suit=1)
+        score_risky = evaluate_escoba_empty_table(card_risky, inverse=True)
+        assert score_risky > 0, "Risky card should be preferred in inverse mode"
+
+    def test_evaluate_card_uses_combo_bonus(self):
+        """Test that evaluate_card incorporates combo bonus."""
+        game = ScopaGame()
+        user1 = MockUser("Player1")
+        user2 = MockUser("Player2")
+        game.add_player("Player1", user1)
+        game.add_player("Player2", user2)
+        game.on_start()
+
+        player = game.players[0]
+        # Set up combo: table has 5, hand has 4 and 9
+        game.table_cards = [Card(id=100, rank=5, suit=1)]
+        player.hand = [
+            Card(id=101, rank=4, suit=2),  # Can set up combo
+            Card(id=102, rank=9, suit=3),  # Can capture after combo
+            Card(id=103, rank=1, suit=4),  # No combo potential
+        ]
+
+        score_4 = evaluate_card(game, player.hand[0], player)
+        score_1 = evaluate_card(game, player.hand[2], player)
+
+        # The 4 should score higher than 1 because it sets up a combo
+        assert score_4 > score_1, "Card with combo potential should score higher"
+
+    def test_evaluate_card_escoba_empty_table(self):
+        """Test that evaluate_card uses escoba defense on empty table."""
+        game = ScopaGame()
+        game.options.escoba = True
+        user1 = MockUser("Player1")
+        user2 = MockUser("Player2")
+        game.add_player("Player1", user1)
+        game.add_player("Player2", user2)
+        game.on_start()
+
+        player = game.players[0]
+        game.table_cards = []  # Empty table
+        player.hand = [
+            Card(id=101, rank=1, suit=1),  # Safe (can't be captured)
+            Card(id=102, rank=10, suit=2),  # Risky (can be captured by 5)
+        ]
+
+        score_1 = evaluate_card(game, player.hand[0], player)
+        score_10 = evaluate_card(game, player.hand[1], player)
+
+        # The 1 should score much higher than 10 on empty table in escoba
+        assert score_1 > score_10, "Safe card should score higher on empty escoba table"
+
+    def test_no_combo_when_card_not_in_capture(self):
+        """Test that combo is only counted when played card is captured back."""
+        # Table has 7, hand has 3, 4
+        # Playing 3 doesn't help capture with 4 (4 ≠ 7+3)
+        # Playing 4 doesn't help capture with 3 (3 ≠ 7+4)
+        table = [Card(id=0, rank=7, suit=1)]
+        hand = [
+            Card(id=1, rank=3, suit=2),
+            Card(id=2, rank=4, suit=3),
+        ]
+
+        # Try playing the 3
+        sequence, captured, score = find_best_combo_chain(
+            table=table + [hand[0]],
+            remaining_hand=[hand[1]],
+            escoba=False,
+            cards_played=[hand[0]],
+        )
+
+        assert score == 0, "No valid combo should be found"
+        assert len(sequence) == 0

@@ -1,5 +1,5 @@
 """Authentication and session management."""
 
-from .auth import AuthManager
+from .auth import AuthManager, AuthResult
 
-__all__ = ["AuthManager"]
+__all__ = ["AuthManager", "AuthResult"]

@@ -1,6 +1,12 @@
 # PlayPalace Server Configuration
 # Copy this file to config.toml and customize as needed.
 
+[server]
+# Tick interval in milliseconds (default: 50ms = 20 ticks/sec)
+# Lower values = faster game updates but more CPU usage
+# Higher values = slower updates but less CPU usage
+tick_interval_ms = 50
+
 [virtual_bots]
 # Bot names - these will be used for virtual bot usernames
 names = [
@@ -28,3 +34,8 @@ go_offline_chance = 0.05  # Chance to go offline (when online long enough)
 logout_after_game_chance = 0.33    # 33% chance to log off after finishing a game
 logout_after_game_min_ticks = 40   # 2 sec minimum delay before logout
 logout_after_game_max_ticks = 100  # 5 sec maximum delay before logout
+
+# Maximum tables virtual bots can own per game type (0 = unlimited)
+# This limit applies to each game type separately.
+# E.g., if set to 2, bots can own up to 2 scopa tables AND 2 ninetynine tables, etc.
+max_tables_per_game = 0
