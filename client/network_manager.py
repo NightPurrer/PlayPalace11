@@ -4,6 +4,8 @@ import asyncio
 import json
 import threading
 import hashlib
+import os
+import tempfile
 from urllib.parse import urlparse
 
 import wx
@@ -231,10 +233,10 @@ class NetworkManager:
         try:
             websocket = await connect(server_url, ssl=context)
             fingerprint_hex, cert_dict, pem = self._extract_peer_certificate(websocket)
-            if not fingerprint_hex or not cert_dict or not pem:
+            if not fingerprint_hex or not pem:
                 return None
             host = self._get_server_host(server_url)
-            return self._build_certificate_info(cert_dict, fingerprint_hex, pem, host)
+            return self._build_certificate_info(cert_dict or {}, fingerprint_hex, pem, host)
         except Exception:
             return None
         finally:
@@ -292,16 +294,42 @@ class NetworkManager:
             return None, None, None
         der_bytes = ssl_obj.getpeercert(binary_form=True)
         cert_dict = ssl_obj.getpeercert()
+        pem = None
+        if der_bytes:
+            pem = ssl.DER_cert_to_PEM_cert(der_bytes)
+
+        if cert_dict is None and pem:
+            cert_dict = self._decode_certificate_dict(pem)
+
         if not der_bytes or cert_dict is None:
             return None, cert_dict, None
         fingerprint_hex = hashlib.sha256(der_bytes).hexdigest().upper()
-        pem = ssl.DER_cert_to_PEM_cert(der_bytes)
         return fingerprint_hex, cert_dict, pem
+
+    def _decode_certificate_dict(self, pem: str) -> dict | None:
+        """Decode certificate metadata from PEM when ssl.getpeercert() returns None."""
+        tmp_path = None
+        try:
+            tmp = tempfile.NamedTemporaryFile("w", delete=False)
+            tmp.write(pem)
+            tmp.flush()
+            tmp_path = tmp.name
+            tmp.close()
+            return ssl._ssl._test_decode_cert(tmp_path)
+        except Exception:
+            return None
+        finally:
+            if tmp_path:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
 
     def _build_certificate_info(
         self, cert_dict, fingerprint_hex: str, pem: str, host: str
     ) -> CertificateInfo:
         """Convert Python's SSL cert dict into CertificateInfo."""
+        cert_dict = cert_dict or {}
         subject = cert_dict.get("subject", [])
         common_name = ""
         for entry in subject:
