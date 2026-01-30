@@ -485,18 +485,6 @@ class MainWindow(wx.Frame):
             except:
                 pass
 
-    def _force_orca_announcement(self):
-        """Force announcement of the current menu selection."""
-        selection = self.menu_list.GetSelection()
-        if selection == wx.NOT_FOUND or self.menu_list.GetCount() == 0:
-            return
-        
-        # Get the text of the selected item
-        text = self.menu_list.GetString(selection)
-        
-        # Speak it directly - accessible_output2.Auto() detects Orca automatically
-        self.speaker.speak(text, interrupt=True)
-
     def on_char_hook(self, event):
         """Handle character input for game keypresses."""
 
@@ -1863,10 +1851,6 @@ class MainWindow(wx.Frame):
                     self.menu_list.SetSelection(position)
                 else:
                     self.menu_list.SetSelection(0)
-                
-                # Force Orca to announce by triggering an LISTBOX event
-                # Do this after a small delay to ensure focus is properly set
-                wx.CallLater(100, self._force_orca_announcement)
 
         # Update client data (sounds)
         # Moved to end of function to ensure menu items exist
@@ -1922,10 +1906,6 @@ class MainWindow(wx.Frame):
                     self.menu_list.SetSelection(position)
                 else:
                     self.menu_list.SetSelection(0)
-                
-                # Force Orca to announce by triggering an LISTBOX event
-                # Do this after a small delay to ensure focus is properly set
-                wx.CallLater(100, self._force_orca_announcement)
 
         # Update client data (sounds) - ensure we update ALL items after any changes
         for i, sound in enumerate(item_sounds):
