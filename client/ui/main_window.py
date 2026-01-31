@@ -165,8 +165,13 @@ class MainWindow(wx.Frame):
         # History text - accessible but not visible (small size for screen readers)
         # No word wrap for better screen reader accessibility
         wx.StaticText(panel, label="&History")
+        history_size = (1, 1)
+        if sys.platform.startswith("win"):
+            history_size = (0, 0)
         self.history_text = wx.TextCtrl(
-            panel, size=(1, 1), style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_DONTWRAP
+            panel,
+            size=history_size,
+            style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_DONTWRAP,
         )
         # Make sure it's accessible to screen readers despite small size
         self.history_text.SetName("History")
