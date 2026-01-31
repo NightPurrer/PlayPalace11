@@ -6,6 +6,7 @@ from .login_dialog import LoginDialog
 import accessible_output2.outputs.auto as auto_output
 import sys
 import os
+from dataclasses import dataclass
 import json
 from pathlib import Path
 
@@ -18,6 +19,28 @@ from buffer_system import BufferSystem
 from config_manager import set_item_in_dict
 
 
+@dataclass(frozen=True)
+class UiPlatformConfig:
+    window_size: tuple[int, int]
+    menu_size: tuple[int, int]
+    history_size: tuple[int, int]
+    chat_size: tuple[int, int]
+    edit_size: tuple[int, int]
+    multiline_size: tuple[int, int]
+
+    @staticmethod
+    def for_platform() -> "UiPlatformConfig":
+        # Keep sizes modest but visible on all platforms
+        return UiPlatformConfig(
+            window_size=(760, 720),
+            menu_size=(700, 420),
+            history_size=(700, 200),
+            chat_size=(700, 28),
+            edit_size=(700, 28),
+            multiline_size=(700, 120),
+        )
+
+
 class MainWindow(wx.Frame):
     """Main application window for Play Palace v9 client."""
 
@@ -28,10 +51,12 @@ class MainWindow(wx.Frame):
         Args:
             credentials: Dict with username, password, server_url, server_id, config_manager
         """
+        self.ui_cfg = UiPlatformConfig.for_platform()
+
         super().__init__(
             parent=None,
             title="PlayPalace 11",
-            size=(1, 1),  # Minimal size for audio-only interface
+            size=self.ui_cfg.window_size,
         )
 
         # Store credentials
@@ -120,16 +145,17 @@ class MainWindow(wx.Frame):
             self.sound_manager.set_ambience_volume(ambience_volume)
 
     def _create_ui(self):
-        """Create the UI components (audio-only, no visual layout)."""
-        # Main panel - no sizing needed
+        """Create the UI components (audio-first, with basic visual layout)."""
         panel = wx.Panel(self)
+
+        ui_cfg = self.ui_cfg
 
         # Menu label and list - labels help screen readers
         self.menu_label = wx.StaticText(panel, label="&Menu")
         self.menu_list = MenuList(
             panel,
             sound_manager=self.sound_manager,
-            size=(0, 0),
+            size=ui_cfg.menu_size,
             style=wx.LB_SINGLE | wx.WANTS_CHARS,
         )
         # Bind to activation events to handle menu selections
@@ -140,7 +166,7 @@ class MainWindow(wx.Frame):
 
         # Edit mode input - initially hidden, replaces menu list when in edit mode
         self.edit_label = wx.StaticText(panel, label="&Edit")
-        self.edit_input = wx.TextCtrl(panel, size=(0, 0), style=wx.TE_PROCESS_ENTER)
+        self.edit_input = wx.TextCtrl(panel, size=ui_cfg.edit_size, style=wx.TE_PROCESS_ENTER)
         self.edit_input.Bind(wx.EVT_TEXT_ENTER, self.on_edit_enter)
         self.edit_input.Bind(wx.EVT_CHAR, self.on_edit_char)
         self.edit_input.Hide()
@@ -148,7 +174,7 @@ class MainWindow(wx.Frame):
 
         # Multiline edit input - for longer text
         self.edit_input_multiline = wx.TextCtrl(
-            panel, size=(0, 0), style=wx.TE_MULTILINE | wx.TE_DONTWRAP
+            panel, size=ui_cfg.multiline_size, style=wx.TE_MULTILINE | wx.TE_DONTWRAP
         )
         self.edit_input_multiline.Bind(wx.EVT_CHAR, self.on_edit_multiline_char)
         self.edit_input_multiline.Hide()
@@ -158,25 +184,32 @@ class MainWindow(wx.Frame):
         self.escape_behavior = "keybind"  # Track escape behavior from server
 
         # Chat input comes before history in tab order
-        wx.StaticText(panel, label="&Chat")
-        self.chat_input = wx.TextCtrl(panel, size=(0, 0), style=wx.TE_PROCESS_ENTER)
+        self.chat_label = wx.StaticText(panel, label="&Chat")
+        self.chat_input = wx.TextCtrl(panel, size=ui_cfg.chat_size, style=wx.TE_PROCESS_ENTER)
         self.chat_input.Bind(wx.EVT_TEXT_ENTER, self.on_chat_enter)
 
         # History text - accessible but not visible (small size for screen readers)
         # No word wrap for better screen reader accessibility
-        wx.StaticText(panel, label="&History")
-        history_size = (1, 1)
-        if sys.platform.startswith("win"):
-            history_size = (0, 0)
+        self.history_label = wx.StaticText(panel, label="&History")
         self.history_text = wx.TextCtrl(
             panel,
-            size=history_size,
+            size=ui_cfg.history_size,
             style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_DONTWRAP,
         )
         # Make sure it's accessible to screen readers despite small size
         self.history_text.SetName("History")
 
-        # No sizers, no layout - audio-only interface
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        sizer.Add(self.menu_label, 0, wx.ALL, 4)
+        sizer.Add(self.menu_list, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 4)
+        sizer.Add(self.edit_label, 0, wx.ALL, 4)
+        sizer.Add(self.edit_input, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 4)
+        sizer.Add(self.edit_input_multiline, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 4)
+        sizer.Add(self.chat_label, 0, wx.ALL, 4)
+        sizer.Add(self.chat_input, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 4)
+        sizer.Add(self.history_label, 0, wx.ALL, 4)
+        sizer.Add(self.history_text, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
+        panel.SetSizer(sizer)
 
     def _setup_accelerators(self):
         """Setup keyboard accelerators."""
