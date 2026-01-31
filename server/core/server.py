@@ -2963,41 +2963,6 @@ async def run_server(
             raise SystemExit(1) from exc
         print(f"Created '{config_path}' from '{example_path}'.")
 
-        db_created = False
-        if not db_path.exists():
-            from server.cli import bootstrap_owner
-
-            db_created = True
-            while True:
-                username = input("Server owner username: ").strip()
-                if username:
-                    break
-                print("Username cannot be empty.")
-            while True:
-                password = getpass("Server owner password: ")
-                confirm = getpass("Confirm password: ")
-                if password != confirm:
-                    print("Passwords do not match. Try again.")
-                    continue
-                if not password:
-                    print("Password cannot be empty.")
-                    continue
-                break
-
-            try:
-                bootstrap_owner(
-                    db_path=str(db_path),
-                    username=username,
-                    password=password,
-                    quiet=True,
-                )
-                print(f"Created server owner '{username}'.")
-            except RuntimeError as exc:
-                print(f"ERROR: {exc}", file=sys.stderr)
-                raise SystemExit(1) from exc
-            if db_created:
-                print(f"Created database at '{db_path}'.")
-
         print(
             "Review server/config.toml before running in production. "
             "TLS is required unless you explicitly allow insecure mode.\n"
@@ -3006,6 +2971,54 @@ async def run_server(
             "or set [network].allow_insecure_ws=true for local development."
         )
         return
+
+    db_created = False
+    needs_owner = False
+    if not db_path.exists():
+        db_created = True
+        needs_owner = True
+    else:
+        try:
+            database = Database(str(db_path))
+            database.connect()
+            needs_owner = database.get_user_count() == 0
+            database.close()
+        except Exception as exc:
+            print(f"ERROR: Failed to open database '{db_path}': {exc}", file=sys.stderr)
+            raise SystemExit(1) from exc
+
+    if needs_owner:
+        from server.cli import bootstrap_owner
+
+        while True:
+            username = input("Server owner username: ").strip()
+            if username:
+                break
+            print("Username cannot be empty.")
+        while True:
+            password = getpass("Server owner password: ")
+            confirm = getpass("Confirm password: ")
+            if password != confirm:
+                print("Passwords do not match. Try again.")
+                continue
+            if not password:
+                print("Password cannot be empty.")
+                continue
+            break
+
+        try:
+            bootstrap_owner(
+                db_path=str(db_path),
+                username=username,
+                password=password,
+                quiet=True,
+            )
+            print(f"Created server owner '{username}'.")
+        except RuntimeError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            raise SystemExit(1) from exc
+        if db_created:
+            print(f"Created database at '{db_path}'.")
 
     server = Server(
         host=host,
