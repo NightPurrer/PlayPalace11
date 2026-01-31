@@ -15,9 +15,6 @@ if TYPE_CHECKING:
 def _speak_activity(user, message_id: str, **kwargs) -> None:
     user.speak_l(message_id, buffer="activity", **kwargs)
 
-# Misc buffer helper for direct command responses
-def _speak_misc(user, message_id: str, **kwargs) -> None:
-    user.speak_l(message_id, buffer="misc", **kwargs)
 
 def require_admin(func):
     """Decorator that checks if the user is still an admin before executing an admin action."""
@@ -172,7 +169,7 @@ class AdministrationMixin:
         non_admins = self._db.get_non_admin_users()
 
         if not non_admins:
-            _speak_misc(user, "no-users-to-promote")
+            user.speak_l("no-users-to-promote", buffer="misc")
             self._show_admin_menu(user)
             return
 
@@ -198,7 +195,7 @@ class AdministrationMixin:
         admins = [a for a in admins if a.username != user.username]
 
         if not admins:
-            _speak_misc(user, "no-admins-to-demote")
+            user.speak_l("no-admins-to-demote", buffer="misc")
             self._show_admin_menu(user)
             return
 
@@ -276,7 +273,7 @@ class AdministrationMixin:
         admins = self._db.get_admin_users(include_server_owner=False)
 
         if not admins:
-            _speak_misc(user, "no-admins-for-transfer")
+            user.speak_l("no-admins-for-transfer", buffer="misc")
             self._show_admin_menu(user)
             return
 
@@ -335,7 +332,7 @@ class AdministrationMixin:
         bannable_users = self._db.get_non_admin_users(exclude_banned=True)
 
         if not bannable_users:
-            _speak_misc(user, "no-users-to-ban")
+            user.speak_l("no-users-to-ban", buffer="misc")
             self._show_admin_menu(user)
             return
 
@@ -357,7 +354,7 @@ class AdministrationMixin:
         banned_users = self._db.get_banned_users()
 
         if not banned_users:
-            _speak_misc(user, "no-users-to-unban")
+            user.speak_l("no-users-to-unban", buffer="misc")
             self._show_admin_menu(user)
             return
 
@@ -491,7 +488,7 @@ class AdministrationMixin:
 
     def _show_virtual_bots_clear_confirm_menu(self, user: NetworkUser) -> None:
         """Show confirmation menu for clearing all virtual bots."""
-        _speak_misc(user, "virtual-bots-clear-confirm")
+        user.speak_l("virtual-bots-clear-confirm", buffer="misc")
         items = [
             MenuItem(text=Localization.get(user.locale, "confirm-yes"), id="yes"),
             MenuItem(text=Localization.get(user.locale, "confirm-no"), id="no"),
@@ -1127,12 +1124,13 @@ class AdministrationMixin:
             return
 
         status = self._virtual_bots.get_status()
-        _speak_misc(owner, 
+        owner.speak_l( 
             "virtual-bots-status-report",
             total=status["total"],
             online=status["online"],
             offline=status["offline"],
             in_game=status["in_game"],
+            buffer="misc",
         )
         self._show_virtual_bots_menu(owner)
 
