@@ -2,6 +2,7 @@
 
 import json
 import ssl
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Coroutine
@@ -66,7 +67,14 @@ class WebSocketServer:
         # Configure SSL if certificates provided
         if ssl_cert and ssl_key:
             self._ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-            self._ssl_context.load_cert_chain(str(ssl_cert), str(ssl_key))
+            try:
+                self._ssl_context.load_cert_chain(str(ssl_cert), str(ssl_key))
+            except Exception as exc:  # pylint: disable=broad-except
+                print(
+                    f"ERROR: Failed to load TLS certificate or key ({ssl_cert}, {ssl_key}): {exc}",
+                    file=sys.stderr,
+                )
+                raise SystemExit(1) from exc
 
     @property
     def clients(self) -> dict[str, ClientConnection]:
@@ -77,13 +85,20 @@ class WebSocketServer:
         """Start the WebSocket server."""
         self._running = True
         # Manually enter the context manager to control lifecycle
-        self._server = await serve(
-            self._handle_client,
-            self.host,
-            self.port,
-            ssl=self._ssl_context,
-            max_size=self._max_message_size,
-        ).__aenter__()
+        try:
+            self._server = await serve(
+                self._handle_client,
+                self.host,
+                self.port,
+                ssl=self._ssl_context,
+                max_size=self._max_message_size,
+            ).__aenter__()
+        except OSError as exc:
+            print(
+                f"ERROR: Failed to bind WebSocket server on {self.host}:{self.port}: {exc}",
+                file=sys.stderr,
+            )
+            raise SystemExit(1) from exc
         
         protocol = "wss" if self._ssl_context else "ws"
         print(f"WebSocket server started on {protocol}://{self.host}:{self.port}")

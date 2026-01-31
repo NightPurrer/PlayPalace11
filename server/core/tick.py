@@ -1,6 +1,7 @@
 """Tick scheduler for game updates."""
 
 import asyncio
+import sys
 from pathlib import Path
 from typing import Callable
 
@@ -31,8 +32,15 @@ def load_server_config(path: str | Path | None = None) -> dict:
     except ImportError:
         import tomli as tomllib
 
-    with open(path, "rb") as f:
-        data = tomllib.load(f)
+    try:
+        with open(path, "rb") as f:
+            data = tomllib.load(f)
+    except tomllib.TOMLDecodeError as exc:
+        print(f"ERROR: Failed to parse configuration file '{path}': {exc}", file=sys.stderr)
+        raise SystemExit(1) from exc
+    except OSError as exc:
+        print(f"ERROR: Failed to read configuration file '{path}': {exc}", file=sys.stderr)
+        raise SystemExit(1) from exc
 
     return data.get("server", {})
 

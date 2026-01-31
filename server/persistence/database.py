@@ -1,6 +1,7 @@
 """SQLite database for persistence."""
 
 import sqlite3
+import sys
 import json
 from pathlib import Path
 from dataclasses import dataclass
@@ -49,7 +50,14 @@ class Database:
 
     def connect(self) -> None:
         """Connect to the database and create tables if needed."""
-        self._conn = sqlite3.connect(str(self.db_path))
+        try:
+            self._conn = sqlite3.connect(str(self.db_path))
+        except sqlite3.Error as exc:
+            print(
+                f"ERROR: Failed to open database at '{self.db_path}': {exc}",
+                file=sys.stderr,
+            )
+            raise SystemExit(1) from exc
         self._conn.row_factory = sqlite3.Row
         self._create_tables()
 

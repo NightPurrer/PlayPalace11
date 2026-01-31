@@ -153,11 +153,30 @@ class Server(AdministrationMixin):
         self._load_tables()
 
         # Load server configuration
-        server_config = load_server_config()
+        server_config = load_server_config(self._config_path)
         tick_interval_ms = server_config.get("tick_interval_ms")
+        if tick_interval_ms is not None:
+            try:
+                tick_interval_ms = int(tick_interval_ms)
+            except (TypeError, ValueError) as exc:
+                print(
+                    f"ERROR: Invalid tick_interval_ms value '{tick_interval_ms}' in server configuration: {exc}",
+                    file=sys.stderr,
+                )
+                raise SystemExit(1) from exc
+            if tick_interval_ms < 1:
+                print(
+                    "ERROR: tick_interval_ms must be at least 1 millisecond.",
+                    file=sys.stderr,
+                )
+                raise SystemExit(1)
 
         # Initialize virtual bots
-        self._virtual_bots.load_config()
+        try:
+            self._virtual_bots.load_config()
+        except ValueError as exc:
+            print(f"ERROR: Invalid virtual bot configuration: {exc}", file=sys.stderr)
+            raise SystemExit(1) from exc
         loaded = self._virtual_bots.load_state()
         if loaded > 0:
             print(f"Restored {loaded} virtual bots from previous session.")
@@ -283,10 +302,21 @@ class Server(AdministrationMixin):
             )
 
     def _validate_transport_security(self) -> None:
-        if not self._ssl_cert and not self._allow_insecure_ws:
-            raise RuntimeError(
-                "TLS is required. Provide --ssl-cert/--ssl-key or set [network].allow_insecure_ws to true."
+        if self._allow_insecure_ws and (self._ssl_cert or self._ssl_key):
+            print(
+                "ERROR: allow_insecure_ws=true cannot be combined with SSL certificate or key. "
+                "Remove the certificate settings or disable insecure mode.",
+                file=sys.stderr,
             )
+            raise SystemExit(1)
+
+        if not self._allow_insecure_ws and (not self._ssl_cert or not self._ssl_key):
+            print(
+                "ERROR: TLS is required. Provide --ssl-cert and --ssl-key "
+                "or set [network].allow_insecure_ws to true.",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
 
     @staticmethod
     def _get_client_ip(client: ClientConnection) -> str:

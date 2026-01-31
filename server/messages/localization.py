@@ -1,5 +1,6 @@
 """Localization system using Mozilla Fluent."""
 
+import sys
 from pathlib import Path
 
 from fluent_compiler.bundle import FluentBundle
@@ -27,11 +28,36 @@ class Localization:
     def preload_bundles(cls) -> None:
         """Pre-load all locale bundles at startup."""
         if cls._locales_dir is None:
-            return
+            print("ERROR: Localization directory is not configured.", file=sys.stderr)
+            raise SystemExit(1)
 
+        if not cls._locales_dir.exists() or not cls._locales_dir.is_dir():
+            print(
+                f"ERROR: Localization directory '{cls._locales_dir}' is missing or not a directory.",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
+
+        found_locale = False
         for locale_dir in cls._locales_dir.iterdir():
-            if locale_dir.is_dir():
+            if not locale_dir.is_dir():
+                continue
+            found_locale = True
+            try:
                 cls._get_bundle(locale_dir.name)
+            except RuntimeError as exc:
+                print(
+                    f"ERROR: Failed to load localization bundle for '{locale_dir.name}': {exc}",
+                    file=sys.stderr,
+                )
+                raise SystemExit(1) from exc
+
+        if not found_locale:
+            print(
+                f"ERROR: Localization directory '{cls._locales_dir}' does not contain any locale bundles.",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
 
     @classmethod
     def _get_bundle(cls, locale: str) -> FluentBundle:
@@ -40,9 +66,8 @@ class Localization:
             return cls._bundles[locale]
 
         if cls._locales_dir is None:
-            raise RuntimeError(
-                "Localization not initialized. Call Localization.init() first."
-            )
+            print("ERROR: Localization directory is not configured.", file=sys.stderr)
+            raise SystemExit(1)
 
         locale_dir = cls._locales_dir / locale
         actual_locale = locale
@@ -51,7 +76,11 @@ class Localization:
             locale_dir = cls._locales_dir / "en"
             actual_locale = "en"
             if not locale_dir.exists():
-                raise RuntimeError(f"No locale files found for {locale} or en")
+                print(
+                    f"ERROR: No localization files found for '{locale}' or fallback 'en'.",
+                    file=sys.stderr,
+                )
+                raise SystemExit(1)
 
         # Load all .ftl files in the locale directory
         ftl_content = []
@@ -59,7 +88,11 @@ class Localization:
             ftl_content.append(ftl_file.read_text(encoding="utf-8"))
 
         if not ftl_content:
-            raise RuntimeError(f"No .ftl files found in {locale_dir}")
+            print(
+                f"ERROR: No .ftl localization files found in {locale_dir}.",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
 
         # Compile messages - join all content (use actual locale for bundle)
         bundle = FluentBundle.from_string(actual_locale, "\n".join(ftl_content))
