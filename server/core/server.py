@@ -34,7 +34,6 @@ from ..messages.localization import Localization
 
 VERSION = "11.0.0"
 BOOTSTRAP_WARNING_ENV = "PLAYPALACE_SUPPRESS_BOOTSTRAP_WARNING"
-TICK_INFO_SUPPRESS_ENV = "PLAYPALACE_SUPPRESS_TICK_INFO"
 
 DEFAULT_USERNAME_MIN_LENGTH = 3
 DEFAULT_USERNAME_MAX_LENGTH = 32
@@ -206,8 +205,7 @@ class Server(AdministrationMixin):
         # Start tick scheduler
         self._tick_scheduler = TickScheduler(self._on_tick, tick_interval_ms)
         await self._tick_scheduler.start()
-        if tick_interval_ms and not os.environ.get(TICK_INFO_SUPPRESS_ENV):
-            print(f"Tick interval: {tick_interval_ms}ms ({1000 // tick_interval_ms} ticks/sec)")
+        # Tick interval message suppressed by default (configurable via config.toml).
 
         protocol = "wss" if self._ssl_cert else "ws"
         print(f"Server running on {protocol}://{self.host}:{self.port}")

@@ -111,22 +111,22 @@ profile = "mixer"
 # Each rule lists the bot groups allowed to fill it, the enforced bot counts,
 # and the deterministic priority (lower numbers first). Tables only host one game
 # at a time, so add multiple entries if you want the same profile across games.
-[[virtual_bots.guided_tables]]
-table = "the table"
-game = "crazyeights"
-bot_groups = ["hosts", "patrons", "mixers"]
-min_bots = 4
-max_bots = 4
-priority = 10
+# [[virtual_bots.guided_tables]]
+# table = "the table"
+# game = "crazyeights"
+# bot_groups = ["hosts", "patrons", "mixers"]
+# min_bots = 4
+# max_bots = 4
+# priority = 10
 # profile = "mixer"  # Uncomment to force every assigned bot to behave like a mixer here
-
-[[virtual_bots.guided_tables]]
-table = "scopa_lounge"
-game = "scopa"
-bot_groups = ["mixers"]
-min_bots = 2
-max_bots = 4
-priority = 25
+#
+# [[virtual_bots.guided_tables]]
+# table = "scopa_lounge"
+# game = "scopa"
+# bot_groups = ["mixers"]
+# min_bots = 2
+# max_bots = 4
+# priority = 25
 # Optional tick-based scheduling: run this lounge for half of each 60-second (1200-tick) cycle
-cycle_ticks = 1200
-active_ticks = [0, 600]
+# cycle_ticks = 1200
+# active_ticks = [0, 600]
