@@ -3011,11 +3011,8 @@ async def run_server(
         except Exception:
             pass
 
-        print(
-            f"Username must be between {min_user_len} and {max_user_len} characters."
-        )
         while True:
-            username = input("Server owner username: ").strip()
+            username = input(f"Server owner username ({min_user_len}-{max_user_len} chars): ").strip()
             if not username:
                 print("Username cannot be empty.")
                 continue
@@ -3025,11 +3022,8 @@ async def run_server(
                 )
                 continue
             break
-        print(
-            f"Password must be between {min_pass_len} and {max_pass_len} characters."
-        )
         while True:
-            password = getpass("Server owner password: ")
+            password = getpass(f"Server owner password ({min_pass_len}-{max_pass_len} chars): ")
             if not password:
                 print("Password cannot be empty.")
                 continue
