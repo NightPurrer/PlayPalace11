@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import os
+import shutil
 import sys
 import time
 from collections import deque
@@ -136,23 +137,13 @@ class Server(AdministrationMixin):
         """Start the server."""
         print(f"Starting PlayPalace v{VERSION} server...")
 
-        # Enforce transport requirements before bringing up listeners
-        self._validate_transport_security()
+        # Ensure config is present before loading any subsystems
+        self._ensure_config_file()
 
-        # Connect to database
-        self._db.connect()
-        self._auth = AuthManager(self._db)
+        # Refresh config-driven settings now that config exists
+        self._load_config_settings()
 
-        # Initialize trust levels for users
-        promoted_user = self._db.initialize_trust_levels()
-        if promoted_user:
-            print(f"User '{promoted_user}' has been promoted to server owner (trust level 3).")
-        self._warn_if_no_users()
-
-        # Load existing tables
-        self._load_tables()
-
-        # Load server configuration
+        # Load server configuration early to surface config errors before DB/network init
         server_config = load_server_config(self._config_path)
         tick_interval_ms = server_config.get("tick_interval_ms")
         if tick_interval_ms is not None:
@@ -170,6 +161,22 @@ class Server(AdministrationMixin):
                     file=sys.stderr,
                 )
                 raise SystemExit(1)
+
+        # Enforce transport requirements before bringing up listeners
+        self._validate_transport_security()
+
+        # Connect to database
+        self._db.connect()
+        self._auth = AuthManager(self._db)
+
+        # Initialize trust levels for users
+        promoted_user = self._db.initialize_trust_levels()
+        if promoted_user:
+            print(f"User '{promoted_user}' has been promoted to server owner (trust level 3).")
+        self._warn_if_no_users()
+
+        # Load existing tables
+        self._load_tables()
 
         # Initialize virtual bots
         try:
@@ -197,7 +204,8 @@ class Server(AdministrationMixin):
             print(
                 "WARNING: Running without TLS (ws://). Credentials will be sent in plaintext."
             )
-        print(f"Max inbound websocket message size: {self._ws_max_message_size} bytes")
+        if self._ws_max_message_size != DEFAULT_WS_MAX_MESSAGE_BYTES:
+            print(f"Max inbound websocket message size: {self._ws_max_message_size} bytes")
 
         # Start tick scheduler
         self._tick_scheduler = TickScheduler(self._on_tick, tick_interval_ms)
@@ -300,6 +308,36 @@ class Server(AdministrationMixin):
             self._registration_ip_window = _read_limit(
                 rate_cfg, "registration_window_seconds", self._registration_ip_window, minimum=1
             )
+
+    def _ensure_config_file(self) -> None:
+        if self._config_path is None:
+            return
+        path_obj = Path(self._config_path)
+        if path_obj.exists():
+            return
+        if path_obj.name != "config.toml":
+            print(
+                f"ERROR: Configuration file '{path_obj}' was not found.",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
+        example_path = path_obj.with_name("config.example.toml")
+        if not example_path.exists():
+            print(
+                f"ERROR: Missing configuration template '{example_path}'.",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
+        try:
+            shutil.copyfile(example_path, path_obj)
+        except OSError as exc:
+            print(
+                f"ERROR: Failed to create '{path_obj}' from template: {exc}",
+                file=sys.stderr,
+            )
+            raise SystemExit(1) from exc
+        print(
+            f"Created '{path_obj}' from '{example_path}'. Edit this file to configure the server.")
 
     def _validate_transport_security(self) -> None:
         if self._allow_insecure_ws and (self._ssl_cert or self._ssl_key):
