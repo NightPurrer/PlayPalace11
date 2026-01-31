@@ -139,8 +139,6 @@ class Server(AdministrationMixin):
 
     async def start(self) -> None:
         """Start the server."""
-        print(f"Starting PlayPalace v{VERSION} server...")
-
         # Load server configuration early to surface config errors before DB/network init
         server_config = load_server_config(self._config_path)
         tick_interval_ms = server_config.get("tick_interval_ms")
@@ -3052,6 +3050,7 @@ async def run_server(
             print(f"ERROR: {exc}", file=sys.stderr)
             raise SystemExit(1) from exc
 
+    print(f"Starting PlayPalace v{VERSION} server...")
     server = Server(
         host=host,
         port=port,
