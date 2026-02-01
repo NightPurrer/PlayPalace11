@@ -1,7 +1,9 @@
 """Dice utilities for dice-based games."""
 
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 import random
+from typing import Sequence
 
 from mashumaro.mixins.json import DataClassJSONMixin
 
@@ -246,3 +248,107 @@ def roll_dice(num_dice: int = 1, sides: int = 6) -> list[int]:
 def roll_die(sides: int = 6) -> int:
     """Roll a single die and return its value."""
     return random.randint(1, sides)
+
+
+def count_dice(dice: Iterable[int], *, sides: int = 6) -> dict[int, int]:
+    """Count occurrences of each die value."""
+    counts = {i: 0 for i in range(1, sides + 1)} if sides else {}
+    for value in dice:
+        if value in counts:
+            counts[value] += 1
+        else:
+            counts[value] = counts.get(value, 0) + 1
+    return counts
+
+
+def _coerce_counts(
+    dice_or_counts: Iterable[int] | Mapping[int, int], *, sides: int = 6
+) -> dict[int, int]:
+    if isinstance(dice_or_counts, Mapping):
+        base = {i: dice_or_counts.get(i, 0) for i in range(1, sides + 1)} if sides else {}
+        for key, value in dice_or_counts.items():
+            if key not in base:
+                base[key] = value
+        return base
+    if isinstance(dice_or_counts, Sequence):
+        return count_dice(dice_or_counts, sides=sides)
+    return count_dice(list(dice_or_counts), sides=sides)
+
+
+def has_n_of_a_kind(
+    dice_or_counts: Iterable[int] | Mapping[int, int],
+    count: int,
+    value: int | None = None,
+    *,
+    sides: int = 6,
+) -> bool:
+    """Return True if there are ``count`` or more of ``value`` (or any value)."""
+    counts = _coerce_counts(dice_or_counts, sides=sides)
+    if value is not None:
+        return counts.get(value, 0) >= count
+    return any(v >= count for v in counts.values())
+
+
+def count_exact_matches(
+    dice_or_counts: Iterable[int] | Mapping[int, int],
+    exact: int,
+    *,
+    sides: int = 6,
+) -> int:
+    """Count how many distinct values appear exactly ``exact`` times."""
+    counts = _coerce_counts(dice_or_counts, sides=sides)
+    return sum(1 for v in counts.values() if v == exact)
+
+
+def has_consecutive_run(
+    dice_or_counts: Iterable[int] | Mapping[int, int],
+    length: int,
+    *,
+    min_value: int = 1,
+    max_value: int | None = None,
+    require_unique: bool = False,
+    sides: int = 6,
+) -> bool:
+    """Return True if there is a run of ``length`` consecutive values."""
+    counts = _coerce_counts(dice_or_counts, sides=sides)
+    if not max_value:
+        max_value = max(counts.keys(), default=0)
+    run = 0
+    for value in range(min_value, max_value + 1):
+        count = counts.get(value, 0)
+        if count > 0 and (not require_unique or count == 1):
+            run += 1
+            if run >= length:
+                return True
+        else:
+            run = 0
+    return False
+
+
+def has_full_house(
+    dice_or_counts: Iterable[int] | Mapping[int, int],
+    *,
+    allow_five_kind: bool = False,
+    sides: int = 6,
+) -> bool:
+    """Return True if counts contain a 3-of-a-kind and a pair (optionally 5-kind)."""
+    counts = _coerce_counts(dice_or_counts, sides=sides)
+    has_three = any(v == 3 for v in counts.values())
+    has_two = any(v == 2 for v in counts.values())
+    if has_three and has_two:
+        return True
+    if allow_five_kind and any(v == 5 for v in counts.values()):
+        return True
+    return False
+
+
+__all__ = [
+    "DiceSet",
+    "roll_dice",
+    "roll_die",
+    "count_dice",
+    "has_n_of_a_kind",
+    "count_exact_matches",
+    "has_consecutive_run",
+    "has_full_house",
+]

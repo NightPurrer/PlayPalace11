@@ -11,8 +11,15 @@ import random
 
 from ..base import Game, Player, GameOptions
 from ..registry import register_game
+from ...game_utils.action_guard_mixin import ActionGuardMixin
 from ...game_utils.actions import Action, ActionSet, Visibility
 from ...game_utils.bot_helper import BotHelper
+from ...game_utils.dice import (
+    count_dice,
+    count_exact_matches,
+    has_consecutive_run,
+    has_n_of_a_kind,
+)
 from ...game_utils.game_result import GameResult, PlayerResult
 from ...game_utils.options import IntOption, option_field
 from ...messages.localization import Localization
@@ -77,16 +84,6 @@ COMBO_SOUNDS = {
     COMBO_DOUBLE_TRIPLETS: "game_farkle/doubletriplets.ogg",
     COMBO_FULL_HOUSE: "game_farkle/fullhouse.ogg",
 }
-
-
-def count_dice(dice: list[int]) -> dict[int, int]:
-    """Count occurrences of each die value (1-6)."""
-    counts = {i: 0 for i in range(1, 7)}
-    for die in dice:
-        counts[die] += 1
-    return counts
-
-
 def has_combination(dice: list[int], combo_type: str, number: int = 0) -> bool:
     """Check if dice contain a specific combination."""
     counts = count_dice(dice)
@@ -96,35 +93,25 @@ def has_combination(dice: list[int], combo_type: str, number: int = 0) -> bool:
     elif combo_type == COMBO_SINGLE_5:
         return counts[5] >= 1
     elif combo_type == COMBO_THREE_OF_KIND:
-        return counts[number] >= 3
+        return has_n_of_a_kind(counts, 3, value=number)
     elif combo_type == COMBO_FOUR_OF_KIND:
-        return counts[number] >= 4
+        return has_n_of_a_kind(counts, 4, value=number)
     elif combo_type == COMBO_FIVE_OF_KIND:
-        return counts[number] >= 5
+        return has_n_of_a_kind(counts, 5, value=number)
     elif combo_type == COMBO_SIX_OF_KIND:
-        return counts[number] == 6
+        return has_n_of_a_kind(counts, 6, value=number)
     elif combo_type == COMBO_LARGE_STRAIGHT:
-        if len(dice) != 6:
-            return False
-        return all(counts[i] == 1 for i in range(1, 7))
+        return has_consecutive_run(counts, length=6, min_value=1, max_value=6, require_unique=True)
     elif combo_type == COMBO_SMALL_STRAIGHT:
-        if len(dice) < 5:
-            return False
-        # Check for 1-2-3-4-5
-        has_1_5 = all(counts[i] >= 1 for i in range(1, 6))
-        # Check for 2-3-4-5-6
-        has_2_6 = all(counts[i] >= 1 for i in range(2, 7))
-        return has_1_5 or has_2_6
+        return has_consecutive_run(counts, length=5, min_value=1, max_value=6)
     elif combo_type == COMBO_THREE_PAIRS:
         if len(dice) != 6:
             return False
-        pairs = sum(1 for i in range(1, 7) if counts[i] == 2)
-        return pairs == 3
+        return count_exact_matches(counts, 2) == 3
     elif combo_type == COMBO_DOUBLE_TRIPLETS:
         if len(dice) != 6:
             return False
-        triplets = sum(1 for i in range(1, 7) if counts[i] == 3)
-        return triplets == 2
+        return count_exact_matches(counts, 3) == 2
     elif combo_type == COMBO_FULL_HOUSE:
         if len(dice) != 6:
             return False
@@ -170,35 +157,30 @@ def has_scoring_dice(dice: list[int]) -> bool:
     counts = count_dice(dice)
 
     # Single 1s or 5s
-    if counts[1] > 0 or counts[5] > 0:
+    if counts.get(1, 0) > 0 or counts.get(5, 0) > 0:
         return True
 
     # Three or more of a kind
-    if any(counts[i] >= 3 for i in range(1, 7)):
+    if has_n_of_a_kind(counts, 3):
         return True
 
     # Large straight (1-2-3-4-5-6)
-    if len(dice) == 6 and all(counts[i] == 1 for i in range(1, 7)):
+    if len(dice) == 6 and has_consecutive_run(
+        counts, length=6, min_value=1, max_value=6, require_unique=True
+    ):
         return True
 
     # Small straight
-    if len(dice) >= 5:
-        has_1_5 = all(counts[i] >= 1 for i in range(1, 6))
-        has_2_6 = all(counts[i] >= 1 for i in range(2, 7))
-        if has_1_5 or has_2_6:
-            return True
+    if len(dice) >= 5 and has_consecutive_run(counts, length=5, min_value=1, max_value=6):
+        return True
 
     # Three pairs
-    if len(dice) == 6:
-        pairs = sum(1 for i in range(1, 7) if counts[i] == 2)
-        if pairs == 3:
-            return True
+    if len(dice) == 6 and count_exact_matches(counts, 2) == 3:
+        return True
 
     # Double triplets
-    if len(dice) == 6:
-        triplets = sum(1 for i in range(1, 7) if counts[i] == 3)
-        if triplets == 2:
-            return True
+    if len(dice) == 6 and count_exact_matches(counts, 3) == 2:
+        return True
 
     return False
 
@@ -279,7 +261,7 @@ def get_available_combinations(dice: list[int]) -> list[tuple[str, int, int]]:
 
 @dataclass
 @register_game
-class FarkleGame(Game):
+class FarkleGame(ActionGuardMixin, Game):
     """
     Farkle dice game.
 
@@ -521,12 +503,9 @@ class FarkleGame(Game):
 
     def _is_roll_enabled(self, player: Player) -> str | None:
         """Check if roll action is enabled."""
-        if self.status != "playing":
-            return "action-not-playing"
-        if self.current_player != player:
-            return "action-not-your-turn"
-        if player.is_spectator:
-            return "action-spectator"
+        error = self.guard_turn_action_enabled(player)
+        if error:
+            return error
         farkle_player: FarklePlayer = player  # type: ignore
         can_roll = len(farkle_player.current_roll) == 0 or farkle_player.has_taken_combo
         if not can_roll:
@@ -535,15 +514,9 @@ class FarkleGame(Game):
 
     def _is_roll_hidden(self, player: Player) -> Visibility:
         """Check if roll action is hidden."""
-        if self.status != "playing":
-            return Visibility.HIDDEN
-        if self.current_player != player:
-            return Visibility.HIDDEN
         farkle_player: FarklePlayer = player  # type: ignore
         can_roll = len(farkle_player.current_roll) == 0 or farkle_player.has_taken_combo
-        if not can_roll:
-            return Visibility.HIDDEN
-        return Visibility.VISIBLE
+        return self.turn_action_visibility(player, extra_condition=can_roll)
 
     def _get_roll_label(self, player: Player, action_id: str) -> str:
         """Get dynamic label for roll action."""
@@ -555,12 +528,9 @@ class FarkleGame(Game):
 
     def _is_bank_enabled(self, player: Player) -> str | None:
         """Check if bank action is enabled."""
-        if self.status != "playing":
-            return "action-not-playing"
-        if self.current_player != player:
-            return "action-not-your-turn"
-        if player.is_spectator:
-            return "action-spectator"
+        error = self.guard_turn_action_enabled(player)
+        if error:
+            return error
         farkle_player: FarklePlayer = player  # type: ignore
         can_bank = farkle_player.turn_score > 0 and (
             len(farkle_player.current_roll) == 0
@@ -572,18 +542,12 @@ class FarkleGame(Game):
 
     def _is_bank_hidden(self, player: Player) -> Visibility:
         """Check if bank action is hidden."""
-        if self.status != "playing":
-            return Visibility.HIDDEN
-        if self.current_player != player:
-            return Visibility.HIDDEN
         farkle_player: FarklePlayer = player  # type: ignore
         can_bank = farkle_player.turn_score > 0 and (
             len(farkle_player.current_roll) == 0
             or not has_scoring_dice(farkle_player.current_roll)
         )
-        if not can_bank:
-            return Visibility.HIDDEN
-        return Visibility.VISIBLE
+        return self.turn_action_visibility(player, extra_condition=can_bank)
 
     def _get_bank_label(self, player: Player, action_id: str) -> str:
         """Get dynamic label for bank action."""
@@ -594,9 +558,7 @@ class FarkleGame(Game):
 
     def _is_check_turn_score_enabled(self, player: Player) -> str | None:
         """Check if check turn score action is enabled."""
-        if self.status != "playing":
-            return "action-not-playing"
-        return None
+        return self.guard_game_active()
 
     def _is_check_turn_score_hidden(self, player: Player) -> Visibility:
         """Check turn score is always hidden from menu (keybind only)."""
@@ -604,21 +566,11 @@ class FarkleGame(Game):
 
     def _is_scoring_action_enabled(self, player: Player) -> str | None:
         """Check if a scoring action is enabled (scoring actions are only created when available)."""
-        if self.status != "playing":
-            return "action-not-playing"
-        if self.current_player != player:
-            return "action-not-your-turn"
-        if player.is_spectator:
-            return "action-spectator"
-        return None
+        return self.guard_turn_action_enabled(player)
 
     def _is_scoring_action_hidden(self, player: Player) -> Visibility:
         """Check if a scoring action is hidden."""
-        if self.status != "playing":
-            return Visibility.HIDDEN
-        if self.current_player != player:
-            return Visibility.HIDDEN
-        return Visibility.VISIBLE
+        return self.turn_action_visibility(player)
 
     def _get_roll_dice_count(self, player: FarklePlayer) -> int:
         """Get the number of dice that will be rolled."""

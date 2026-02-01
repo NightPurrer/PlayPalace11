@@ -11,9 +11,16 @@ import random
 
 from ..base import Game, Player, GameOptions
 from ..registry import register_game
+from ...game_utils.action_guard_mixin import ActionGuardMixin
 from ...game_utils.actions import Action, ActionSet, Visibility
 from ...game_utils.bot_helper import BotHelper
-from ...game_utils.dice import DiceSet
+from ...game_utils.dice import (
+    DiceSet,
+    count_dice,
+    has_consecutive_run,
+    has_full_house,
+    has_n_of_a_kind,
+)
 from ...game_utils.dice_game_mixin import DiceGameMixin
 from ...game_utils.game_result import GameResult, PlayerResult
 from ...game_utils.options import IntOption, option_field
@@ -60,16 +67,6 @@ UPPER_VALUES = {
     "fives": 5,
     "sixes": 6,
 }
-
-
-def count_dice(dice: list[int]) -> dict[int, int]:
-    """Count occurrences of each die value (1-6)."""
-    counts = {i: 0 for i in range(1, 7)}
-    for die in dice:
-        counts[die] += 1
-    return counts
-
-
 def calculate_score(dice: list[int], category: str) -> int:
     """Calculate the score for a category given the dice."""
     if not dice or len(dice) != 5:
@@ -85,49 +82,39 @@ def calculate_score(dice: list[int], category: str) -> int:
 
     # Three of a Kind - sum of all if 3+ of same
     if category == "three_kind":
-        if any(c >= 3 for c in counts.values()):
+        if has_n_of_a_kind(counts, 3):
             return dice_sum
         return 0
 
     # Four of a Kind - sum of all if 4+ of same
     if category == "four_kind":
-        if any(c >= 4 for c in counts.values()):
+        if has_n_of_a_kind(counts, 4):
             return dice_sum
         return 0
 
     # Full House - 3 of one kind + 2 of another = 25 points
     if category == "full_house":
-        has_three = any(c == 3 for c in counts.values())
-        has_two = any(c == 2 for c in counts.values())
-        # Also allow 5 of a kind as full house
-        has_five = any(c == 5 for c in counts.values())
-        if (has_three and has_two) or has_five:
+        if has_full_house(counts, allow_five_kind=True):
             return 25
         return 0
 
     # Small Straight - 4 consecutive = 30 points
     if category == "small_straight":
-        # Check for 1-2-3-4, 2-3-4-5, or 3-4-5-6
-        straights = [
-            {1, 2, 3, 4},
-            {2, 3, 4, 5},
-            {3, 4, 5, 6},
-        ]
-        dice_set = set(dice)
-        if any(s.issubset(dice_set) for s in straights):
+        if has_consecutive_run(counts, length=4, min_value=1, max_value=6):
             return 30
         return 0
 
     # Large Straight - 5 consecutive = 40 points
     if category == "large_straight":
-        sorted_dice = sorted(dice)
-        if sorted_dice == [1, 2, 3, 4, 5] or sorted_dice == [2, 3, 4, 5, 6]:
+        if has_consecutive_run(
+            counts, length=5, min_value=1, max_value=6, require_unique=True
+        ):
             return 40
         return 0
 
     # Yahtzee - 5 of a kind = 50 points
     if category == "yahtzee":
-        if any(c == 5 for c in counts.values()):
+        if has_n_of_a_kind(counts, 5):
             return 50
         return 0
 
@@ -211,7 +198,7 @@ class YahtzeeOptions(GameOptions):
 
 @dataclass
 @register_game
-class YahtzeeGame(Game, DiceGameMixin):
+class YahtzeeGame(ActionGuardMixin, Game, DiceGameMixin):
     """
     Yahtzee dice game.
 
@@ -336,12 +323,9 @@ class YahtzeeGame(Game, DiceGameMixin):
 
     def _is_roll_enabled(self, player: Player) -> str | None:
         """Check if roll action is enabled."""
-        if self.status != "playing":
-            return "action-not-playing"
-        if self.current_player != player:
-            return "action-not-your-turn"
-        if player.is_spectator:
-            return "action-spectator"
+        error = self.guard_turn_action_enabled(player)
+        if error:
+            return error
         ytz_player: YahtzeePlayer = player  # type: ignore
         if ytz_player.rolls_left <= 0:
             return "yahtzee-no-rolls-left"
@@ -349,14 +333,10 @@ class YahtzeeGame(Game, DiceGameMixin):
 
     def _is_roll_hidden(self, player: Player) -> Visibility:
         """Check if roll action is hidden."""
-        if self.status != "playing":
-            return Visibility.HIDDEN
-        if self.current_player != player:
-            return Visibility.HIDDEN
         ytz_player: YahtzeePlayer = player  # type: ignore
-        if ytz_player.rolls_left <= 0:
-            return Visibility.HIDDEN
-        return Visibility.VISIBLE
+        return self.turn_action_visibility(
+            player, extra_condition=ytz_player.rolls_left > 0
+        )
 
     def _get_roll_label(self, player: Player, action_id: str) -> str:
         """Get dynamic label for roll action."""
@@ -369,10 +349,9 @@ class YahtzeeGame(Game, DiceGameMixin):
 
     def _is_dice_toggle_enabled(self, player: Player, die_index: int) -> str | None:
         """Check if toggling die at index is enabled (override from DiceGameMixin)."""
-        if self.status != "playing":
-            return "action-not-playing"
-        if self.current_player != player:
-            return "action-not-your-turn"
+        error = self.guard_turn_action_enabled(player)
+        if error:
+            return error
         ytz_player: YahtzeePlayer = player  # type: ignore
         if not ytz_player.dice.has_rolled:
             return "dice-not-rolled"
@@ -382,22 +361,13 @@ class YahtzeeGame(Game, DiceGameMixin):
 
     def _is_dice_toggle_hidden(self, player: Player, die_index: int) -> Visibility:
         """Check if die toggle action is hidden (override from DiceGameMixin)."""
-        if self.status != "playing":
-            return Visibility.HIDDEN
-        if self.current_player != player:
-            return Visibility.HIDDEN
         ytz_player: YahtzeePlayer = player  # type: ignore
-        if not ytz_player.dice.has_rolled:
-            return Visibility.HIDDEN
-        if ytz_player.rolls_left <= 0:
-            return Visibility.HIDDEN
-        return Visibility.VISIBLE
+        extra_condition = ytz_player.dice.has_rolled and ytz_player.rolls_left > 0
+        return self.turn_action_visibility(player, extra_condition=extra_condition)
 
     def _is_view_dice_enabled(self, player: Player) -> str | None:
         """Check if view dice action is enabled."""
-        if self.status != "playing":
-            return "action-not-playing"
-        return None
+        return self.guard_game_active()
 
     def _is_view_dice_hidden(self, player: Player) -> Visibility:
         """View dice is always hidden from menu (keybind only)."""
@@ -405,9 +375,7 @@ class YahtzeeGame(Game, DiceGameMixin):
 
     def _is_view_scoresheet_enabled(self, player: Player) -> str | None:
         """Check if view scoresheet action is enabled."""
-        if self.status != "playing":
-            return "action-not-playing"
-        return None
+        return self.guard_game_active()
 
     def _is_view_scoresheet_hidden(self, player: Player) -> Visibility:
         """View scoresheet is always hidden from menu (keybind only)."""
@@ -936,12 +904,9 @@ class YahtzeeGame(Game, DiceGameMixin):
 def _make_score_enabled(cat: str):
     """Create an is_enabled method for a scoring category."""
     def method(self, player: Player) -> str | None:
-        if self.status != "playing":
-            return "action-not-playing"
-        if self.current_player != player:
-            return "action-not-your-turn"
-        if player.is_spectator:
-            return "action-spectator"
+        error = self.guard_turn_action_enabled(player)
+        if error:
+            return error
         if not player.dice.has_rolled:
             return "yahtzee-roll-first"
         if cat not in player.get_open_categories():
@@ -953,15 +918,8 @@ def _make_score_enabled(cat: str):
 def _make_score_hidden(cat: str):
     """Create an is_hidden method for a scoring category."""
     def method(self, player: Player) -> Visibility:
-        if self.status != "playing":
-            return Visibility.HIDDEN
-        if self.current_player != player:
-            return Visibility.HIDDEN
-        if not player.dice.has_rolled:
-            return Visibility.HIDDEN
-        if cat not in player.get_open_categories():
-            return Visibility.HIDDEN
-        return Visibility.VISIBLE
+        extra_condition = player.dice.has_rolled and cat in player.get_open_categories()
+        return self.turn_action_visibility(player, extra_condition=extra_condition)
     return method
 
 

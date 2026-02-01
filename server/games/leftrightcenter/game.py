@@ -12,6 +12,7 @@ import random
 
 from ..base import Game, Player, GameOptions
 from ..registry import register_game
+from ...game_utils.action_guard_mixin import ActionGuardMixin
 from ...game_utils.actions import Action, ActionSet, Visibility
 from ...game_utils.bot_helper import BotHelper
 from ...game_utils.game_result import GameResult, PlayerResult
@@ -49,7 +50,7 @@ class LeftRightCenterOptions(GameOptions):
 
 @dataclass
 @register_game
-class LeftRightCenterGame(Game):
+class LeftRightCenterGame(ActionGuardMixin, Game):
     """Left Right Center dice game."""
 
     players: list[LeftRightCenterPlayer] = field(default_factory=list)
@@ -93,22 +94,11 @@ class LeftRightCenterGame(Game):
     # ==========================================================================
 
     def _is_roll_enabled(self, player: Player) -> str | None:
-        if self.status != "playing":
-            return "action-not-playing"
-        if player.is_spectator:
-            return "action-spectator"
-        if self.current_player != player:
-            return "action-not-your-turn"
-        return None
+        return self.guard_turn_action_enabled(player)
 
     def _is_roll_hidden(self, player: Player) -> Visibility:
-        if self.status != "playing" or player.is_spectator:
-            return Visibility.HIDDEN
-        if self.current_player != player:
-            return Visibility.HIDDEN
-        if isinstance(player, LeftRightCenterPlayer) and player.chips == 0:
-            return Visibility.HIDDEN
-        return Visibility.VISIBLE
+        has_chips = not isinstance(player, LeftRightCenterPlayer) or player.chips > 0
+        return self.turn_action_visibility(player, extra_condition=has_chips)
 
     def _is_check_scores_enabled(self, player: Player) -> str | None:
         if self.status != "playing":

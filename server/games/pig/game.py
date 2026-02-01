@@ -11,11 +11,13 @@ import random
 
 from ..base import Game, Player, GameOptions
 from ..registry import register_game
+from ...game_utils.action_guard_mixin import ActionGuardMixin
 from ...game_utils.actions import Action, ActionSet, Visibility
 from ...game_utils.bot_helper import BotHelper
+from ...game_utils.push_your_luck_mixin import PushYourLuckBotMixin
 from ...game_utils.game_result import GameResult, PlayerResult
 from ...game_utils.options import IntOption, MenuOption, TeamModeOption, option_field
-from ...game_utils.teams import TeamManager
+from ...game_utils.teams import TeamManager, TeamResultBuilder
 from ...messages.localization import Localization
 from ...ui.keybinds import KeybindState
 
@@ -78,7 +80,7 @@ class PigOptions(GameOptions):
 
 @dataclass
 @register_game
-class PigGame(Game):
+class PigGame(PushYourLuckBotMixin, ActionGuardMixin, Game):
     """
     Pig dice game.
 
@@ -124,32 +126,17 @@ class PigGame(Game):
 
     def _is_roll_enabled(self, player: Player) -> str | None:
         """Check if roll action is enabled."""
-        if self.status != "playing":
-            return "action-not-playing"
-        if player.is_spectator:
-            return "action-spectator"
-        if self.current_player != player:
-            return "action-not-your-turn"
-        return None
+        return self.guard_turn_action_enabled(player)
 
     def _is_roll_hidden(self, player: Player) -> Visibility:
         """Roll is visible during play for current player."""
-        if self.status != "playing":
-            return Visibility.HIDDEN
-        if player.is_spectator:
-            return Visibility.HIDDEN
-        if self.current_player != player:
-            return Visibility.HIDDEN
-        return Visibility.VISIBLE
+        return self.turn_action_visibility(player)
 
     def _is_bank_enabled(self, player: Player) -> str | None:
         """Check if bank action is enabled."""
-        if self.status != "playing":
-            return "action-not-playing"
-        if player.is_spectator:
-            return "action-spectator"
-        if self.current_player != player:
-            return "action-not-your-turn"
+        error = self.guard_turn_action_enabled(player)
+        if error:
+            return error
         pig_player: PigPlayer = player  # type: ignore
         min_required = max(1, self.options.min_bank_points)
         if pig_player.round_score < min_required:
@@ -158,17 +145,11 @@ class PigGame(Game):
 
     def _is_bank_hidden(self, player: Player) -> Visibility:
         """Bank is hidden until player has enough points."""
-        if self.status != "playing":
-            return Visibility.HIDDEN
-        if player.is_spectator:
-            return Visibility.HIDDEN
-        if self.current_player != player:
-            return Visibility.HIDDEN
         pig_player: PigPlayer = player  # type: ignore
         min_required = max(1, self.options.min_bank_points)
-        if pig_player.round_score < min_required:
-            return Visibility.HIDDEN
-        return Visibility.VISIBLE
+        return self.turn_action_visibility(
+            player, extra_condition=pig_player.round_score >= min_required
+        )
 
     def _get_bank_label(self, player: Player, action_id: str) -> str:
         """Get dynamic label for bank action showing current points."""
@@ -335,17 +316,13 @@ class PigGame(Game):
         self.announce_turn()
 
         # Set up bot target if this is a bot's turn
-        if player.is_bot:
-            self._setup_bot_target(player)
+        self.prepare_push_bot_turn(player)
 
         # Rebuild menus to reflect new turn
         self.rebuild_all_menus()
 
-    def _setup_bot_target(self, player: Player) -> None:
-        """Set up the bot's target score for this turn."""
-        # Base target: random between 10-25
-        target = random.randint(10, 25)
-
+    def _adjust_push_bot_target(self, player: Player, target: int) -> int:
+        """Adjust the bot's target score for this turn."""
         # Check if anyone is close to winning or has won (active players only)
         active_players = self.get_active_players()
         someone_hit_threshold = False
@@ -382,21 +359,7 @@ class PigGame(Game):
             if can_relax:
                 target = 0
 
-        BotHelper.set_target(player, max(0, target))
-
-    def on_tick(self) -> None:
-        """Called every tick. Handle bot AI."""
-        super().on_tick()
-
-        if not self.game_active:
-            return
-
-        # Ensure bot target is set up (needed after reload)
-        player = self.current_player
-        if player and player.is_bot and BotHelper.get_target(player) is None:
-            self._setup_bot_target(player)
-
-        BotHelper.on_tick(self)
+        return target
 
     def bot_think(self, player: PigPlayer) -> str | None:
         """Bot AI decision making. Called by BotHelper."""
@@ -475,16 +438,9 @@ class PigGame(Game):
 
     def build_game_result(self) -> GameResult:
         """Build the game result with Pig-specific data."""
-        sorted_teams = self._team_manager.get_sorted_teams(
-            by_score=True, descending=True
+        sorted_teams, winner, final_scores = TeamResultBuilder.summarize(
+            self._team_manager
         )
-        winner = sorted_teams[0] if sorted_teams else None
-
-        # Build final scores dict
-        final_scores = {}
-        for team in sorted_teams:
-            name = self._team_manager.get_team_name(team)
-            final_scores[name] = team.total_score
 
         return GameResult(
             game_type=self.get_type(),
@@ -511,14 +467,8 @@ class PigGame(Game):
 
     def format_end_screen(self, result: GameResult, locale: str) -> list[str]:
         """Format the end screen for Pig game."""
-        lines = [Localization.get(locale, "game-final-scores")]
-
         final_scores = result.custom_data.get("final_scores", {})
-        for i, (name, score) in enumerate(final_scores.items(), 1):
-            points_str = Localization.get(locale, "game-points", count=score)
-            lines.append(f"{i}. {name}: {points_str}")
-
-        return lines
+        return TeamResultBuilder.format_final_scores(locale, final_scores)
 
     def end_turn(self, jolt_min: int = 20, jolt_max: int = 30) -> None:
         """Override to use Pig's turn advancement logic."""

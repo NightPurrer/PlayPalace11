@@ -11,6 +11,7 @@ import random
 
 from ..base import Game, Player, GameOptions
 from ..registry import register_game
+from ...game_utils.action_guard_mixin import ActionGuardMixin
 from ...game_utils.actions import Action, ActionSet, Visibility
 from ...game_utils.bot_helper import BotHelper
 from ...game_utils.dice import DiceSet
@@ -50,7 +51,7 @@ class MidnightOptions(GameOptions):
 
 @dataclass
 @register_game
-class MidnightGame(Game, DiceGameMixin):
+class MidnightGame(ActionGuardMixin, Game, DiceGameMixin):
     """
     1-4-24 (Midnight) dice game.
 
@@ -157,12 +158,9 @@ class MidnightGame(Game, DiceGameMixin):
 
     def _is_roll_enabled(self, player: Player) -> str | None:
         """Check if roll action is enabled."""
-        if self.status != "playing":
-            return "action-not-playing"
-        if player.is_spectator:
-            return "action-spectator"
-        if self.current_player != player:
-            return "action-not-your-turn"
+        error = self.guard_turn_action_enabled(player)
+        if error:
+            return error
         midnight_player: MidnightPlayer = player  # type: ignore
         # Must keep at least one die per roll (except first roll)
         if midnight_player.dice.has_rolled and midnight_player.dice.kept_unlocked_count == 0:
@@ -173,16 +171,10 @@ class MidnightGame(Game, DiceGameMixin):
 
     def _is_roll_hidden(self, player: Player) -> Visibility:
         """Roll is visible during play for current player."""
-        if self.status != "playing":
-            return Visibility.HIDDEN
-        if player.is_spectator:
-            return Visibility.HIDDEN
-        if self.current_player != player:
-            return Visibility.HIDDEN
         midnight_player: MidnightPlayer = player  # type: ignore
-        if midnight_player.dice.unlocked_count == 0:
-            return Visibility.HIDDEN
-        return Visibility.VISIBLE
+        return self.turn_action_visibility(
+            player, extra_condition=midnight_player.dice.unlocked_count > 0
+        )
 
     def _action_roll(self, player: Player, action_id: str) -> None:
         """Handle roll action."""

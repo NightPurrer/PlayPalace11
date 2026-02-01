@@ -5,6 +5,8 @@ Provides Team dataclass and TeamManager for handling team assignments,
 scoring, and elimination (for inverse game modes).
 """
 
+from collections import OrderedDict
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -432,3 +434,30 @@ class TeamManager(DataClassJSONMixin):
             name = self.get_team_name(team, locale)
             lines.append(f"{name}: {team.total_score} points")
         return lines
+
+
+class TeamResultBuilder:
+    """Helpers for summarizing and formatting team-based results."""
+
+    @staticmethod
+    def summarize(team_manager: TeamManager):
+        """Return (sorted_teams, winner, ordered final_scores dict)."""
+        sorted_teams = team_manager.get_sorted_teams(by_score=True, descending=True)
+        winner = sorted_teams[0] if sorted_teams else None
+        final_scores: OrderedDict[str, int] = OrderedDict()
+        for team in sorted_teams:
+            name = team_manager.get_team_name(team)
+            final_scores[name] = team.total_score
+        return sorted_teams, winner, final_scores
+
+    @staticmethod
+    def format_final_scores(locale: str, final_scores: Mapping[str, int]) -> list[str]:
+        """Format localized final score lines."""
+        lines = [Localization.get(locale, "game-final-scores")]
+        for index, (name, score) in enumerate(final_scores.items(), 1):
+            points = Localization.get(locale, "game-points", count=score)
+            lines.append(f"{index}. {name}: {points}")
+        return lines
+
+
+__all__ = ["Team", "TeamManager", "TeamResultBuilder"]
