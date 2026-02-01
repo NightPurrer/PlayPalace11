@@ -529,6 +529,19 @@ class LudoGame(Game):
 
         self.status_box(player, lines)
 
+    def format_end_screen(self, result, locale: str) -> list[str]:
+        """Format end screen with finished token counts."""
+        lines = [Localization.get(locale, "game-final-scores")]
+        if not self._team_manager:
+            return lines
+        for index, team in enumerate(
+            self._team_manager.get_sorted_teams(by_score=True, descending=True), 1
+        ):
+            name = self._team_manager.get_team_name(team, locale)
+            points = Localization.get(locale, "game-points", count=team.total_score)
+            lines.append(f"{index}. {name}: {points}")
+        return lines
+
     # ==========================================================================
     # Movement / resolution
     # ==========================================================================
