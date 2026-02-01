@@ -9,6 +9,7 @@ if TYPE_CHECKING:
 
 from .actions import Visibility
 from ..messages.localization import Localization
+from ..users.base import TrustLevel
 
 
 class ActionVisibilityMixin:
@@ -49,14 +50,13 @@ class ActionVisibilityMixin:
             return "action-game-in-progress"
         if player.name != self.host:
             return "action-not-host"
-        active_count = self.get_active_player_count()
-        if active_count < self.get_min_players():
-            return "action-need-more-players"
         return None
 
     def _is_start_game_hidden(self, player: "Player") -> Visibility:
         """Check if start_game action is hidden."""
         if self.status != "waiting":
+            return Visibility.HIDDEN
+        if player.name != self.host:
             return Visibility.HIDDEN
         return Visibility.VISIBLE
 
@@ -138,11 +138,17 @@ class ActionVisibilityMixin:
         """Check if estimate_duration action is enabled."""
         if self.status != "waiting":
             return "action-game-in-progress"
+        user = self.get_user(player)
+        if not user or user.trust_level.value < TrustLevel.ADMIN.value:
+            return "action-not-available"
         return None
 
     def _is_estimate_duration_hidden(self, player: "Player") -> Visibility:
         """Estimate duration is visible in waiting state."""
         if self.status != "waiting":
+            return Visibility.HIDDEN
+        user = self.get_user(player)
+        if not user or user.trust_level.value < TrustLevel.ADMIN.value:
             return Visibility.HIDDEN
         return Visibility.VISIBLE
 
@@ -156,6 +162,10 @@ class ActionVisibilityMixin:
         """Show actions is hidden for players but visible to spectators."""
         if player.is_spectator:
             return Visibility.VISIBLE
+        return Visibility.HIDDEN
+
+    def _is_always_hidden(self, player: "Player") -> Visibility:
+        """Always hide an action from menus (keybind only)."""
         return Visibility.HIDDEN
 
     def _is_save_table_enabled(self, player: "Player") -> str | None:

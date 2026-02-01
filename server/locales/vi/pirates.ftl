@@ -29,6 +29,7 @@ pirates-map-edge = Bạn không thể đi xa hơn. Bạn đang ở vị trí { $
 
 # Vị trí và trạng thái
 pirates-check-status = Kiểm tra trạng thái
+pirates-check-status-detailed = Trạng thái chi tiết
 pirates-check-position = Kiểm tra vị trí
 pirates-check-moon = Xem độ sáng trăng
 pirates-your-position = Vị trí của bạn: { $position } tại { $ocean }

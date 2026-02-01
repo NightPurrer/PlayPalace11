@@ -274,6 +274,7 @@ class YahtzeeGame(ActionGuardMixin, Game, DiceGameMixin):
                     is_enabled=f"_is_score_{cat}_enabled",
                     is_hidden=f"_is_score_{cat}_hidden",
                     get_label=f"_get_score_{cat}_label",
+                    show_in_actions_menu=False,
                 )
             )
 
@@ -545,7 +546,6 @@ class YahtzeeGame(ActionGuardMixin, Game, DiceGameMixin):
         locale = user.locale
 
         lines = [Localization.get(locale, "yahtzee-scoresheet-header", player=current.name)]
-        lines.append("")
         lines.append(Localization.get(locale, "yahtzee-scoresheet-upper"))
 
         for cat in UPPER_CATEGORIES:
@@ -565,7 +565,6 @@ class YahtzeeGame(ActionGuardMixin, Game, DiceGameMixin):
             Localization.get(locale, "yahtzee-scoresheet-upper-bonus", bonus=bonus)
         )
 
-        lines.append("")
         lines.append(Localization.get(locale, "yahtzee-scoresheet-lower"))
 
         for cat in LOWER_CATEGORIES:
@@ -583,7 +582,6 @@ class YahtzeeGame(ActionGuardMixin, Game, DiceGameMixin):
             )
         )
 
-        lines.append("")
         lines.append(
             Localization.get(
                 locale,

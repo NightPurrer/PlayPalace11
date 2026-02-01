@@ -282,33 +282,34 @@ class CrazyEightsGame(Game):
         action_set = super().create_standard_action_set(player)
         user = self.get_user(player)
         locale = user.locale if user else "en"
-        action_set.add(
+        local_actions = [
             Action(
                 id="read_top",
                 label=Localization.get(locale, "crazyeights-read-top"),
                 handler="_action_read_top",
                 is_enabled="_is_read_top_enabled",
                 is_hidden="_is_check_hidden",
-            )
-        )
-        action_set.add(
+            ),
             Action(
                 id="read_counts",
                 label=Localization.get(locale, "crazyeights-read-counts"),
                 handler="_action_read_counts",
                 is_enabled="_is_check_enabled",
                 is_hidden="_is_check_hidden",
-            )
-        )
-        action_set.add(
+            ),
             Action(
                 id="check_turn_timer",
                 label=Localization.get(locale, "poker-check-turn-timer"),
                 handler="_action_check_turn_timer",
                 is_enabled="_is_check_enabled",
                 is_hidden="_is_check_hidden",
-            )
-        )
+            ),
+        ]
+        for action in reversed(local_actions):
+            action_set.add(action)
+            if action.id in action_set._order:
+                action_set._order.remove(action.id)
+            action_set._order.insert(0, action.id)
         return action_set
 
     def setup_keybinds(self) -> None:

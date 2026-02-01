@@ -29,6 +29,7 @@ pirates-map-edge = 你不能再航行更远了。你在位置{ $position }。
 
 # Position and status
 pirates-check-status = 检查状态
+pirates-check-status-detailed = 详细状态
 pirates-check-position = 检查位置
 pirates-check-moon = 检查月亮亮度
 pirates-your-position = 你的位置：{ $ocean }的{ $position }

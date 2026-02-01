@@ -257,7 +257,16 @@ class Game(
             return ["pig-error-min-bank-too-high"]
             return [("scopa-error-not-enough-cards", {"decks": 1, "players": 4})]
         """
-        return []
+        errors: list[str] = []
+        active_count = len([p for p in self.players if not p.is_spectator])
+        if active_count < self.get_min_players():
+            errors.append(
+                (
+                    "action-need-more-players",
+                    {"min_players": self.get_min_players()},
+                )
+            )
+        return errors
 
     def _validate_team_mode(self, team_mode: str) -> str | None:
         """Helper to validate team mode for current player count.

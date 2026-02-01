@@ -72,15 +72,6 @@ class ActionSetCreationMixin:
                 get_label="_get_toggle_spectator_label",
             )
         )
-        action_set.add(
-            Action(
-                id="leave_game",
-                label=Localization.get(locale, "leave-table"),
-                handler="_action_leave_game",
-                is_enabled="_is_leave_game_enabled",
-                is_hidden="_is_leave_game_hidden",
-            )
-        )
         return action_set
 
     def create_estimate_action_set(self, player: "Player") -> ActionSet:
@@ -112,7 +103,8 @@ class ActionSetCreationMixin:
                 label=Localization.get(locale, "actions-menu"),
                 handler="_action_show_actions_menu",
                 is_enabled="_is_show_actions_enabled",
-                is_hidden="_is_show_actions_hidden",
+                is_hidden="_is_always_hidden",
+                show_in_actions_menu=False,
             )
         )
         action_set.add(
@@ -171,6 +163,15 @@ class ActionSetCreationMixin:
                 is_hidden="_is_predict_outcomes_hidden",
             )
         )
+        action_set.add(
+            Action(
+                id="leave_game",
+                label=Localization.get(locale, "leave-table"),
+                handler="_action_leave_game",
+                is_enabled="_is_leave_game_enabled",
+                is_hidden="_is_leave_game_hidden",
+            )
+        )
 
         return action_set
 
@@ -218,6 +219,14 @@ class ActionSetCreationMixin:
             "Actions menu",
             ["show_actions"],
             state=KeybindState.ALWAYS,
+            include_spectators=True,
+        )
+        self.define_keybind(
+            "ctrl+e",
+            "Estimate duration",
+            ["estimate_duration"],
+            state=KeybindState.IDLE,
+            players=[self.host],
             include_spectators=True,
         )
         self.define_keybind(

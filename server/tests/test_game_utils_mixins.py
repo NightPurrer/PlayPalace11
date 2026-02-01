@@ -9,14 +9,15 @@ from server.game_utils.duration_estimate_mixin import DurationEstimateMixin
 from server.game_utils.game_prediction_mixin import GamePredictionMixin
 from server.game_utils.game_scores_mixin import GameScoresMixin
 from server.game_utils.options import GameOptions, MenuOption, option_field
-from server.users.base import EscapeBehavior, MenuItem
+from server.users.base import EscapeBehavior, MenuItem, TrustLevel
 from server.games.base import Player
 from server.messages.localization import Localization
 
 
 class StubUser:
-    def __init__(self, locale: str = "en"):
+    def __init__(self, locale: str = "en", trust_level: TrustLevel = TrustLevel.ADMIN):
         self.locale = locale
+        self.trust_level = trust_level
         self.spoken = []
         self.menus = []
         self.editboxes = []

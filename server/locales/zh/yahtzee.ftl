@@ -54,7 +54,7 @@ yahtzee-your-dice-kept = 你的骰子：{ $dice }。保留：{ $kept }
 yahtzee-not-rolled = 你还没有掷骰子。
 
 # 计分卡显示
-yahtzee-scoresheet-header = === { $player } 的计分卡 ===
+yahtzee-scoresheet-header = { $player } 的计分卡
 yahtzee-scoresheet-upper = 上半部分：
 yahtzee-scoresheet-lower = 下半部分：
 yahtzee-scoresheet-category-filled = { $category }：{ $points }

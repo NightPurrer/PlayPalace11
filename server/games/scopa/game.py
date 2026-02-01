@@ -251,12 +251,13 @@ class ScopaGame(Game):
         )
         # Note: whose_turn, check_scores, check_scores_detailed are in base class standard set
 
-        # View individual table cards (0-9 keys)
-        for i in range(10):
+        # View individual table cards (1-10, with 10 bound to 0)
+        for i in range(1, 11):
+            action_id = f"view_table_card_{i}" if i < 10 else "view_table_card_0"
             action_set.add(
                 Action(
-                    id=f"view_table_card_{i}",
-                    label=f"View table card {i if i > 0 else 10}",
+                    id=action_id,
+                    label=f"View table card {i}",
                     handler="_action_view_table_card",
                     is_enabled="_is_view_enabled",
                     is_hidden="_is_view_hidden",
@@ -300,22 +301,18 @@ class ScopaGame(Game):
             include_spectators=True,
         )
 
-        # Number keys to view specific table cards
-        for i in range(1, 10):
+        # Number keys to view specific table cards (1-10 in order)
+        for i in range(1, 11):
+            label = f"View table card {i}"
+            action_id = f"view_table_card_{i}" if i < 10 else "view_table_card_0"
+            key = str(i) if i < 10 else "0"
             self.define_keybind(
-                str(i),
-                f"View table card {i}",
-                [f"view_table_card_{i}"],
+                key,
+                label,
+                [action_id],
                 state=KeybindState.ACTIVE,
                 include_spectators=True,
             )
-        self.define_keybind(
-            "0",
-            "View table card 10",
-            ["view_table_card_0"],
-            state=KeybindState.ACTIVE,
-            include_spectators=True,
-        )
 
         # Host-only pause keybind (hidden from menu)
         self.define_keybind(
@@ -410,6 +407,7 @@ class ScopaGame(Game):
                         is_enabled="_is_card_action_enabled",
                         is_hidden="_is_card_action_hidden",
                         get_label="_get_card_label",
+                        show_in_actions_menu=False,
                     )
                 )
 

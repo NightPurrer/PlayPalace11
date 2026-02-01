@@ -54,7 +54,7 @@ yahtzee-your-dice-kept = あなたのサイコロ: { $dice }。保持中: { $kep
 yahtzee-not-rolled = まだロールしていません。
 
 # スコアシート表示
-yahtzee-scoresheet-header = === { $player }のスコアカード ===
+yahtzee-scoresheet-header = { $player }のスコアカード
 yahtzee-scoresheet-upper = 上部セクション:
 yahtzee-scoresheet-lower = 下部セクション:
 yahtzee-scoresheet-category-filled = { $category }: { $points }

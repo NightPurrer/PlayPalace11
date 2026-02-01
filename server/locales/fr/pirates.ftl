@@ -28,6 +28,7 @@ pirates-map-edge = Vous ne pouvez pas naviguer plus loin. Vous êtes à la posit
 
 # Position et statut
 pirates-check-status = Vérifier le statut
+pirates-check-status-detailed = Statut détaillé
 pirates-check-position = Vérifier la position
 pirates-check-moon = Vérifier la luminosité de la lune
 pirates-your-position = Votre position : { $position } dans { $ocean }

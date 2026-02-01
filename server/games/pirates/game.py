@@ -173,6 +173,7 @@ class PiratesGame(Game):
                 handler="_action_move_left",
                 is_enabled="_is_move_enabled",
                 is_hidden="_is_move_hidden",
+                show_in_actions_menu=False,
             )
         )
         action_set.add(
@@ -182,6 +183,7 @@ class PiratesGame(Game):
                 handler="_action_move_right",
                 is_enabled="_is_move_enabled",
                 is_hidden="_is_move_hidden",
+                show_in_actions_menu=False,
             )
         )
 
@@ -193,6 +195,7 @@ class PiratesGame(Game):
                 handler="_action_move_2_left",
                 is_enabled="_is_move_2_enabled",
                 is_hidden="_is_move_2_hidden",
+                show_in_actions_menu=False,
             )
         )
         action_set.add(
@@ -202,6 +205,7 @@ class PiratesGame(Game):
                 handler="_action_move_2_right",
                 is_enabled="_is_move_2_enabled",
                 is_hidden="_is_move_2_hidden",
+                show_in_actions_menu=False,
             )
         )
 
@@ -213,6 +217,7 @@ class PiratesGame(Game):
                 handler="_action_move_3_left",
                 is_enabled="_is_move_3_enabled",
                 is_hidden="_is_move_3_hidden",
+                show_in_actions_menu=False,
             )
         )
         action_set.add(
@@ -222,6 +227,7 @@ class PiratesGame(Game):
                 handler="_action_move_3_right",
                 is_enabled="_is_move_3_enabled",
                 is_hidden="_is_move_3_hidden",
+                show_in_actions_menu=False,
             )
         )
 
@@ -251,7 +257,7 @@ class PiratesGame(Game):
             )
         )
 
-        # Status actions
+        # Status actions (keybind only)
         action_set.add(
             Action(
                 id="check_moon",
@@ -267,7 +273,7 @@ class PiratesGame(Game):
                 label=Localization.get(locale, "pirates-check-position"),
                 handler="_action_check_position",
                 is_enabled="_is_status_enabled",
-                is_hidden="_is_always_hidden",  # Always hidden, keybind only
+                is_hidden="_is_status_hidden",
             )
         )
         action_set.add(
@@ -279,12 +285,34 @@ class PiratesGame(Game):
                 is_hidden="_is_status_hidden",
             )
         )
+        return action_set
 
+    def create_standard_action_set(self, player: Player) -> ActionSet:
+        """Create the standard action set and add detailed status."""
+        action_set = super().create_standard_action_set(player)
+        user = self.get_user(player)
+        locale = user.locale if user else "en"
+        action = Action(
+            id="check_status_detailed",
+            label=Localization.get(locale, "pirates-check-status-detailed"),
+            handler="_action_check_status_detailed",
+            is_enabled="_is_status_enabled",
+            is_hidden="_is_always_hidden",
+        )
+        action_set.add(action)
+        if action.id in action_set._order:
+            action_set._order.remove(action.id)
+        action_set._order.insert(0, action.id)
         return action_set
 
     def setup_keybinds(self) -> None:
         """Define all keybinds for the game."""
         super().setup_keybinds()
+
+        if "s" in self._keybinds:
+            self._keybinds["s"] = []
+        if "shift+s" in self._keybinds:
+            self._keybinds["shift+s"] = []
 
         self.define_keybind(
             "p",
@@ -299,6 +327,27 @@ class PiratesGame(Game):
             ["check_moon"],
             state=KeybindState.ACTIVE,
             include_spectators=True,
+        )
+        self.define_keybind(
+            "s",
+            "Check status",
+            ["check_status"],
+            state=KeybindState.ACTIVE,
+            include_spectators=True,
+        )
+        self.define_keybind(
+            "shift+s",
+            "Detailed status",
+            ["check_status_detailed"],
+            state=KeybindState.ACTIVE,
+            include_spectators=True,
+        )
+        self.define_keybind(
+            "k",
+            "Use skill",
+            ["use_skill"],
+            state=KeybindState.ACTIVE,
+            include_spectators=False,
         )
 
     # ==========================================================================
@@ -390,13 +439,11 @@ class PiratesGame(Game):
     def _get_skill_options(self, player: Player) -> list[str]:
         """Get available skills for the skill menu."""
         if not isinstance(player, PiratesPlayer):
-            return ["Back"]
+            return []
 
         options = []
         for skill in skills.get_available_skills(player):
             options.append(skill.get_menu_label(player))
-
-        options.append("Back")
         return options
 
     def _is_status_enabled(self, player: Player) -> str | None:
@@ -408,6 +455,12 @@ class PiratesGame(Game):
         if self.status != "playing":
             return Visibility.HIDDEN
         return Visibility.VISIBLE
+
+    def _is_check_scores_hidden(self, player: Player) -> Visibility:
+        return Visibility.HIDDEN
+
+    def _is_check_scores_detailed_hidden(self, player: Player) -> Visibility:
+        return Visibility.HIDDEN
 
     def _is_moon_check_enabled(self, player: Player) -> str | None:
         if self.status != "playing":
@@ -786,9 +839,6 @@ class PiratesGame(Game):
         if not isinstance(player, PiratesPlayer):
             return
 
-        if skill_choice == "Back":
-            return
-
         # Find the skill by matching the label
         for skill in skills.get_available_skills(player):
             if skill.get_menu_label(player) == skill_choice:
@@ -811,12 +861,26 @@ class PiratesGame(Game):
         """Show game status to the player."""
         if not isinstance(player, PiratesPlayer):
             return
+        user = self.get_user(player)
+        if not user:
+            return
 
         lines = []
         for p in self.get_active_players():
             gem_str = gems.format_gem_list(p.gems)
             lines.append(f"{p.name}: Level {p.level}, {p.xp} XP, {p.score} points, {gem_str}")
 
+        for line in lines:
+            user.speak(line)
+
+    def _action_check_status_detailed(self, player: Player, action_id: str) -> None:
+        """Show detailed status in a status box."""
+        if not isinstance(player, PiratesPlayer):
+            return
+        lines = []
+        for p in self.get_active_players():
+            gem_str = gems.format_gem_list(p.gems)
+            lines.append(f"{p.name}: Level {p.level}, {p.xp} XP, {p.score} points, {gem_str}")
         self.status_box(player, lines)
 
     def _action_check_position(self, player: Player, action_id: str) -> None:

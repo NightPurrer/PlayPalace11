@@ -224,9 +224,7 @@ class LobbyActionsMixin:
         user = self.get_user(player)
         if user and items:
             # Add "Go back" option at the end
-            items.append(
-                MenuItem(text=Localization.get(user.locale, "go-back"), id="go_back")
-            )
+            items.append(MenuItem(text=Localization.get(user.locale, "back"), id="go_back"))
             self._actions_menu_open.add(player.id)
             user.speak_l("context-menu")
             user.show_menu(

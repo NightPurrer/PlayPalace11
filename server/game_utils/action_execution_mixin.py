@@ -181,9 +181,10 @@ class ActionExecutionMixin:
                     display_text = opt
                 items.append(MenuItem(text=display_text, id=opt))
 
-            items.append(
-                MenuItem(text=Localization.get(user.locale, "cancel"), id="_cancel")
-            )
+            if req.include_cancel:
+                items.append(
+                    MenuItem(text=Localization.get(user.locale, "cancel"), id="_cancel")
+                )
             user.show_menu(
                 "action_input_menu",
                 items,

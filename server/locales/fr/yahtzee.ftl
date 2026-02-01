@@ -54,7 +54,7 @@ yahtzee-your-dice-kept = Vos dés : { $dice }. Gardés : { $kept }
 yahtzee-not-rolled = Vous n'avez pas encore lancé.
 
 # Affichage de la feuille de score
-yahtzee-scoresheet-header = === Feuille de score de { $player } ===
+yahtzee-scoresheet-header = Feuille de score de { $player }
 yahtzee-scoresheet-upper = Section supérieure :
 yahtzee-scoresheet-lower = Section inférieure :
 yahtzee-scoresheet-category-filled = { $category } : { $points }

@@ -334,6 +334,7 @@ class ThreesGame(Game, DiceGameMixin):
 
         player.turn_score = score
         player.total_score += score
+        self._team_manager.add_to_team_score(player.name, score)
 
         self._end_turn()
 
@@ -494,7 +495,13 @@ class ThreesGame(Game, DiceGameMixin):
                 player.dice.reset()
 
         # Initialize turn order
-        self.set_turn_players(self.get_active_players())
+        active_players = self.get_active_players()
+        self.set_turn_players(active_players)
+
+        # Set up TeamManager for score tracking
+        self._team_manager.team_mode = "individual"
+        self._team_manager.setup_teams([p.name for p in active_players])
+        self._team_manager.reset_all_scores()
 
         # Play music
         self.play_music("game_pig/mus.ogg")

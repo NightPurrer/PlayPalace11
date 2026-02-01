@@ -27,11 +27,13 @@ class MenuInput(DataClassJSONMixin):
         prompt: Localization key for menu title/prompt.
         options: Method name returning list[str] options.
         bot_select: Optional method name for bot auto-selection.
+        include_cancel: Whether to append a cancel option (default True).
     """
 
     prompt: str  # Localization key for menu title/prompt
     options: str  # Method name that returns list[str]
     bot_select: str | None = None  # Method name for bot auto-selection
+    include_cancel: bool = True
 
 
 @dataclass

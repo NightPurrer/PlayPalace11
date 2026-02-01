@@ -289,7 +289,7 @@ def test_show_actions_menu_lists_enabled_actions():
         item.text if isinstance(item, MenuItem) else item for item in menu["items"]
     ]
     assert any("Do it" in text for text in labels)
-    assert Localization.get(user.locale, "go-back") in labels
+    assert Localization.get(user.locale, "back") in labels
 
 
 def test_show_actions_menu_handles_no_actions():

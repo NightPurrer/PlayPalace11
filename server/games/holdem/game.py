@@ -259,105 +259,90 @@ class HoldemGame(Game):
         action_set = super().create_standard_action_set(player)
         user = self.get_user(player)
         locale = user.locale if user else "en"
-        action_set.add(
+        local_actions = [
             Action(
                 id="check_pot",
                 label=Localization.get(locale, "poker-check-pot"),
                 handler="_action_check_pot",
                 is_enabled="_is_check_enabled",
                 is_hidden="_is_check_hidden",
-            )
-        )
-        action_set.add(
+            ),
             Action(
                 id="check_bet",
                 label=Localization.get(locale, "poker-check-bet"),
                 handler="_action_check_bet",
                 is_enabled="_is_check_enabled",
                 is_hidden="_is_check_hidden",
-            )
-        )
-        action_set.add(
+            ),
             Action(
                 id="check_min_raise",
                 label=Localization.get(locale, "poker-check-min-raise"),
                 handler="_action_check_min_raise",
                 is_enabled="_is_check_enabled",
                 is_hidden="_is_check_hidden",
-            )
-        )
-        action_set.add(
+            ),
             Action(
                 id="check_hand_players",
                 label=Localization.get(locale, "poker-check-hand-players"),
                 handler="_action_check_hand_players",
                 is_enabled="_is_check_enabled",
                 is_hidden="_is_check_hidden",
-            )
-        )
-        action_set.add(
+            ),
             Action(
                 id="check_turn_timer",
                 label=Localization.get(locale, "poker-check-turn-timer"),
                 handler="_action_check_turn_timer",
                 is_enabled="_is_check_enabled",
                 is_hidden="_is_check_hidden",
-            )
-        )
-        action_set.add(
+            ),
             Action(
                 id="speak_hand",
                 label=Localization.get(locale, "poker-read-hand"),
                 handler="_action_read_hand",
                 is_enabled="_is_check_enabled",
                 is_hidden="_is_check_hidden",
-            )
-        )
-        action_set.add(
+            ),
             Action(
                 id="speak_table",
                 label=Localization.get(locale, "poker-read-table"),
                 handler="_action_read_table",
                 is_enabled="_is_check_enabled",
                 is_hidden="_is_check_hidden",
-            )
-        )
-        action_set.add(
+            ),
             Action(
                 id="speak_hand_value",
                 label=Localization.get(locale, "poker-hand-value"),
                 handler="_action_read_hand_value",
                 is_enabled="_is_check_enabled",
                 is_hidden="_is_check_hidden",
-            )
-        )
-        action_set.add(
+            ),
             Action(
                 id="check_button",
                 label=Localization.get(locale, "poker-check-button"),
                 handler="_action_check_button",
                 is_enabled="_is_check_enabled",
                 is_hidden="_is_check_hidden",
-            )
-        )
-        action_set.add(
+            ),
             Action(
                 id="check_position",
                 label=Localization.get(locale, "poker-check-position"),
                 handler="_action_check_position",
                 is_enabled="_is_check_enabled",
                 is_hidden="_is_check_hidden",
-            )
-        )
-        action_set.add(
+            ),
             Action(
                 id="check_blind_timer",
                 label=Localization.get(locale, "poker-check-blind-timer"),
                 handler="_action_check_blind_timer",
                 is_enabled="_is_check_enabled",
                 is_hidden="_is_check_hidden",
-            )
-        )
+            ),
+        ]
+        for action in reversed(local_actions):
+            action_set.add(action)
+            if action.id in action_set._order:
+                action_set._order.remove(action.id)
+            action_set._order.insert(0, action.id)
         for i in range(1, 8):
             action_set.add(
                 Action(

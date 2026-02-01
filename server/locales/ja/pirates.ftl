@@ -28,6 +28,7 @@ pirates-map-edge = これ以上航海できません。あなたは位置{ $posi
 
 # 位置とステータス
 pirates-check-status = ステータスを確認
+pirates-check-status-detailed = 詳細ステータス
 pirates-check-position = 位置を確認
 pirates-check-moon = 月の明るさを確認
 pirates-your-position = あなたの位置: { $ocean }の{ $position }

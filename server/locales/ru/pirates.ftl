@@ -37,6 +37,7 @@ pirates-map-edge = Вы не можете плыть дальше. Ваша по
 
 # Position and status
 pirates-check-status = Проверить статус
+pirates-check-status-detailed = Подробный статус
 pirates-check-position = Проверить позицию
 pirates-check-moon = Проверить яркость луны
 pirates-your-position = Ваша позиция: { $position } (океан: { $ocean })

@@ -54,7 +54,7 @@ yahtzee-your-dice-kept = Xúc xắc của bạn: { $dice }. Đang giữ: { $kept
 yahtzee-not-rolled = Bạn chưa gieo xúc xắc.
 
 # Hiển thị bảng điểm
-yahtzee-scoresheet-header = === Bảng điểm của { $player } ===
+yahtzee-scoresheet-header = Bảng điểm của { $player }
 yahtzee-scoresheet-upper = Phần trên:
 yahtzee-scoresheet-lower = Phần dưới:
 yahtzee-scoresheet-category-filled = { $category }: { $points }

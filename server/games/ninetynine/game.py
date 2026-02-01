@@ -308,14 +308,7 @@ class NinetyNineGame(Game):
         """Define all keybinds for the game."""
         super().setup_keybinds()
 
-        # Number keys for card slots (1-9, then 0 for 10)
-        for i in range(1, 10):
-            self.define_keybind(
-                str(i), f"Play card {i}", [f"card_slot_{i}"], state=KeybindState.ACTIVE
-            )
-        self.define_keybind(
-            "0", "Play card 10", ["card_slot_10"], state=KeybindState.ACTIVE
-        )
+        # Number keybinds for card slots removed (menu/arrow selection only)
 
         # Draw card (Space or D)
         self.define_keybind(
@@ -388,6 +381,7 @@ class NinetyNineGame(Game):
                     is_enabled="_is_card_slot_enabled",
                     is_hidden="_is_card_slot_hidden",
                     input_request=input_request,
+                    show_in_actions_menu=False,
                 )
             )
 

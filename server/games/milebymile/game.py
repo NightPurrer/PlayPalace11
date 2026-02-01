@@ -186,16 +186,6 @@ class MileByMileGame(Game):
         action_set = ActionSet(name="turn")
 
         # Card slot actions will be dynamically added/removed
-        # Status action (will be repositioned after cards in _update_card_actions)
-        action_set.add(
-            Action(
-                id="check_status",
-                label="Check status",
-                handler="_action_check_status",
-                is_enabled="_is_check_status_enabled",
-                is_hidden="_is_check_status_hidden",
-            )
-        )
 
         # Dirty trick action (hidden, triggered by keybind)
         action_set.add(
@@ -205,6 +195,7 @@ class MileByMileGame(Game):
                 handler="_action_dirty_trick",
                 is_enabled="_is_dirty_trick_enabled",
                 is_hidden="_is_dirty_trick_hidden",
+                show_in_actions_menu=False,
             )
         )
 
@@ -216,20 +207,43 @@ class MileByMileGame(Game):
                 handler="_action_junk_card",
                 is_enabled="_is_junk_card_enabled",
                 is_hidden="_is_junk_card_hidden",
+                show_in_actions_menu=False,
             )
         )
 
-        # Detailed status action (hidden, triggered by shift+s keybind)
-        action_set.add(
-            Action(
-                id="check_status_detailed",
-                label="Detailed status",
-                handler="_action_check_status_detailed",
-                is_enabled="_is_check_status_enabled",
-                is_hidden="_is_check_status_hidden",
-            )
-        )
+        return action_set
 
+    def create_standard_action_set(self, player: MileByMilePlayer) -> ActionSet:
+        """Create the standard action set with Mile by Mile overrides."""
+        action_set = super().create_standard_action_set(player)
+        action = Action(
+            id="check_status",
+            label="Check status",
+            handler="_action_check_status",
+            is_enabled="_is_check_status_enabled",
+            is_hidden="_is_check_status_hidden",
+        )
+        action_set.add(action)
+        if action.id in action_set._order:
+            action_set._order.remove(action.id)
+        action_set._order.insert(0, action.id)
+
+        action = Action(
+            id="check_status_detailed",
+            label="Detailed status",
+            handler="_action_check_status_detailed",
+            is_enabled="_is_check_status_enabled",
+            is_hidden="_is_check_status_hidden",
+        )
+        action_set.add(action)
+        if action.id in action_set._order:
+            action_set._order.remove(action.id)
+        action_set._order.insert(1, action.id)
+
+        for action_id in ("check_scores", "check_scores_detailed"):
+            existing = action_set.get_action(action_id)
+            if existing:
+                existing.show_in_actions_menu = False
         return action_set
 
     def setup_keybinds(self) -> None:
@@ -266,10 +280,7 @@ class MileByMileGame(Game):
         )
 
         # Number keys for card slots (1-6)
-        for i in range(1, HAND_SIZE + 1):
-            self.define_keybind(
-                str(i), f"Play card {i}", [f"card_slot_{i}"], state=KeybindState.ACTIVE
-            )
+        # Number keybinds for card slots removed (menu/arrow selection only)
 
         # Shift+Enter or Backspace to discard the selected card
         self.define_keybind(
@@ -322,13 +333,9 @@ class MileByMileGame(Game):
                     is_hidden="_is_card_action_hidden",
                     get_label="_get_card_slot_label",
                     input_request=input_request,
+                    show_in_actions_menu=False,
                 )
             )
-
-        # Move check_status to the end (after card actions)
-        if "check_status" in turn_set._order:
-            turn_set._order.remove("check_status")
-            turn_set._order.append("check_status")
 
     # ==========================================================================
     # Declarative Action Callbacks
@@ -342,6 +349,14 @@ class MileByMileGame(Game):
 
     def _is_check_status_hidden(self, player: Player) -> Visibility:
         """Check status is always hidden (triggered by keybind only)."""
+        return Visibility.HIDDEN
+
+    def _is_check_scores_hidden(self, player: Player) -> Visibility:
+        """Hide base score actions (custom status replaces them)."""
+        return Visibility.HIDDEN
+
+    def _is_check_scores_detailed_hidden(self, player: Player) -> Visibility:
+        """Hide base detailed score actions (custom status replaces them)."""
         return Visibility.HIDDEN
 
     def _is_dirty_trick_enabled(self, player: Player) -> str | None:

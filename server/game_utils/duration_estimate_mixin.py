@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from ..games.base import Player
     from ..users.base import User
+from ..users.base import TrustLevel
 
 
 class DurationEstimateMixin:
@@ -39,8 +40,10 @@ class DurationEstimateMixin:
 
     def _action_estimate_duration(self, player: "Player", action_id: str) -> None:
         """Start duration estimation by spawning CLI simulation threads."""
+        user = self.get_user(player)
+        if not user or user.trust_level.value < TrustLevel.ADMIN.value:
+            return
         if self._estimate_running:
-            user = self.get_user(player)
             if user:
                 user.speak_l("estimate-already-running")
             return

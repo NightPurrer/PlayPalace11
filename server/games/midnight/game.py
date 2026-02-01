@@ -341,6 +341,11 @@ class MidnightGame(ActionGuardMixin, Game, DiceGameMixin):
         active_players = self.get_active_players()
         self.set_turn_players(active_players)
 
+        # Set up TeamManager for score tracking (round wins)
+        self._team_manager.team_mode = "individual"
+        self._team_manager.setup_teams([p.name for p in active_players])
+        self._team_manager.reset_all_scores()
+
         # Reset player state
         for player in active_players:
             player.dice.reset()
@@ -482,6 +487,7 @@ class MidnightGame(ActionGuardMixin, Game, DiceGameMixin):
                 # Single round winner
                 winner = winners[0]
                 winner.round_wins += 1
+                self._team_manager.add_to_team_score(winner.name, 1)
                 self.play_sound("game_pig/bank.ogg")
                 self.broadcast_l(
                     "midnight-round-winner", player=winner.name
@@ -492,6 +498,7 @@ class MidnightGame(ActionGuardMixin, Game, DiceGameMixin):
                 # Each tied player gets a win
                 for w in winners:
                     w.round_wins += 1
+                    self._team_manager.add_to_team_score(w.name, 1)
                 for player in self.players:
                     user = self.get_user(player)
                     if user:

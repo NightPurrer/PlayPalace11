@@ -126,6 +126,7 @@ class IntOption(OptionMeta):
             handler="_action_set_option",  # Generic handler extracts option_name from action_id
             is_enabled="_is_option_enabled",
             is_hidden="_is_option_hidden",
+            show_in_actions_menu=False,
             input_request=EditboxInput(
                 prompt=self.prompt,
                 default=str(current_value),
@@ -186,6 +187,7 @@ class FloatOption(OptionMeta):
             handler="_action_set_option",  # Generic handler extracts option_name from action_id
             is_enabled="_is_option_enabled",
             is_hidden="_is_option_hidden",
+            show_in_actions_menu=False,
             input_request=EditboxInput(
                 prompt=self.prompt,
                 default=str(current_value),
@@ -265,6 +267,7 @@ class MenuOption(OptionMeta):
             handler="_action_set_option",  # Generic handler extracts option_name from action_id
             is_enabled="_is_option_enabled",
             is_hidden="_is_option_hidden",
+            show_in_actions_menu=False,
             input_request=MenuInput(
                 prompt=self.prompt,
                 options=f"_options_for_{option_name}",
@@ -340,6 +343,7 @@ class BoolOption(OptionMeta):
             handler="_action_toggle_option",  # Generic handler extracts option_name from action_id
             is_enabled="_is_option_enabled",
             is_hidden="_is_option_hidden",
+            show_in_actions_menu=False,
             # No input_request - toggles directly
         )
 

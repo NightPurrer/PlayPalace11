@@ -110,7 +110,7 @@ yahtzee-your-dice-kept = Ваши кубики: { $dice }. Оставлено: {
 yahtzee-not-rolled = Вы ещё не бросали кубики.
 
 # Scoresheet display
-yahtzee-scoresheet-header = === Таблица очков: { $player } ===
+yahtzee-scoresheet-header = Таблица очков: { $player }
 yahtzee-scoresheet-upper = Верхняя секция:
 yahtzee-scoresheet-lower = Нижняя секция:
 yahtzee-scoresheet-category-filled = { $category }: { $points }

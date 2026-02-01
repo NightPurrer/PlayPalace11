@@ -205,6 +205,7 @@ class LightTurretGame(Game):
         gain = random.randint(1, 4)
         lt_player.light += gain
         lt_player.coins += gain * 2
+        self._team_manager.add_to_team_score(player.name, gain)
 
         self.broadcast_l(
             "lightturret-shoot-result",
@@ -251,6 +252,7 @@ class LightTurretGame(Game):
             # Accident - upgrade infuses with turret
             accident_light = random.randint(1, 5)
             lt_player.light += accident_light
+            self._team_manager.add_to_team_score(player.name, accident_light)
             # Schedule merge sound after delay (5 ticks = 250ms)
             self.schedule_sound("game_lightturret/upgrademerge.ogg", delay_ticks=5)
             self.broadcast_l("lightturret-upgrade-accident", light=lt_player.light)
@@ -315,6 +317,11 @@ class LightTurretGame(Game):
 
         # Initialize turn order
         self.set_turn_players(active_players)
+
+        # Set up TeamManager for score tracking (light totals)
+        self._team_manager.team_mode = "individual"
+        self._team_manager.setup_teams([p.name for p in active_players])
+        self._team_manager.reset_all_scores()
 
         # Play music and intro sound
         self.play_music("game_lightturret/music.ogg")

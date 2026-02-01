@@ -54,7 +54,7 @@ yahtzee-your-dice-kept = Seus dados: { $dice }. Guardando: { $kept }
 yahtzee-not-rolled = Você ainda não rolou.
 
 # Exibição da cartela de pontos
-yahtzee-scoresheet-header = === Cartela de { $player } ===
+yahtzee-scoresheet-header = Cartela de { $player }
 yahtzee-scoresheet-upper = Seção Superior:
 yahtzee-scoresheet-lower = Seção Inferior:
 yahtzee-scoresheet-category-filled = { $category }: { $points }

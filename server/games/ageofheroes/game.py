@@ -276,6 +276,7 @@ class AgeOfHeroesGame(Game):
                 handler="_action_continue",
                 is_enabled="_is_continue_enabled",
                 is_hidden="_is_continue_hidden",
+                show_in_actions_menu=False,
             )
         )
 
@@ -289,6 +290,7 @@ class AgeOfHeroesGame(Game):
                     is_enabled="_is_main_action_enabled",
                     is_hidden="_is_main_action_hidden",
                     get_label="_get_main_action_label",
+                    show_in_actions_menu=False,
                 )
             )
 
@@ -302,6 +304,7 @@ class AgeOfHeroesGame(Game):
                     is_enabled="_is_build_enabled",
                     is_hidden="_is_build_hidden",
                     get_label="_get_build_label",
+                    show_in_actions_menu=False,
                 )
             )
         action_set.add(
@@ -325,6 +328,7 @@ class AgeOfHeroesGame(Game):
                     is_enabled="_is_road_target_enabled",
                     is_hidden="_is_road_target_hidden",
                     get_label="_get_road_target_label",
+                    show_in_actions_menu=False,
                 )
             )
         action_set.add(
@@ -370,6 +374,7 @@ class AgeOfHeroesGame(Game):
                     is_enabled="_is_war_target_enabled",
                     is_hidden="_is_war_target_hidden",
                     get_label="_get_war_target_label",
+                    show_in_actions_menu=False,
                 )
             )
         action_set.add(
@@ -393,6 +398,7 @@ class AgeOfHeroesGame(Game):
                     is_enabled="_is_war_goal_enabled",
                     is_hidden="_is_war_goal_hidden",
                     get_label="_get_war_goal_label",
+                    show_in_actions_menu=False,
                 )
             )
         action_set.add(
@@ -415,6 +421,7 @@ class AgeOfHeroesGame(Game):
                 is_enabled="_is_war_force_enabled",
                 is_hidden="_is_war_force_hidden",
                 get_label="_get_war_armies_cycle_label",
+                show_in_actions_menu=False,
             )
         )
         action_set.add(
@@ -425,6 +432,7 @@ class AgeOfHeroesGame(Game):
                 is_enabled="_is_war_force_enabled",
                 is_hidden="_is_war_force_hidden",
                 get_label="_get_war_generals_cycle_label",
+                show_in_actions_menu=False,
             )
         )
         action_set.add(
@@ -435,6 +443,7 @@ class AgeOfHeroesGame(Game):
                 is_enabled="_is_war_force_enabled",
                 is_hidden="_is_war_force_hidden",
                 get_label="_get_war_heroes_armies_cycle_label",
+                show_in_actions_menu=False,
             )
         )
         action_set.add(
@@ -445,6 +454,7 @@ class AgeOfHeroesGame(Game):
                 is_enabled="_is_war_force_enabled",
                 is_hidden="_is_war_force_hidden",
                 get_label="_get_war_heroes_generals_cycle_label",
+                show_in_actions_menu=False,
             )
         )
         action_set.add(
@@ -455,6 +465,7 @@ class AgeOfHeroesGame(Game):
                 is_enabled="_is_war_force_enabled",
                 is_hidden="_is_war_force_hidden",
                 get_label="_get_confirm_war_forces_label",
+                show_in_actions_menu=False,
             )
         )
         action_set.add(
@@ -489,6 +500,7 @@ class AgeOfHeroesGame(Game):
                     is_enabled="_is_offer_card_enabled",
                     is_hidden="_is_offer_card_hidden",
                     get_label="_get_offer_card_label",
+                    show_in_actions_menu=False,
                 )
             )
 
@@ -502,6 +514,7 @@ class AgeOfHeroesGame(Game):
                 is_enabled="_is_request_enabled",
                 is_hidden="_is_request_menu_hidden",
                 get_label="_get_request_label",
+                show_in_actions_menu=False,
             )
         )
 
@@ -515,6 +528,7 @@ class AgeOfHeroesGame(Game):
                     is_enabled="_is_request_enabled",
                     is_hidden="_is_request_menu_hidden",
                     get_label="_get_request_label",
+                    show_in_actions_menu=False,
                 )
             )
 
@@ -527,6 +541,7 @@ class AgeOfHeroesGame(Game):
                 is_enabled="_is_request_enabled",
                 is_hidden="_is_request_menu_hidden",
                 get_label="_get_request_label",
+                show_in_actions_menu=False,
             )
         )
 
@@ -540,6 +555,7 @@ class AgeOfHeroesGame(Game):
                     is_enabled="_is_request_enabled",
                     is_hidden="_is_request_menu_hidden",
                     get_label="_get_request_label",
+                    show_in_actions_menu=False,
                 )
             )
 
@@ -565,6 +581,7 @@ class AgeOfHeroesGame(Game):
                     is_enabled="_is_discard_enabled",
                     is_hidden="_is_discard_card_hidden",
                     get_label="_get_discard_card_label",
+                    show_in_actions_menu=False,
                 )
             )
 
@@ -578,6 +595,7 @@ class AgeOfHeroesGame(Game):
                     is_enabled="_is_disaster_card_enabled",
                     is_hidden="_is_disaster_card_hidden",
                     get_label="_get_disaster_card_label",
+                    show_in_actions_menu=False,
                 )
             )
             action_set.add(
@@ -588,6 +606,7 @@ class AgeOfHeroesGame(Game):
                     is_enabled="_is_disaster_card_enabled",
                     is_hidden="_is_disaster_card_hidden",
                     get_label="_get_disaster_card_label",
+                    show_in_actions_menu=False,
                 )
             )
 
@@ -601,6 +620,7 @@ class AgeOfHeroesGame(Game):
                     is_enabled="_is_disaster_target_enabled",
                     is_hidden="_is_disaster_target_hidden",
                     get_label="_get_disaster_target_label",
+                    show_in_actions_menu=False,
                 )
             )
         action_set.add(

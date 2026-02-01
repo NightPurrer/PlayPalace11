@@ -146,15 +146,17 @@ class LeftRightCenterGame(ActionGuardMixin, Game):
         action_set = super().create_standard_action_set(player)
         user = self.get_user(player)
         locale = user.locale if user else "en"
-        action_set.add(
-            Action(
-                id="check_center",
-                label=Localization.get(locale, "lrc-center-pot"),
-                handler="_action_check_center",
-                is_enabled="_is_check_center_enabled",
-                is_hidden="_is_check_center_hidden",
-            )
+        action = Action(
+            id="check_center",
+            label=Localization.get(locale, "lrc-center-pot"),
+            handler="_action_check_center",
+            is_enabled="_is_check_center_enabled",
+            is_hidden="_is_check_center_hidden",
         )
+        action_set.add(action)
+        if action.id in action_set._order:
+            action_set._order.remove(action.id)
+        action_set._order.insert(0, action.id)
         return action_set
 
     # ==========================================================================

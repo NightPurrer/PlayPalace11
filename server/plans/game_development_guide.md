@@ -83,6 +83,13 @@ Look at the existing games for the structure you need. The key constraints are:
 - Follow the patterns you saw in step 1
 Buffers: if a message advances game state or narrates table action, route it to the **table** buffer. Use `broadcast()` / `broadcast_l()` and `broadcast_personal_l()` for “you” vs “player” messages. Reserve `user.speak()` / `user.speak_l()` for direct command responses (e.g., “read top card”, “no saved tables”).
 
+Action/menu conventions:
+- Turn-menu actions should reflect things a player can do now. Keybinds are fine, but per-card/per-choice actions should not appear in the Actions menu; use `show_in_actions_menu=False` for those.
+- Keep Actions menu order consistent: turn actions → game-specific actions → standard/global actions.
+- If the game uses a custom status readout (e.g., Pirates/Mile by Mile), hide base `check_scores`/`check_scores_detailed` and wire `S`/`Shift+S` to the custom status.
+- If you want the global score system to work, initialize and update `TeamManager` (even in individual mode) unless you have a game-specific alternative.
+- Keep keybinds consistent across games for common actions (e.g., `R` roll, `D` draw, `S` status/score).
+
 ## Step 4: Test with the CLI
 
 Test your game using the CLI tool. This catches most bugs quickly.

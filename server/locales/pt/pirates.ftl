@@ -29,6 +29,7 @@ pirates-map-edge = Você não pode navegar mais longe. Você está na posição 
 
 # Position and status
 pirates-check-status = Verificar status
+pirates-check-status-detailed = Status detalhado
 pirates-check-position = Verificar posição
 pirates-check-moon = Verificar brilho da lua
 pirates-your-position = Sua posição: { $position } em { $ocean }

@@ -197,7 +197,7 @@ class EventHandlingMixin:
         """Handle selection from the actions menu."""
         # Actions menu is no longer open
         self._actions_menu_open.discard(player.id)
-        # Handle "go back" - just return to turn menu
+        # Handle "back" - just return to turn menu
         if action_id == "go_back":
             self.rebuild_player_menu(player)
             return
@@ -206,6 +206,9 @@ class EventHandlingMixin:
             resolved = self.resolve_action(player, action)
             if resolved.enabled:
                 self.execute_action(player, action_id)
-        # Don't rebuild if action is waiting for input
-        if player.id not in self._pending_actions:
+        # Don't rebuild if action is waiting for input or status box is open
+        if (
+            player.id not in self._pending_actions
+            and player.id not in self._status_box_open
+        ):
             self.rebuild_player_menu(player)

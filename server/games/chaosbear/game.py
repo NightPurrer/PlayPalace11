@@ -119,6 +119,20 @@ class ChaosBearGame(Game):
         super().setup_keybinds()
 
         self.define_keybind(
+            "r",
+            "Roll dice",
+            ["roll_dice"],
+            state=KeybindState.ACTIVE,
+        )
+
+        self.define_keybind(
+            "d",
+            "Draw card",
+            ["draw_card"],
+            state=KeybindState.ACTIVE,
+        )
+
+        self.define_keybind(
             "c",
             "Check status",
             ["check_status"],

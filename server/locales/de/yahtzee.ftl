@@ -54,7 +54,7 @@ yahtzee-your-dice-kept = Ihre Würfel: { $dice }. Behalten: { $kept }
 yahtzee-not-rolled = Sie haben noch nicht gewürfelt.
 
 # Wertungsblattanzeige
-yahtzee-scoresheet-header = === Wertungsblatt von { $player } ===
+yahtzee-scoresheet-header = Wertungsblatt von { $player }
 yahtzee-scoresheet-upper = Oberer Bereich:
 yahtzee-scoresheet-lower = Unterer Bereich:
 yahtzee-scoresheet-category-filled = { $category }: { $points }
