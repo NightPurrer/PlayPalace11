@@ -8,17 +8,17 @@ if TYPE_CHECKING:
 
 
 class TurnManagementMixin:
-    """Mixin providing turn order management and advancement.
+    """Manage turn order, skips, and turn announcements.
 
-    Expects on the Game class:
-        - self.turn_player_ids: list[str]
-        - self.turn_index: int
-        - self.turn_direction: int
-        - self.turn_skip_count: int
-        - self.get_player_by_id(player_id) -> Player | None
-        - self.get_user(player) -> User | None
-        - self.broadcast_l(message_id, **kwargs)
-        - self.rebuild_all_menus()
+    Expected Game attributes:
+        turn_player_ids: list[str].
+        turn_index: int.
+        turn_direction: int.
+        turn_skip_count: int.
+        get_player_by_id(player_id) -> Player | None.
+        get_user(player) -> User | None.
+        broadcast_l(message_id, **kwargs).
+        rebuild_all_menus().
     """
 
     @property

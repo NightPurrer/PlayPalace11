@@ -12,7 +12,12 @@ if TYPE_CHECKING:
 
 @dataclass
 class TableMember:
-    """A member of a table (player or spectator)."""
+    """Member of a table (player or spectator).
+
+    Attributes:
+        username: Member username.
+        is_spectator: True if spectating.
+    """
 
     username: str
     is_spectator: bool = False
@@ -20,11 +25,10 @@ class TableMember:
 
 @dataclass
 class Table(DataClassJSONMixin):
-    """
-    A game table that holds members and a game instance.
+    """Game table holding members and a game instance.
 
-    Tables track who is present and forward actions to the game.
-    Role management is handled by games, not tables.
+    Tables track membership and forward events to the game. Role logic
+    (player vs spectator) is handled by the game.
     """
 
     table_id: str
@@ -42,6 +46,7 @@ class Table(DataClassJSONMixin):
     _db: Any = field(default=None, repr=False)  # Reference to Database (for ratings)
 
     def __post_init__(self):
+        """Initialize non-serialized runtime references."""
         self._game = None
         self._users = {}
         self._manager = None
@@ -50,10 +55,12 @@ class Table(DataClassJSONMixin):
 
     @property
     def game(self) -> "Game | None":
+        """Return the current game instance."""
         return self._game
 
     @game.setter
     def game(self, value: "Game | None") -> None:
+        """Set the game instance and update serialized state."""
         self._game = value
         if value:
             self.game_json = value.to_json()
@@ -61,7 +68,13 @@ class Table(DataClassJSONMixin):
     def add_member(
         self, username: str, user: "User", as_spectator: bool = False
     ) -> None:
-        """Add a member to the table."""
+        """Add a member to the table.
+
+        Args:
+            username: Member username.
+            user: User instance.
+            as_spectator: True to join as spectator.
+        """
         # Check if already a member
         for member in self.members:
             if member.username == username:

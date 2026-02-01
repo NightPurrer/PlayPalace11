@@ -8,15 +8,15 @@ if TYPE_CHECKING:
 
 
 class GameSoundMixin:
-    """Mixin providing sound scheduling and playback functionality.
+    """Schedule and play sounds for games.
 
-    Expects on the Game class:
-        - self.scheduled_sounds: list
-        - self.sound_scheduler_tick: int
-        - self.current_music: str
-        - self.current_ambience: str
-        - self.players: list[Player]
-        - self.get_user(player) -> User | None
+    Expected Game attributes:
+        scheduled_sounds: list of [tick, sound, vol, pan, pitch].
+        sound_scheduler_tick: int.
+        current_music: str.
+        current_ambience: str.
+        players: list[Player].
+        get_user(player) -> User | None.
     """
 
     # ==========================================================================

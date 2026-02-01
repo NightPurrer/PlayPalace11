@@ -17,10 +17,18 @@ def resolve_pot(
     get_id: Callable[[TPlayer], str],
     score_fn: Callable[[TPlayer], tuple[int, tuple[int, ...]]],
 ) -> tuple[list[TPlayer], tuple[int, tuple[int, ...]] | None, int, int]:
-    """Resolve a single pot.
+    """Resolve a single pot and compute payouts.
+
+    Args:
+        pot_amount: Total chips in this pot.
+        eligible_players: Players eligible to win this pot.
+        active_ids: Active player ids in current hand order.
+        button_id: Current dealer/button player id.
+        get_id: Callable to extract player id from player object.
+        score_fn: Callable returning a comparable hand score tuple.
 
     Returns:
-        winners, best_score, share, remainder
+        Tuple of (ordered_winners, best_score, share, remainder).
     """
     best_score = None
     winners: list[TPlayer] = []

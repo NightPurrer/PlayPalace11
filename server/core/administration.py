@@ -13,6 +13,7 @@ if TYPE_CHECKING:
 
 # Activity buffer helper for admin/system announcements
 def _speak_activity(user, message_id: str, **kwargs) -> None:
+    """Speak a localized activity message to the admin/user."""
     user.speak_l(message_id, buffer="activity", **kwargs)
 
 
@@ -20,6 +21,7 @@ def require_admin(func):
     """Decorator that checks if the user is still an admin before executing an admin action."""
     @functools.wraps(func)
     async def wrapper(self, admin, *args, **kwargs):
+        """Run the wrapped action if the user still has admin privileges."""
         if admin.trust_level.value < TrustLevel.ADMIN.value:
             _speak_activity(admin, "not-admin-anymore")
             self._show_main_menu(admin)
@@ -32,6 +34,7 @@ def require_server_owner(func):
     """Decorator that checks if the user is the server owner before executing a server owner action."""
     @functools.wraps(func)
     async def wrapper(self, owner, *args, **kwargs):
+        """Run the wrapped action if the user is still the server owner."""
         if owner.trust_level.value < TrustLevel.SERVER_OWNER.value:
             _speak_activity(owner, "not-server-owner")
             self._show_main_menu(owner)
@@ -41,14 +44,13 @@ def require_server_owner(func):
 
 
 class AdministrationMixin:
-    """
-    Mixin class providing administration functionality.
+    """Provide administration menu actions and account moderation flows.
 
-    This mixin expects the following attributes on the class it's mixed into:
-    - _db: Database instance
-    - _users: dict[str, NetworkUser] of online users
-    - _user_states: dict[str, dict] of user menu states
-    - _show_main_menu(user): method to show main menu
+    Expected attributes:
+        _db: Database instance.
+        _users: dict[str, NetworkUser] of online users.
+        _user_states: dict[str, dict] of user menu states.
+        _show_main_menu(user): Method to show the main menu.
     """
 
     _db: "Database"

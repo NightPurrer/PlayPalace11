@@ -12,25 +12,17 @@ if TYPE_CHECKING:
 
 
 class RoundTransitionTimer:
-    """
-    Stateless helper for managing delays between rounds.
+    """Manage delays between rounds using serialized game fields.
 
-    All timer state is stored in Game fields for serialization.
-    The timer counts down silently between rounds. The host can:
-    - Press 'p' to pause the countdown
-    - Press 'p' again while paused to start the next round immediately
+    The timer is stateless; all data lives on the Game instance. The host can
+    pause/resume the countdown via the pause key.
 
     Usage:
-        # Create timer:
         self._round_timer = RoundTransitionTimer(self)
-
-        # At end of round:
         self._round_timer.start()
-
-        # In on_tick:
         self._round_timer.on_tick()
 
-        # Override on_round_timer_ready() in your game:
+        # Override in your game:
         def on_round_timer_ready(self) -> None:
             self._start_round()
     """

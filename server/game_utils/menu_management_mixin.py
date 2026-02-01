@@ -11,15 +11,15 @@ from ..users.base import MenuItem, EscapeBehavior
 
 
 class MenuManagementMixin:
-    """Mixin providing menu rebuilding and status box functionality.
+    """Build and update turn menus and status boxes.
 
-    Expects on the Game class:
-        - self._destroyed: bool
-        - self.status: str
-        - self.players: list[Player]
-        - self._status_box_open: set[str]
-        - self.get_user(player) -> User | None
-        - self.get_all_visible_actions(player) -> list[ResolvedAction]
+    Expected Game attributes:
+        _destroyed: bool.
+        status: str.
+        players: list[Player].
+        _status_box_open: set[str].
+        get_user(player) -> User | None.
+        get_all_visible_actions(player) -> list[ResolvedAction].
     """
 
     def rebuild_player_menu(self, player: "Player") -> None:

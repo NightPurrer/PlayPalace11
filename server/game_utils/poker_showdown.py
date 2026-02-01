@@ -15,6 +15,17 @@ def order_winners_by_button(
     button_id: str | None,
     get_id: Callable[[TPlayer], str],
 ) -> list[TPlayer]:
+    """Order winners deterministically by button position.
+
+    Args:
+        winners: Winner objects to order.
+        active_ids: Active player ids in current hand order.
+        button_id: Current dealer/button player id.
+        get_id: Callable to extract player id from winner object.
+
+    Returns:
+        Winners ordered by position after the button.
+    """
     if len(winners) <= 1:
         return winners
     order = order_after_button(active_ids, button_id)
@@ -27,6 +38,17 @@ def sort_players_for_showdown(
     button_id: str | None,
     get_id: Callable[[TPlayer], str],
 ) -> list[TPlayer]:
+    """Sort players by showdown order (after button).
+
+    Args:
+        players: Players to sort.
+        active_ids: Active player ids in current hand order.
+        button_id: Current dealer/button player id.
+        get_id: Callable to extract player id from player object.
+
+    Returns:
+        Ordered list of players for showdown reveal.
+    """
     order = order_after_button(active_ids, button_id)
     return sorted(list(players), key=lambda p: order.index(get_id(p)) if get_id(p) in order else len(order))
 
@@ -38,6 +60,18 @@ def format_showdown_lines(
     get_id: Callable[[TPlayer], str],
     format_fn: Callable[[TPlayer], tuple[tuple[str, dict], tuple[int, tuple[int, ...]]]],
 ) -> list[tuple[str, tuple[str, dict], tuple[int, tuple[int, ...]]]]:
+    """Format showdown lines and sort by score.
+
+    Args:
+        players: Players to include in showdown.
+        active_ids: Active player ids in current hand order.
+        button_id: Current dealer/button player id.
+        get_id: Callable to extract player id from player object.
+        format_fn: Callable returning (localized line, score tuple).
+
+    Returns:
+        List of (player_id, line, score) sorted by score descending.
+    """
     ordered = sort_players_for_showdown(players, active_ids, button_id, get_id)
     lines: list[tuple[str, tuple[str, dict], tuple[int, tuple[int, ...]]]] = []
     for p in ordered:

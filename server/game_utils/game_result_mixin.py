@@ -13,18 +13,18 @@ from ..users.base import MenuItem
 
 
 class GameResultMixin:
-    """Mixin providing game result building, persistence, and end screen display.
+    """Build, persist, and display game results.
 
-    Expects on the Game class:
-        - self.game_active: bool
-        - self.status: str
-        - self.players: list[Player]
-        - self.sound_scheduler_tick: int
-        - self._table: Any
-        - self.get_user(player) -> User | None
-        - self.get_type() -> str
-        - self.get_active_players() -> list[Player]
-        - self.destroy()
+    Expected Game attributes:
+        game_active: bool.
+        status: str.
+        players: list[Player].
+        sound_scheduler_tick: int.
+        _table: Table or server reference.
+        get_user(player) -> User | None.
+        get_type() -> str.
+        get_active_players() -> list[Player].
+        destroy().
     """
 
     def finish_game(self, show_end_screen: bool = True) -> None:

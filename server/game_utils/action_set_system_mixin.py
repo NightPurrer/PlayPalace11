@@ -9,10 +9,10 @@ from .actions import Action, ActionSet, ResolvedAction
 
 
 class ActionSetSystemMixin:
-    """Mixin providing action set management (get, add, remove, find, resolve).
+    """Manage per-player action sets and resolve action state.
 
-    Expects on the Game class:
-        - self.player_action_sets: dict[str, list[ActionSet]]
+    Expected Game attributes:
+        player_action_sets: dict[str, list[ActionSet]].
     """
 
     def get_action_sets(self, player: "Player") -> list[ActionSet]:

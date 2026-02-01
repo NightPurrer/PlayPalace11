@@ -21,11 +21,12 @@ class Visibility(str, Enum):
 
 @dataclass
 class MenuInput(DataClassJSONMixin):
-    """
-    Request menu selection before action executes.
+    """Request a menu selection before action executes.
 
-    The options and bot_select are method names (strings) that will be
-    looked up on the game object at execution time.
+    Attributes:
+        prompt: Localization key for menu title/prompt.
+        options: Method name returning list[str] options.
+        bot_select: Optional method name for bot auto-selection.
     """
 
     prompt: str  # Localization key for menu title/prompt
@@ -35,11 +36,12 @@ class MenuInput(DataClassJSONMixin):
 
 @dataclass
 class EditboxInput(DataClassJSONMixin):
-    """
-    Request text input before action executes.
+    """Request text input before action executes.
 
-    The bot_input is a method name (string) that will be looked up
-    on the game object at execution time.
+    Attributes:
+        prompt: Localization key for prompt.
+        default: Default value (static string).
+        bot_input: Optional method name for bot auto-input.
     """
 
     prompt: str  # Localization key for prompt
@@ -49,22 +51,21 @@ class EditboxInput(DataClassJSONMixin):
 
 @dataclass
 class Action(DataClassJSONMixin):
-    """
-    A game action with declarative state callbacks.
+    """A game action with declarative state callbacks.
 
-    All callback fields are method names (strings) for serialization.
-    Methods are looked up on the game object at resolution time.
+    Callback fields are stored as method names for serialization; methods are
+    resolved on the game object at runtime.
 
-    Callback signatures:
-    - handler: (self, player, action_id) or (self, player, input_value, action_id)
-    - is_enabled: (self, player, *, action_id: str = None) -> str | None
-      Returns None if enabled, or a localization key (disabled reason) if disabled.
-      The action_id kwarg is optional and passed if the method signature accepts it.
-    - is_hidden: (self, player, *, action_id: str = None) -> Visibility
-      Returns Visibility.VISIBLE or Visibility.HIDDEN.
-      The action_id kwarg is optional and passed if the method signature accepts it.
-    - get_label: (self, player, action_id) -> str
-      Returns the dynamic label string.
+    Attributes:
+        id: Unique action id.
+        label: Static label (fallback if no get_label).
+        handler: Method name for action execution.
+        is_enabled: Method name for enabled check (returns reason or None).
+        is_hidden: Method name for visibility check.
+        get_label: Optional method name for dynamic label.
+        get_sound: Optional method name for highlight sound.
+        input_request: Optional MenuInput/EditboxInput.
+        show_in_actions_menu: If True, shown in actions list.
     """
 
     id: str
@@ -80,11 +81,9 @@ class Action(DataClassJSONMixin):
 
 @dataclass
 class ResolvedAction:
-    """
-    An action with its state resolved for a specific player.
+    """Action resolved for a specific player.
 
-    This is the result of calling the declarative callbacks.
-    Not serialized - created fresh when building menus.
+    This is created at menu-build time and is not serialized.
     """
 
     action: Action
@@ -97,8 +96,7 @@ class ResolvedAction:
 
 @dataclass
 class ActionSet(DataClassJSONMixin):
-    """
-    A named group of actions for a player.
+    """Named group of actions for a player.
 
     Players have an ordered list of ActionSets (e.g., "turn" before "lobby").
     Action state is resolved declaratively via callbacks when building menus.

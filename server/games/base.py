@@ -35,7 +35,13 @@ from ..ui.keybinds import Keybind
 
 @dataclass
 class ActionContext:
-    """Context passed to action handlers when triggered by keybind."""
+    """Context passed to action handlers when triggered by keybind.
+
+    Attributes:
+        menu_item_id: ID of the selected menu item when the keybind fired.
+        menu_index: 1-based index of the selected menu item.
+        from_keybind: True if triggered via keybind, False if via menu.
+    """
 
     menu_item_id: str | None = None  # ID of selected menu item when keybind pressed
     menu_index: int | None = None  # 1-based index of selected menu item
@@ -46,11 +52,19 @@ class ActionContext:
 
 @dataclass
 class Player(DataClassJSONMixin):
-    """
-    A player in a game.
+    """A player in a game (serialized with game state).
 
-    This is a dataclass that gets serialized with the game state.
-    The user field is not serialized - it's reattached on load.
+    The associated User object is not serialized and is reattached after load.
+
+    Attributes:
+        id: Unique identifier (user UUID for humans, generated for bots).
+        name: Display name.
+        is_bot: True for bot players.
+        is_virtual_bot: True for server-level virtual bots (count in stats).
+        is_spectator: True if spectating.
+        bot_think_ticks: Ticks until bot can act.
+        bot_pending_action: Action to execute when ready.
+        bot_target: Game-specific target (e.g., score to reach).
     """
 
     id: str  # UUID - unique identifier (from user.uuid for humans, generated for bots)
@@ -88,19 +102,25 @@ class Game(
     OptionsHandlerMixin,
     ActionSetSystemMixin,
 ):
-    """
-    Abstract base class for all games.
+    """Abstract base class for all games.
 
-    Games are dataclasses that can be serialized with Mashumaro.
-    All game state must be stored in dataclass fields.
+    Games are dataclasses serialized with Mashumaro. All authoritative state
+    must live in dataclass fields; runtime-only objects are rebuilt after load.
 
-    Games are synchronous and state-based. They expose actions that
-    players can take, and these actions modify state imperatively.
+    Responsibilities:
+        - Maintain authoritative game state.
+        - Expose actions and keybinds for players.
+        - Advance turns and manage lifecycle (waiting/playing/finished).
+        - Provide menu content for the client.
 
-    Games have three phases:
-    - waiting: Lobby phase, host can add bots and start
-    - playing: Game in progress
-    - finished: Game over
+    Phases:
+        - waiting: Lobby phase; host can add bots and start.
+        - playing: Game in progress.
+        - finished: Game over.
+
+    Notes:
+        - Use broadcast_l / broadcast_personal_l for table transcript messages.
+        - Use user.speak_l for command responses or private status checks.
     """
 
     class Config(BaseConfig):
@@ -159,15 +179,11 @@ class Game(
         self._estimate_lock: threading.Lock = threading.Lock()  # Protect results list
 
     def rebuild_runtime_state(self) -> None:
-        """
-        Rebuild non-serialized runtime state after deserialization.
+        """Rebuild runtime-only state after deserialization.
 
-        Called after loading a game from JSON. Subclasses should override
-        this to rebuild any runtime-only objects not stored in serialized fields.
-        Turn management and sound scheduling are now built into the base class
-        using serialized fields, so they don't need rebuilding.
-
-        Note: Estimation state is initialized clean by __post_init__.
+        Subclasses can override to rebuild non-serialized objects. Base turn
+        management and sound scheduling are stored in serialized fields, so
+        they do not require rebuilding.
         """
         pass
 
@@ -267,11 +283,11 @@ class Game(
 
     @abstractmethod
     def on_start(self) -> None:
-        """Called when the game starts."""
+        """Start game logic after lobby transitions to playing."""
         ...
 
     def on_tick(self) -> None:
-        """Called every tick (50ms). Handle bot AI here.
+        """Run per-tick logic (50ms). Override for bots/timers.
 
         Subclasses should call super().on_tick() to ensure base functionality runs.
         """
@@ -279,7 +295,7 @@ class Game(
         self.check_estimate_completion()
 
     def on_round_timer_ready(self) -> None:
-        """Called when round timer expires. Override in subclasses that use RoundTransitionTimer."""
+        """Handle round-timer expiry for games using RoundTransitionTimer."""
         pass
 
     # Player management

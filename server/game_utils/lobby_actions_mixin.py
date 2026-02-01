@@ -22,24 +22,24 @@ BOT_NAMES = [
 
 
 class LobbyActionsMixin:
-    """Mixin providing lobby action handlers and player/lifecycle management.
+    """Handle lobby actions and player lifecycle management.
 
-    Expects on the Game class:
-        - self.status: str
-        - self.host: str
-        - self.players: list[Player]
-        - self._table: Any
-        - self._users: dict
-        - self._destroyed: bool
-        - self._actions_menu_open: set[str]
-        - self.player_action_sets: dict
-        - self.get_user(player) -> User | None
-        - self.broadcast_l(), self.broadcast_sound()
-        - self.prestart_validate(), self.on_start()
-        - self.attach_user(), self.rebuild_all_menus()
-        - self.get_all_enabled_actions()
-        - self._get_keybind_for_action()
-        - self.setup_keybinds(), self.setup_player_actions()
+    Expected Game attributes:
+        status: str.
+        host: str.
+        players: list[Player].
+        _table: Table reference.
+        _users: dict.
+        _destroyed: bool.
+        _actions_menu_open: set[str].
+        player_action_sets: dict.
+        get_user(player) -> User | None.
+        broadcast_l(), broadcast_sound().
+        prestart_validate(), on_start().
+        attach_user(), rebuild_all_menus().
+        get_all_enabled_actions().
+        _get_keybind_for_action().
+        setup_keybinds(), setup_player_actions().
     """
 
     def _action_start_game(self, player: "Player", action_id: str) -> None:

@@ -12,18 +12,19 @@ from ..messages.localization import Localization
 
 
 class ActionVisibilityMixin:
-    """Mixin providing is_enabled/is_hidden/get_label methods for base actions.
+    """Provide visibility/enable checks for common actions.
 
-    Also provides player helper methods used by visibility checks.
+    Includes helpers for lobby actions (start/add bot/spectate) and shared
+    status actions (scores, actions menu, whose turn).
 
-    Expects on the Game class:
-        - self.status: str
-        - self.host: str
-        - self.players: list[Player]
-        - self.team_manager: TeamManager
-        - self.get_user(player) -> User | None
-        - self.get_min_players() -> int
-        - self.get_max_players() -> int
+    Expected Game attributes:
+        status: str.
+        host: str.
+        players: list[Player].
+        team_manager: TeamManager.
+        get_user(player) -> User | None.
+        get_min_players() -> int.
+        get_max_players() -> int.
     """
 
     # Player helper methods

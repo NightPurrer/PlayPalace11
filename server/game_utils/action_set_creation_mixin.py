@@ -11,14 +11,17 @@ from ..ui.keybinds import Keybind, KeybindState
 
 
 class ActionSetCreationMixin:
-    """Mixin providing action set creation (lobby, estimate, standard) and keybind management.
+    """Create standard/lobby action sets and define keybinds.
 
-    Expects on the Game class:
-        - self.players: list[Player]
-        - self.player_action_sets: dict[str, list[ActionSet]]
-        - self._keybinds: dict[str, list[Keybind]]
-        - self.get_user(player) -> User | None
-        - self.add_action_set(player, action_set)
+    Games override `create_turn_action_set` to define turn-specific actions.
+    This mixin also defines the global keybinds used across games.
+
+    Expected Game attributes:
+        players: list[Player].
+        player_action_sets: dict[str, list[ActionSet]].
+        _keybinds: dict[str, list[Keybind]].
+        get_user(player) -> User | None.
+        add_action_set(player, action_set).
     """
 
     def create_lobby_action_set(self, player: "Player") -> ActionSet:

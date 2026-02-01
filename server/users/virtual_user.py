@@ -18,6 +18,7 @@ class VirtualUser(User):
     """
 
     def __init__(self, name: str, locale: str = "en", uuid: str | None = None):
+        """Initialize a virtual bot user with deterministic UUID."""
         # Use deterministic UUID based on name so stats persist across restarts
         self._uuid = uuid or generate_virtual_bot_uuid(name)
         self._username = name
@@ -29,14 +30,17 @@ class VirtualUser(User):
 
     @property
     def uuid(self) -> str:
+        """Return the virtual bot UUID."""
         return self._uuid
 
     @property
     def username(self) -> str:
+        """Return the virtual bot name."""
         return self._username
 
     @property
     def locale(self) -> str:
+        """Return the virtual bot locale."""
         return self._locale
 
     @property
@@ -72,23 +76,29 @@ class VirtualUser(User):
     # UI methods track state but don't send anything
 
     def speak(self, text: str, buffer: str = "misc") -> None:
+        """No-op: virtual bots do not receive speech."""
         pass
 
     def play_sound(
         self, name: str, volume: int = 100, pan: int = 0, pitch: int = 100
     ) -> None:
+        """No-op: virtual bots do not play sounds."""
         pass
 
     def play_music(self, name: str, looping: bool = True) -> None:
+        """No-op: virtual bots do not play music."""
         pass
 
     def stop_music(self) -> None:
+        """No-op: virtual bots do not stop music."""
         pass
 
     def play_ambience(self, loop: str, intro: str = "", outro: str = "") -> None:
+        """No-op: virtual bots do not play ambience."""
         pass
 
     def stop_ambience(self) -> None:
+        """No-op: virtual bots do not stop ambience."""
         pass
 
     def show_menu(
@@ -132,9 +142,11 @@ class VirtualUser(User):
         multiline: bool = False,
         read_only: bool = False,
     ) -> None:
+        """No-op: virtual bots ignore editboxes."""
         pass
 
     def remove_editbox(self, input_id: str) -> None:
+        """No-op: virtual bots ignore editboxes."""
         pass
 
     def clear_ui(self) -> None:

@@ -11,14 +11,14 @@ from ..messages.localization import Localization
 
 
 class GamePredictionMixin:
-    """Mixin providing win probability predictions based on player ratings.
+    """Provide win probability predictions based on ratings.
 
-    Expects on the Game class:
-        - self._table: Any
-        - self.players: list[Player]
-        - self.get_user(player) -> User | None
-        - self.get_type() -> str
-        - self.status_box(player, lines)
+    Expected Game attributes:
+        _table: Table or server reference with DB access.
+        players: list[Player].
+        get_user(player) -> User | None.
+        get_type() -> str.
+        status_box(player, lines).
     """
 
     def _action_predict_outcomes(self, player: "Player", action_id: str) -> None:

@@ -18,7 +18,14 @@ if TYPE_CHECKING:
 
 @dataclass
 class LeaderboardEntry:
-    """An entry in a leaderboard."""
+    """Entry in a leaderboard.
+
+    Attributes:
+        player_id: Player UUID.
+        player_name: Display name.
+        value: Aggregated metric value.
+        rank: 1-based rank.
+    """
 
     player_id: str
     player_name: str
@@ -27,11 +34,10 @@ class LeaderboardEntry:
 
 
 class LeaderboardHelper:
-    """
-    Helper for building leaderboards from game results.
+    """Build leaderboards from game results.
 
-    Supports various aggregation modes (sum, max, avg, count) and
-    custom score extraction functions.
+    Supports aggregation modes (sum, max, avg, count) and custom score
+    extraction functions.
     """
 
     @staticmethod
@@ -127,6 +133,7 @@ class LeaderboardHelper:
         if winner_extractor is None:
             # Default: look up winner by name in player_results
             def winner_extractor(r: "GameResult") -> str | None:
+                """Extract winner player_id from the GameResult."""
                 winner_name = r.custom_data.get("winner_name")
                 if winner_name:
                     for p in r.player_results:
@@ -135,6 +142,7 @@ class LeaderboardHelper:
                 return None
 
         def score_extractor(result: "GameResult", player_id: str) -> int | None:
+            """Return 1 for wins, 0 otherwise for leaderboard aggregation."""
             winner_id = winner_extractor(result)
             if winner_id == player_id:
                 return 1
@@ -147,7 +155,13 @@ class LeaderboardHelper:
 
 @dataclass
 class PlayerRating:
-    """A player's skill rating."""
+    """Player skill rating values.
+
+    Attributes:
+        player_id: Player UUID.
+        mu: Mean skill estimate.
+        sigma: Uncertainty (standard deviation).
+    """
 
     player_id: str
     mu: float  # Mean skill estimate
@@ -159,19 +173,15 @@ class PlayerRating:
         return self.mu - 3 * self.sigma
 
     def __str__(self) -> str:
+        """Return a formatted rating string."""
         return f"{self.mu:.1f} ± {self.sigma:.1f}"
 
 
 class RatingHelper:
-    """
-    Helper for tracking player skill ratings using OpenSkill.
+    """Track player ratings using OpenSkill (Plackett-Luce).
 
-    Uses the Plackett-Luce model which supports:
-    - Any number of players (not just 2)
-    - Teams
-    - Ties (players in same rank group)
-
-    Ratings are stored in the database and updated after each game.
+    Supports multi-player games, teams, and ties. Ratings are persisted per
+    game type and updated after each completed game.
     """
 
     # Default rating values (same as OpenSkill defaults)
@@ -286,6 +296,7 @@ class RatingHelper:
         if ranking_extractor is None:
             # Default: winner first, everyone else tied for second
             def ranking_extractor(r: "GameResult") -> list[list[str]]:
+                """Build winner-vs-rest rankings from a GameResult."""
                 winner_name = r.custom_data.get("winner_name")
                 # Include humans and virtual bots, exclude table bots
                 human_players = [

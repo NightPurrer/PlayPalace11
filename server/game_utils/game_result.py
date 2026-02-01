@@ -16,11 +16,13 @@ from mashumaro.mixins.json import DataClassJSONMixin
 
 @dataclass
 class PlayerResult(DataClassJSONMixin):
-    """
-    A player's result in a completed game.
+    """Player result in a completed game.
 
-    Contains minimal required fields. Game-specific data goes in
-    GameResult.custom_data.
+    Attributes:
+        player_id: Player UUID.
+        player_name: Display name.
+        is_bot: True for bot players.
+        is_virtual_bot: True for server-level bots (included in stats).
     """
 
     player_id: str
@@ -31,13 +33,9 @@ class PlayerResult(DataClassJSONMixin):
 
 @dataclass
 class GameResult(DataClassJSONMixin):
-    """
-    Structured result of a completed game.
+    """Structured result of a completed game.
 
-    Games put their specific data in custom_data, allowing full flexibility:
-    - Pig: {"winner": "Alice", "final_scores": {"Alice": 105, "Bob": 89}}
-    - Yahtzee: {"winner": "Bob", "yahtzees_rolled": 2, "bonus_achieved": True}
-    - Cooperative: {"success": True, "rounds_survived": 12}
+    Game-specific data goes in custom_data for flexibility.
     """
 
     game_type: str

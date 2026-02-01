@@ -12,15 +12,18 @@ from ..messages.localization import Localization
 
 
 class ActionExecutionMixin:
-    """Mixin providing action execution and input handling.
+    """Execute actions, resolve input, and dispatch handlers.
 
-    Expects on the Game class:
-        - self._pending_actions: dict[str, str]
-        - self._action_context: dict[str, ActionContext]
-        - self.get_user(player) -> User | None
-        - self.find_action(player, action_id) -> Action | None
-        - self.resolve_action(player, action) -> ResolvedAction
-        - self.advance_turn()
+    This mixin coordinates action execution for both menu selections and
+    keybind-triggered actions, including bot inputs and input prompts.
+
+    Expected Game attributes:
+        _pending_actions: dict[str, str] mapping player_id -> action_id.
+        _action_context: dict[str, ActionContext] for keybind context.
+        get_user(player) -> User | None.
+        find_action(player, action_id) -> Action | None.
+        resolve_action(player, action) -> ResolvedAction.
+        advance_turn().
     """
 
     def execute_action(

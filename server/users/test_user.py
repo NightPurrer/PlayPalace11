@@ -22,6 +22,7 @@ class MockUser(User):
     """
 
     def __init__(self, username: str, locale: str = "en", uuid: str | None = None, approved: bool = True):
+        """Initialize a mock user for tests."""
         self._uuid = uuid or generate_uuid()
         self._username = username
         self._locale = locale
@@ -32,26 +33,32 @@ class MockUser(User):
 
     @property
     def uuid(self) -> str:
+        """Return the mock user's UUID."""
         return self._uuid
 
     @property
     def username(self) -> str:
+        """Return the mock user's name."""
         return self._username
 
     @property
     def locale(self) -> str:
+        """Return the mock user's locale."""
         return self._locale
 
     @property
     def approved(self) -> bool:
+        """Return whether the mock user is approved."""
         return self._approved
 
     def speak(self, text: str, buffer: str = "misc") -> None:
+        """Record a speech event."""
         self.messages.append(Message("speak", {"text": text, "buffer": buffer}))
 
     def play_sound(
         self, name: str, volume: int = 100, pan: int = 0, pitch: int = 100
     ) -> None:
+        """Record a sound playback event."""
         self.messages.append(
             Message(
                 "play_sound",
@@ -60,17 +67,21 @@ class MockUser(User):
         )
 
     def play_music(self, name: str, looping: bool = True) -> None:
+        """Record a music playback event."""
         self.messages.append(Message("play_music", {"name": name, "looping": looping}))
 
     def stop_music(self) -> None:
+        """Record a music stop event."""
         self.messages.append(Message("stop_music", {}))
 
     def play_ambience(self, loop: str, intro: str = "", outro: str = "") -> None:
+        """Record an ambience playback event."""
         self.messages.append(
             Message("play_ambience", {"loop": loop, "intro": intro, "outro": outro})
         )
 
     def stop_ambience(self) -> None:
+        """Record an ambience stop event."""
         self.messages.append(Message("stop_ambience", {}))
 
     def show_menu(
@@ -84,6 +95,7 @@ class MockUser(User):
         grid_enabled: bool = False,
         grid_width: int = 1,
     ) -> None:
+        """Record menu display state and message."""
         menu_data = {
             "items": items,
             "multiletter": multiletter,
@@ -102,6 +114,7 @@ class MockUser(User):
         position: int | None = None,
         selection_id: str | None = None,
     ) -> None:
+        """Record menu update state and message."""
         if menu_id in self.menus:
             self.menus[menu_id]["items"] = items
             if position is not None:
@@ -119,6 +132,7 @@ class MockUser(User):
         )
 
     def remove_menu(self, menu_id: str) -> None:
+        """Record menu removal state and message."""
         self.menus.pop(menu_id, None)
         self.messages.append(Message("remove_menu", {"menu_id": menu_id}))
 
@@ -131,6 +145,7 @@ class MockUser(User):
         multiline: bool = False,
         read_only: bool = False,
     ) -> None:
+        """Record editbox display state and message."""
         editbox_data = {
             "prompt": prompt,
             "default_value": default_value,
@@ -143,10 +158,12 @@ class MockUser(User):
         )
 
     def remove_editbox(self, input_id: str) -> None:
+        """Record editbox removal state and message."""
         self.editboxes.pop(input_id, None)
         self.messages.append(Message("remove_editbox", {"input_id": input_id}))
 
     def clear_ui(self) -> None:
+        """Clear stored UI state and record the action."""
         self.menus.clear()
         self.editboxes.clear()
         self.messages.append(Message("clear_ui", {}))

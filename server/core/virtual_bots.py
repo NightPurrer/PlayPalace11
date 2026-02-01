@@ -165,6 +165,7 @@ class VirtualBotManager:
     """
 
     def __init__(self, server: "Server"):
+        """Initialize the virtual bot manager for a server."""
         self._server = server
         self._config = VirtualBotConfig()
         self._bots: dict[str, VirtualBot] = {}  # name -> VirtualBot
@@ -259,6 +260,7 @@ class VirtualBotManager:
             bot.groups = tuple(sorted(self._bot_memberships.get(bot.name, set())))
 
     def _parse_profiles(self, profiles_section: dict[str, Any]) -> dict[str, VirtualBotProfileOverride]:
+        """Parse bot profile overrides from configuration."""
         profiles: dict[str, VirtualBotProfileOverride] = {}
         for name, overrides in profiles_section.items():
             if not isinstance(overrides, dict):
@@ -287,6 +289,7 @@ class VirtualBotManager:
         return profiles
 
     def _parse_bot_groups(self, groups_section: dict[str, Any]) -> dict[str, BotGroupConfig]:
+        """Parse named bot groups from configuration."""
         groups: dict[str, BotGroupConfig] = {}
         for name, payload in groups_section.items():
             if not isinstance(payload, dict):
@@ -299,6 +302,7 @@ class VirtualBotManager:
         return groups
 
     def _build_bot_memberships(self) -> dict[str, set[str]]:
+        """Build a mapping of bot names to their group memberships."""
         memberships = {name: set() for name in self._config.names}
         for group in self._bot_groups.values():
             for bot_name in group.bots:
@@ -308,6 +312,7 @@ class VirtualBotManager:
         return memberships
 
     def _resolve_bot_profiles(self) -> dict[str, str]:
+        """Resolve the effective profile for each bot."""
         resolved: dict[str, str] = {}
         default_profile = self._config.default_profile
         self._profiles.setdefault(default_profile, VirtualBotProfileOverride(name=default_profile))
@@ -329,6 +334,7 @@ class VirtualBotManager:
         return resolved
 
     def _parse_guided_tables(self, guided_section: list[dict[str, Any]]) -> dict[str, GuidedTableState]:
+        """Parse guided table configuration into runtime state."""
         guided: dict[str, GuidedTableState] = {}
         for entry in guided_section:
             if not isinstance(entry, dict):
@@ -384,6 +390,7 @@ class VirtualBotManager:
         return guided
 
     def _eligible_bots_for_rule(self, config: GuidedTableConfig) -> set[str]:
+        """Return the set of bots eligible to satisfy a guided table rule."""
         eligible: set[str] = set()
         for group_name in config.bot_groups:
             group = self._bot_groups.get(group_name)
@@ -393,6 +400,7 @@ class VirtualBotManager:
         return eligible
 
     def _validate_guided_tables(self) -> None:
+        """Validate guided table rules against available games and bot counts."""
         from ..games.registry import GameRegistry
 
         available_games = {cls.get_type() for cls in GameRegistry.get_all()}
@@ -427,6 +435,7 @@ class VirtualBotManager:
                     )
 
     def _rule_is_active(self, state: GuidedTableState) -> bool:
+        """Return True if the guided rule is active for the current tick."""
         config = state.config
         if config.cycle_ticks <= 0 or not config.active_window:
             return True
@@ -441,6 +450,7 @@ class VirtualBotManager:
         return tick >= start or tick < end
 
     def _ticks_until_next_change(self, state: GuidedTableState) -> int | None:
+        """Return ticks until the next active/inactive transition for a rule."""
         config = state.config
         if config.cycle_ticks <= 0 or not config.active_window:
             return None
@@ -467,6 +477,7 @@ class VirtualBotManager:
         return (cycle - tick) + start
 
     def _get_config_value(self, bot: VirtualBot, field: str):
+        """Resolve a config field from the bot's profile override or defaults."""
         profile = self._profiles.get(bot.profile)
         if profile and hasattr(profile, field):
             value = getattr(profile, field)
@@ -475,6 +486,7 @@ class VirtualBotManager:
         return getattr(self._config, field)
 
     def _iter_guided_states(self) -> list[GuidedTableState]:
+        """Return guided table states ordered by priority and name."""
         return sorted(self._guided_tables.values(), key=lambda state: (state.config.priority, state.config.name))
 
     def save_state(self) -> None:
@@ -541,6 +553,7 @@ class VirtualBotManager:
         return count
 
     def _refresh_guided_tables(self) -> None:
+        """Sync guided table targets with live server tables."""
         if not self._guided_tables:
             for bot in self._bots.values():
                 bot.target_rule = None
@@ -550,6 +563,7 @@ class VirtualBotManager:
         self._resolve_guided_assignments()
 
     def _prune_missing_tables(self) -> None:
+        """Clear guided table references for missing or mismatched tables."""
         for state in self._guided_tables.values():
             if not state.table_id:
                 continue
@@ -564,6 +578,7 @@ class VirtualBotManager:
                         bot.table_id = None
 
     def _resolve_guided_assignments(self) -> None:
+        """Assign bots to guided tables based on availability and rules."""
         for bot in self._bots.values():
             bot.target_rule = None
 
@@ -1119,6 +1134,7 @@ class VirtualBotManager:
         return self._get_config_value(bot, "min_bots_per_table") == 0
 
     def _enter_waiting_for_table(self, bot: VirtualBot) -> None:
+        """Move a bot into the waiting-for-table state with cooldown."""
         wait_min = self._get_config_value(bot, "waiting_min_ticks")
         wait_max = self._get_config_value(bot, "waiting_max_ticks")
         bot.state = VirtualBotState.WAITING_FOR_TABLE
@@ -1126,6 +1142,7 @@ class VirtualBotManager:
         bot.think_ticks = 0
 
     def _count_rule_bots(self, state: GuidedTableState, exclude: str | None = None) -> int:
+        """Count bots currently seated for a guided rule's table."""
         if not state.table_id:
             return 0
         count = 0
@@ -1143,6 +1160,7 @@ class VirtualBotManager:
     def _should_bot_join_rule(
         self, bot: VirtualBot, state: GuidedTableState, table
     ) -> bool:
+        """Return True if the bot should join the guided table right now."""
         game = table.game
         if not game or game.status != "waiting":
             return False
@@ -1161,6 +1179,7 @@ class VirtualBotManager:
         return True
 
     def _create_guided_table(self, bot: VirtualBot, state: GuidedTableState) -> bool:
+        """Create a guided table and seat the bot as host."""
         from ..games.registry import GameRegistry
 
         user = self._server._users.get(bot.name)
@@ -1189,6 +1208,7 @@ class VirtualBotManager:
         return True
 
     def _join_specific_table(self, bot: VirtualBot, table) -> bool:
+        """Join a specific table instance for guided matching."""
         game = table.game
         if not game or game.status != "waiting":
             return False

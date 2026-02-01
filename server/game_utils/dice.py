@@ -10,21 +10,23 @@ from mashumaro.mixins.json import DataClassJSONMixin
 
 @dataclass
 class DiceSet(DataClassJSONMixin):
-    """
-    A set of dice with keep/lock mechanics.
+    """Set of dice with keep/lock mechanics.
 
-    Supports:
-    - Rolling any number of dice with any sides
-    - Keeping dice (marking for preservation)
-    - Locking dice (permanently kept until reset)
-    - Toggling keep status on unlocked dice
+    Supports rolling any number of dice, keeping or locking dice across rolls,
+    and toggling keep status on unlocked dice.
 
     Typical flow:
-    1. roll() - roll all dice
-    2. keep(index) / unkeep(index) - mark dice to keep
-    3. roll() again - kept dice become locked, unlocked dice are rerolled
-    4. Repeat until all dice locked or turn ends
-    5. reset() - clear all state for next turn
+        1) roll() rolls all dice.
+        2) keep()/unkeep() marks dice for preservation.
+        3) roll() again locks kept dice and rerolls others.
+        4) reset() clears state for the next turn.
+
+    Attributes:
+        num_dice: Number of dice in the set.
+        sides: Sides per die.
+        values: Current die values.
+        kept: Indices marked to keep.
+        locked: Indices locked until reset.
     """
 
     num_dice: int = 5

@@ -38,6 +38,7 @@ class MenuItem:
     sound: str | None = None
 
     def to_dict(self) -> dict[str, Any] | str:
+        """Serialize menu item to a dict or string for client payloads."""
         if self.id is not None or self.sound is not None:
             data = {"text": self.text}
             if self.id is not None:

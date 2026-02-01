@@ -17,46 +17,57 @@ class Bot(User):
     """
 
     def __init__(self, name: str, locale: str = "en", uuid: str | None = None):
+        """Initialize a bot with a name, locale, and optional UUID."""
         self._uuid = uuid or generate_uuid()
         self._username = name
         self._locale = locale
 
     @property
     def uuid(self) -> str:
+        """Return the bot's UUID."""
         return self._uuid
 
     @property
     def username(self) -> str:
+        """Return the bot's display name."""
         return self._username
 
     @property
     def locale(self) -> str:
+        """Return the bot's locale."""
         return self._locale
 
     @property
     def is_bot(self) -> bool:
+        """Bots always report True for is_bot."""
         return True
 
     # All UI methods are no-ops for bots
 
     def speak(self, text: str, buffer: str = "misc") -> None:
+        """No-op: bots do not receive speech."""
         pass
 
     def play_sound(
         self, name: str, volume: int = 100, pan: int = 0, pitch: int = 100
     ) -> None:
+        """No-op: bots do not play sounds."""
         pass
 
     def play_music(self, name: str, looping: bool = True) -> None:
+        """No-op: bots do not play music."""
         pass
 
     def stop_music(self) -> None:
+        """No-op: bots do not stop music."""
         pass
 
     def play_ambience(self, loop: str, intro: str = "", outro: str = "") -> None:
+        """No-op: bots do not play ambience."""
         pass
 
     def stop_ambience(self) -> None:
+        """No-op: bots do not stop ambience."""
         pass
 
     def show_menu(
@@ -70,6 +81,7 @@ class Bot(User):
         grid_enabled: bool = False,
         grid_width: int = 1,
     ) -> None:
+        """No-op: bots do not render menus."""
         pass
 
     def update_menu(
@@ -79,9 +91,11 @@ class Bot(User):
         position: int | None = None,
         selection_id: str | None = None,
     ) -> None:
+        """No-op: bots do not update menus."""
         pass
 
     def remove_menu(self, menu_id: str) -> None:
+        """No-op: bots do not remove menus."""
         pass
 
     def show_editbox(
@@ -93,10 +107,13 @@ class Bot(User):
         multiline: bool = False,
         read_only: bool = False,
     ) -> None:
+        """No-op: bots do not show edit boxes."""
         pass
 
     def remove_editbox(self, input_id: str) -> None:
+        """No-op: bots do not remove edit boxes."""
         pass
 
     def clear_ui(self) -> None:
+        """No-op: bots do not clear UI."""
         pass

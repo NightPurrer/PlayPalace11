@@ -13,21 +13,13 @@ if TYPE_CHECKING:
 
 
 class BotHelper:
-    """
-    Stateless helper for managing bot AI in games.
+    """Stateless helper for managing bot AI in games.
 
-    All bot state is stored in Player fields for serialization.
-    This class just provides utility methods for manipulating that state.
+    All bot state is stored on Player fields for serialization. This helper
+    provides utility methods for manipulating that state.
 
     Usage:
-        # In game on_tick:
         BotHelper.on_tick(self)
-
-        # Implement bot_think in your game:
-        def bot_think(self, player: Player) -> str | None:
-            return "roll"
-
-        # When something happens that should make bots pause:
         BotHelper.jolt_bots(game, ticks=10)
     """
 

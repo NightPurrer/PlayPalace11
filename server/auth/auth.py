@@ -23,14 +23,14 @@ if TYPE_CHECKING:
 
 
 class AuthManager:
-    """
-    Handles user authentication and session management.
+    """Handle user authentication and session management.
 
-    Uses Argon2 for password hashing (industry standard for secure password storage).
-    Supports migration from legacy SHA-256 hashes.
+    Uses Argon2 for password hashing and supports migration from legacy
+    SHA-256 hashes on successful login.
     """
 
     def __init__(self, database: "Database"):
+        """Initialize the auth manager with a database backend."""
         self._db = database
         self._sessions: dict[str, str] = {}  # session_token -> username
         self._hasher = PasswordHasher()
@@ -63,11 +63,14 @@ class AuthManager:
         return False
 
     def authenticate(self, username: str, password: str) -> AuthResult:
-        """
-        Authenticate a user.
+        """Authenticate a user.
 
-        Returns AuthResult indicating success or specific failure reason.
-        Also upgrades legacy SHA-256 hashes to Argon2 on successful login.
+        Args:
+            username: Username to authenticate.
+            password: Plaintext password to verify.
+
+        Returns:
+            AuthResult indicating success or failure reason.
         """
         user = self._db.get_user(username)
         if not user:
@@ -84,11 +87,15 @@ class AuthManager:
         return AuthResult.SUCCESS
 
     def register(self, username: str, password: str, locale: str = "en") -> bool:
-        """
-        Register a new user.
+        """Register a new user.
 
-        Returns True if registration successful, False if username taken.
-        Accounts created via registration are unapproved by default.
+        Args:
+            username: Username to create.
+            password: Plaintext password.
+            locale: Preferred locale.
+
+        Returns:
+            True if registration succeeded, False if username taken.
         """
         if self._db.user_exists(username):
             return False
@@ -102,10 +109,14 @@ class AuthManager:
         return True
 
     def reset_password(self, username: str, new_password: str) -> bool:
-        """
-        Reset a user's password.
+        """Reset a user's password.
 
-        Returns True if successful, False if user doesn't exist.
+        Args:
+            username: Username to update.
+            new_password: New plaintext password.
+
+        Returns:
+            True if successful, False if user doesn't exist.
         """
         if not self._db.user_exists(username):
             return False
@@ -119,21 +130,43 @@ class AuthManager:
         return self._db.get_user(username)
 
     def create_session(self, username: str) -> str:
-        """Create a session token for a user."""
+        """Create a session token for a user.
+
+        Args:
+            username: Username to create a session for.
+
+        Returns:
+            Session token string.
+        """
         token = secrets.token_hex(32)
         self._sessions[token] = username
         return token
 
     def validate_session(self, token: str) -> str | None:
-        """Validate a session token and return the username."""
+        """Validate a session token.
+
+        Args:
+            token: Session token string.
+
+        Returns:
+            Username if valid, otherwise None.
+        """
         return self._sessions.get(token)
 
     def invalidate_session(self, token: str) -> None:
-        """Invalidate a session token."""
+        """Invalidate a session token.
+
+        Args:
+            token: Session token string.
+        """
         self._sessions.pop(token, None)
 
     def invalidate_user_sessions(self, username: str) -> None:
-        """Invalidate all sessions for a user."""
+        """Invalidate all sessions for a user.
+
+        Args:
+            username: Username whose sessions should be invalidated.
+        """
         to_remove = [t for t, u in self._sessions.items() if u == username]
         for token in to_remove:
             del self._sessions[token]

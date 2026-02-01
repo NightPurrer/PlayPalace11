@@ -11,14 +11,14 @@ from ..messages.localization import Localization
 
 
 class GameScoresMixin:
-    """Mixin providing score checking and turn announcement actions.
+    """Provide shared score/turn actions.
 
-    Expects on the Game class:
-        - self.current_player: Player | None
-        - self.team_manager: TeamManager
-        - self.players: list[Player]
-        - self.get_user(player) -> User | None
-        - self.status_box(player, lines)
+    Expected Game attributes:
+        current_player: Player | None.
+        team_manager: TeamManager.
+        players: list[Player].
+        get_user(player) -> User | None.
+        status_box(player, lines).
     """
 
     def _action_whose_turn(self, player: "Player", action_id: str) -> None:

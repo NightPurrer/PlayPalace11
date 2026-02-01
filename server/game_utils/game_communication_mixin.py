@@ -10,11 +10,11 @@ from ..messages.localization import Localization
 
 
 class GameCommunicationMixin:
-    """Mixin providing message broadcasting and localization helpers.
+    """Provide message broadcasting and localization helpers.
 
-    Expects on the Game class:
-        - self.players: list[Player]
-        - self.get_user(player) -> User | None
+    Expected Game attributes:
+        players: list[Player].
+        get_user(player) -> User | None.
     """
 
     def broadcast(
@@ -84,6 +84,7 @@ class GameCommunicationMixin:
         """
 
         def get_label(game: "Game", player: "Player") -> str:
+            """Resolve a localized label for the player's locale."""
             user = game.get_user(player)
             locale = user.locale if user else "en"
             return Localization.get(locale, message_id)

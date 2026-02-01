@@ -38,7 +38,14 @@ if TYPE_CHECKING:
 
 @dataclass
 class OptionMeta:
-    """Metadata for a game option."""
+    """Base metadata for a game option.
+
+    Attributes:
+        default: Default option value.
+        label: Localization key for the option label.
+        change_msg: Localization key for change announcements.
+        prompt: Localization key for input prompt (if applicable).
+    """
 
     default: Any
     label: str  # Localization key for the option label
@@ -79,7 +86,13 @@ class OptionMeta:
 
 @dataclass
 class IntOption(OptionMeta):
-    """Integer option with min/max validation."""
+    """Integer option with min/max validation.
+
+    Attributes:
+        min_val: Minimum value (inclusive).
+        max_val: Maximum value (inclusive).
+        value_key: Localization placeholder key for the value.
+    """
 
     min_val: int = 0
     max_val: int = 100
@@ -88,9 +101,11 @@ class IntOption(OptionMeta):
     )
 
     def get_label_kwargs(self, value: Any) -> dict[str, Any]:
+        """Return label formatting kwargs for the current value."""
         return {self.value_key: value}
 
     def get_change_kwargs(self, value: Any) -> dict[str, Any]:
+        """Return change-message kwargs for the current value."""
         return {self.value_key: value}
 
     def create_action(
@@ -101,6 +116,7 @@ class IntOption(OptionMeta):
         current_value: Any,
         locale: str,
     ) -> Action:
+        """Create an editbox action for setting an integer option."""
         label = Localization.get(
             locale, self.label, **self.get_label_kwargs(current_value)
         )
@@ -117,6 +133,7 @@ class IntOption(OptionMeta):
         )
 
     def validate_and_convert(self, value: str) -> tuple[bool, Any]:
+        """Validate and clamp integer input."""
         try:
             int_val = int(value)
             int_val = max(self.min_val, min(self.max_val, int_val))
@@ -127,7 +144,14 @@ class IntOption(OptionMeta):
 
 @dataclass
 class FloatOption(OptionMeta):
-    """Float option with min/max validation and decimal rounding."""
+    """Float option with min/max validation and rounding.
+
+    Attributes:
+        min_val: Minimum value (inclusive).
+        max_val: Maximum value (inclusive).
+        decimal_places: Decimal places to round to.
+        value_key: Localization placeholder key for the value.
+    """
 
     min_val: float = 0.0
     max_val: float = 100.0
@@ -137,9 +161,11 @@ class FloatOption(OptionMeta):
     )
 
     def get_label_kwargs(self, value: Any) -> dict[str, Any]:
+        """Return label formatting kwargs for the current value."""
         return {self.value_key: value}
 
     def get_change_kwargs(self, value: Any) -> dict[str, Any]:
+        """Return change-message kwargs for the current value."""
         return {self.value_key: value}
 
     def create_action(
@@ -150,6 +176,7 @@ class FloatOption(OptionMeta):
         current_value: Any,
         locale: str,
     ) -> Action:
+        """Create an editbox action for setting a float option."""
         label = Localization.get(
             locale, self.label, **self.get_label_kwargs(current_value)
         )
@@ -166,6 +193,7 @@ class FloatOption(OptionMeta):
         )
 
     def validate_and_convert(self, value: str) -> tuple[bool, Any]:
+        """Validate and clamp float input."""
         try:
             float_val = float(value)
             float_val = max(self.min_val, min(self.max_val, float_val))
@@ -177,7 +205,13 @@ class FloatOption(OptionMeta):
 
 @dataclass
 class MenuOption(OptionMeta):
-    """Menu selection option."""
+    """Menu selection option.
+
+    Attributes:
+        choices: Static list or callable to provide choices.
+        value_key: Localization placeholder key for the value.
+        choice_labels: Optional mapping of choice -> localization key.
+    """
 
     choices: list[str] | Callable[["Game", "Player"], list[str]] = field(
         default_factory=list
@@ -194,6 +228,7 @@ class MenuOption(OptionMeta):
         return value
 
     def get_label_kwargs(self, value: Any) -> dict[str, Any]:
+        """Return label formatting kwargs for the current value."""
         return {self.value_key: value}
 
     def get_label_kwargs_localized(self, value: Any, locale: str) -> dict[str, Any]:
@@ -202,6 +237,7 @@ class MenuOption(OptionMeta):
         return {self.value_key: display_value}
 
     def get_change_kwargs(self, value: Any) -> dict[str, Any]:
+        """Return change-message kwargs for the current value."""
         return {self.value_key: value}
 
     def get_change_kwargs_localized(self, value: Any, locale: str) -> dict[str, Any]:
@@ -217,6 +253,7 @@ class MenuOption(OptionMeta):
         current_value: Any,
         locale: str,
     ) -> Action:
+        """Create a menu action for selecting a value from choices."""
         # Use localized choice value in the label
         label = Localization.get(
             locale, self.label, **self.get_label_kwargs_localized(current_value, locale)
@@ -235,6 +272,7 @@ class MenuOption(OptionMeta):
         )
 
     def validate_and_convert(self, value: str) -> tuple[bool, Any]:
+        """Validate a menu option selection."""
         # For menu options, the value comes from a predefined list, so it's valid
         return True, value
 
@@ -247,11 +285,10 @@ class MenuOption(OptionMeta):
 
 @dataclass
 class TeamModeOption(MenuOption):
-    """
-    Menu option specifically for team modes.
+    """Menu option specialized for team modes.
 
-    Stores team modes in internal format ("individual", "2v2", "2v2v2")
-    but displays them in localized format ("Individual", "2 teams of 2").
+    Stores team modes in internal format ("individual", "2v2", "2v2v2") but
+    displays them in localized format ("Individual", "2 teams of 2").
     """
 
     def get_localized_choice(self, value: str, locale: str) -> str:
@@ -263,18 +300,25 @@ class TeamModeOption(MenuOption):
 
 @dataclass
 class BoolOption(OptionMeta):
-    """Boolean toggle option."""
+    """Boolean toggle option.
+
+    Attributes:
+        value_key: Localization placeholder key for the value.
+    """
 
     value_key: str = "enabled"  # Key used in localization
 
     def __post_init__(self):
+        """Disable prompts for boolean toggles."""
         # Bool options don't need a prompt - they just toggle
         self.prompt = ""
 
     def get_label_kwargs(self, value: Any) -> dict[str, Any]:
+        """Return label formatting kwargs for the current value."""
         return {self.value_key: "on" if value else "off"}
 
     def get_change_kwargs(self, value: Any) -> dict[str, Any]:
+        """Return change-message kwargs for the current value."""
         return {self.value_key: "on" if value else "off"}
 
     def create_action(
@@ -285,6 +329,7 @@ class BoolOption(OptionMeta):
         current_value: Any,
         locale: str,
     ) -> Action:
+        """Create a toggle action for boolean options."""
         # Get localized on/off value
         on_off_key = "option-on" if current_value else "option-off"
         on_off = Localization.get(locale, on_off_key)
@@ -299,6 +344,7 @@ class BoolOption(OptionMeta):
         )
 
     def validate_and_convert(self, value: str) -> tuple[bool, Any]:
+        """Validate a boolean input value."""
         # For bool options, we just flip the value
         return True, value.lower() in ("true", "1", "yes")
 
@@ -306,14 +352,17 @@ class BoolOption(OptionMeta):
 def option_field(meta: OptionMeta) -> Any:
     """Create a dataclass field with option metadata attached.
 
-    Usage:
-        target_score: int = option_field(IntOption(default=50, ...))
+    Args:
+        meta: Option metadata instance.
+
+    Returns:
+        Dataclass field configured for declarative options.
     """
     return field(default=meta.default, metadata={"option_meta": meta})
 
 
 def get_option_meta(options_class: type, field_name: str) -> OptionMeta | None:
-    """Get the OptionMeta for a field, if it has one."""
+    """Get OptionMeta for a field, if present."""
     for f in fields(options_class):
         if f.name == field_name:
             return f.metadata.get("option_meta")
@@ -332,18 +381,10 @@ def get_all_option_metas(options_class: type) -> dict[str, OptionMeta]:
 
 @dataclass
 class GameOptions(DataClassJSONMixin):
-    """Base class for game options with declarative option support.
+    """Base class for declarative game options.
 
     Subclasses should use option_field() for options that need auto-generated
-    UI and handlers:
-
-        @dataclass
-        class MyOptions(GameOptions):
-            target_score: int = option_field(IntOption(...))
-            difficulty: str = option_field(MenuOption(...))
-
-            # Regular fields without option_field work normally
-            internal_state: int = 0
+    UI and handlers.
     """
 
     def get_option_metas(self) -> dict[str, OptionMeta]:
@@ -389,12 +430,12 @@ class GameOptions(DataClassJSONMixin):
 
 
 class OptionsHandlerMixin:
-    """Mixin providing declarative options handling for games.
+    """Handle declarative options for games.
 
-    Expects on the Game class:
-        - self.options: GameOptions (subclass with option_field declarations)
-        - self.get_user(player) -> User | None
-        - self.rebuild_all_menus()
+    Expected Game attributes:
+        options: GameOptions instance.
+        get_user(player) -> User | None.
+        rebuild_all_menus().
     """
 
     def create_options_action_set(self, player: "Player") -> ActionSet:
@@ -410,11 +451,7 @@ class OptionsHandlerMixin:
         return ActionSet(name="options")
 
     def _handle_option_change(self, option_name: str, value: str) -> None:
-        """Handle a declarative option change (for int/menu options).
-
-        This is called by auto-generated option actions.
-        No broadcast needed - screen readers speak the updated list item.
-        """
+        """Handle a declarative option change (int/menu options)."""
         meta = get_option_meta(type(self.options), option_name)
         if not meta:
             return
@@ -432,11 +469,7 @@ class OptionsHandlerMixin:
         self.rebuild_all_menus()
 
     def _handle_option_toggle(self, option_name: str) -> None:
-        """Handle a declarative boolean option toggle.
-
-        This is called by auto-generated toggle actions.
-        No broadcast needed - screen readers speak the updated list item.
-        """
+        """Handle a declarative boolean option toggle."""
         meta = get_option_meta(type(self.options), option_name)
         if not meta:
             return

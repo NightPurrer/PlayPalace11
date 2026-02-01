@@ -48,6 +48,15 @@ REGISTRATION_RATE_WINDOW_SECONDS = 60
 
 
 def _coerce_bool(value: Any, default: bool) -> bool:
+    """Parse truthy values from config inputs with a fallback default.
+
+    Args:
+        value: Raw value from config input.
+        default: Default value when parsing fails.
+
+    Returns:
+        Parsed boolean value.
+    """
     if isinstance(value, bool):
         return value
     if isinstance(value, str):
@@ -82,6 +91,17 @@ class Server(AdministrationMixin):
         ssl_key: str | Path | None = None,
         config_path: str | Path | None = None,
     ):
+        """Initialize the server and core managers.
+
+        Args:
+            host: Address to bind the server to.
+            port: Port to bind the server to.
+            db_path: Path to the sqlite database file.
+            locales_dir: Optional directory for locale files.
+            ssl_cert: Optional SSL certificate path for TLS.
+            ssl_key: Optional SSL private key path for TLS.
+            config_path: Optional config.toml path override.
+        """
         self.host = host
         self.port = port
         self._ssl_cert = ssl_cert
@@ -252,6 +272,7 @@ class Server(AdministrationMixin):
             auth_cfg = {}
 
         def _read_limit(source: dict[str, Any], key: str, current: int, minimum: int = 1) -> int:
+            """Read an integer limit from config with a minimum clamp."""
             value = source.get(key)
             if value is None:
                 return current
@@ -306,6 +327,7 @@ class Server(AdministrationMixin):
 
 
     def _validate_transport_security(self) -> None:
+        """Validate TLS/insecure configuration and exit on invalid combos."""
         if self._allow_insecure_ws and (self._ssl_cert or self._ssl_key):
             print(
                 "ERROR: allow_insecure_ws=true cannot be combined with SSL certificate or key. "
@@ -324,6 +346,7 @@ class Server(AdministrationMixin):
 
     @staticmethod
     def _get_client_ip(client: ClientConnection) -> str:
+        """Return the client IP string (or "unknown")."""
         if not client.address:
             return "unknown"
         return client.address.split(":")[0]
@@ -366,6 +389,18 @@ class Server(AdministrationMixin):
         )
 
     def _allow_attempt(self, bucket: dict[str, deque[float]], key: str, limit: int, window: float, now: float) -> bool:
+        """Record and evaluate a rate-limit attempt.
+
+        Args:
+            bucket: Mapping of key -> deque[timestamps].
+            key: Rate-limit key (e.g., IP or username).
+            limit: Max attempts within the window.
+            window: Window size in seconds.
+            now: Current monotonic time.
+
+        Returns:
+            True if the attempt is allowed, False if throttled.
+        """
         if limit <= 0:
             return True
         dq = bucket.setdefault(key, deque())
@@ -377,6 +412,7 @@ class Server(AdministrationMixin):
         return True
 
     def _get_attempt_count(self, bucket: dict[str, deque[float]], key: str, window: float, now: float) -> int:
+        """Return count of attempts within the window for a key."""
         dq = bucket.get(key)
         if not dq:
             return 0
@@ -388,10 +424,12 @@ class Server(AdministrationMixin):
         return len(dq)
 
     def _record_attempt(self, bucket: dict[str, deque[float]], key: str, now: float) -> None:
+        """Record an attempt timestamp for a key."""
         dq = bucket.setdefault(key, deque())
         dq.append(now)
 
     def _check_login_rate_limit(self, client_ip: str, username: str) -> str | None:
+        """Check login rate limits and return an error message if blocked."""
         now = time.monotonic()
         if not self._allow_attempt(
             self._login_attempts_ip, client_ip, self._login_ip_limit, self._login_ip_window, now
@@ -404,6 +442,7 @@ class Server(AdministrationMixin):
         return None
 
     def _record_login_failure(self, username: str) -> None:
+        """Record a failed login attempt for username rate limiting."""
         if not username or self._login_user_limit <= 0:
             return
         now = time.monotonic()
@@ -411,6 +450,7 @@ class Server(AdministrationMixin):
         self._record_attempt(self._login_attempts_user, username, now)
 
     def _check_registration_rate_limit(self, client_ip: str) -> str | None:
+        """Check registration rate limits and return an error message if blocked."""
         now = time.monotonic()
         if not self._allow_attempt(
             self._registration_attempts_ip,
@@ -603,7 +643,12 @@ class Server(AdministrationMixin):
                 await self._handle_list_online_with_games(client)
 
     async def _handle_authorize(self, client: ClientConnection, packet: dict) -> None:
-        """Handle authorization packet."""
+        """Authorize a client and attach a NetworkUser if successful.
+
+        Args:
+            client: Client connection.
+            packet: Incoming authorize payload.
+        """
         username_raw = packet.get("username", "")
         password_raw = packet.get("password", "")
         locale = packet.get("locale", "en")
@@ -770,7 +815,12 @@ class Server(AdministrationMixin):
             self._show_main_menu(user)
 
     async def _handle_register(self, client: ClientConnection, packet: dict) -> None:
-        """Handle registration packet from registration dialog."""
+        """Register a new user from the registration dialog.
+
+        Args:
+            client: Client connection.
+            packet: Incoming register payload.
+        """
         username_raw = packet.get("username", "")
         password_raw = packet.get("password", "")
         # email and bio are sent but not stored yet
@@ -1152,7 +1202,12 @@ class Server(AdministrationMixin):
         }
 
     async def _handle_menu(self, client: ClientConnection, packet: dict) -> None:
-        """Handle menu selection."""
+        """Handle menu selection packets.
+
+        Args:
+            client: Client connection.
+            packet: Incoming menu payload.
+        """
         username = client.username
         if not username:
             return
@@ -1262,7 +1317,12 @@ class Server(AdministrationMixin):
     async def _handle_main_menu_selection(
         self, user: NetworkUser, selection_id: str
     ) -> None:
-        """Handle main menu selection."""
+        """Handle main menu selections.
+
+        Args:
+            user: Acting user.
+            selection_id: Selected menu item id.
+        """
         if selection_id == "play":
             if not self._ensure_user_approved(user):
                 return
@@ -1295,7 +1355,12 @@ class Server(AdministrationMixin):
     async def _handle_options_selection(
         self, user: NetworkUser, selection_id: str
     ) -> None:
-        """Handle options menu selection."""
+        """Handle options menu selections.
+
+        Args:
+            user: Acting user.
+            selection_id: Selected menu item id.
+        """
         if selection_id == "language":
             self._show_language_menu(user)
         elif selection_id == "turn_sound":
@@ -1335,7 +1400,12 @@ class Server(AdministrationMixin):
     async def _handle_dice_keeping_style_selection(
         self, user: NetworkUser, selection_id: str
     ) -> None:
-        """Handle dice keeping style selection."""
+        """Handle dice keeping style selection.
+
+        Args:
+            user: Acting user.
+            selection_id: Selected menu item id.
+        """
         if selection_id.startswith("style_"):
             style_value = selection_id[6:]  # Remove "style_" prefix
             style = DiceKeepingStyle.from_str(style_value)
@@ -1350,14 +1420,23 @@ class Server(AdministrationMixin):
         self._show_options_menu(user)
 
     def _save_user_preferences(self, user: NetworkUser) -> None:
-        """Save user preferences to database."""
+        """Save user preferences to database.
+
+        Args:
+            user: User whose preferences should be saved.
+        """
         prefs_json = json.dumps(user.preferences.to_dict())
         self._db.update_user_preferences(user.username, prefs_json)
 
     async def _handle_language_selection(
         self, user: NetworkUser, selection_id: str
     ) -> None:
-        """Handle language selection."""
+        """Handle language selection.
+
+        Args:
+            user: Acting user.
+            selection_id: Selected language id.
+        """
         if selection_id.startswith("lang_"):
             lang_code = selection_id[5:]  # Remove "lang_" prefix
             languages = Localization.get_available_languages(fallback= user.locale)
@@ -1373,7 +1452,13 @@ class Server(AdministrationMixin):
     async def _handle_categories_selection(
         self, user: NetworkUser, selection_id: str, state: dict
     ) -> None:
-        """Handle category selection."""
+        """Handle category selection.
+
+        Args:
+            user: Acting user.
+            selection_id: Selected category id.
+            state: Current menu state.
+        """
         if selection_id.startswith("category_"):
             category = selection_id[9:]  # Remove "category_" prefix
             self._show_games_menu(user, category)
@@ -1383,7 +1468,13 @@ class Server(AdministrationMixin):
     async def _handle_games_selection(
         self, user: NetworkUser, selection_id: str, state: dict
     ) -> None:
-        """Handle game selection."""
+        """Handle game selection.
+
+        Args:
+            user: Acting user.
+            selection_id: Selected game id.
+            state: Current menu state.
+        """
         if selection_id.startswith("game_"):
             game_type = selection_id[5:]  # Remove "game_" prefix
             self._show_tables_menu(user, game_type)
@@ -1393,7 +1484,13 @@ class Server(AdministrationMixin):
     async def _handle_tables_selection(
         self, user: NetworkUser, selection_id: str, state: dict
     ) -> None:
-        """Handle tables menu selection."""
+        """Handle tables menu selection.
+
+        Args:
+            user: Acting user.
+            selection_id: Selected table id or action.
+            state: Current menu state.
+        """
         game_type = state.get("game_type", "")
 
         if selection_id == "create_table":
@@ -1448,7 +1545,12 @@ class Server(AdministrationMixin):
     async def _handle_active_tables_selection(
         self, user: NetworkUser, selection_id: str
     ) -> None:
-        """Handle active tables menu selection."""
+        """Handle active tables menu selection.
+
+        Args:
+            user: Acting user.
+            selection_id: Selected table id or action.
+        """
         if selection_id.startswith("table_"):
             table_id = selection_id[6:]
             table = self._tables.get_table(table_id)
@@ -1466,10 +1568,14 @@ class Server(AdministrationMixin):
         """Automatically join a table as player or spectator.
 
         Joins as player if:
-        - Game has not started yet (status is "waiting")
-        - Game has room for more players (less than max_players)
-
+            - Game has not started yet (status is "waiting").
+            - Game has room for more players (less than max_players).
         Otherwise joins as spectator.
+
+        Args:
+            user: User joining the table.
+            table: Table to join.
+            game_type: Game type identifier.
         """
         game = table.game
         if not game:
@@ -1513,7 +1619,13 @@ class Server(AdministrationMixin):
     async def _handle_join_selection(
         self, user: NetworkUser, selection_id: str, state: dict
     ) -> None:
-        """Handle join menu selection."""
+        """Handle join menu selection.
+
+        Args:
+            user: Acting user.
+            selection_id: Selected join option.
+            state: Current menu state.
+        """
         table_id = state.get("table_id")
         table = self._tables.get_table(table_id)
 
@@ -1589,7 +1701,13 @@ class Server(AdministrationMixin):
     async def _handle_saved_tables_selection(
         self, user: NetworkUser, selection_id: str, state: dict
     ) -> None:
-        """Handle saved tables menu selection."""
+        """Handle saved tables menu selection.
+
+        Args:
+            user: Acting user.
+            selection_id: Selected saved table item.
+            state: Current menu state.
+        """
         if selection_id.startswith("saved_"):
             save_id = int(selection_id[6:])  # Remove "saved_" prefix
             self._show_saved_table_actions_menu(user, save_id)
@@ -1599,7 +1717,13 @@ class Server(AdministrationMixin):
     async def _handle_saved_table_actions_selection(
         self, user: NetworkUser, selection_id: str, state: dict
     ) -> None:
-        """Handle saved table actions (restore/delete)."""
+        """Handle saved table actions (restore/delete).
+
+        Args:
+            user: Acting user.
+            selection_id: Selected action id.
+            state: Current menu state.
+        """
         save_id = state.get("save_id")
         if not save_id:
             self._show_main_menu(user)
@@ -1615,7 +1739,12 @@ class Server(AdministrationMixin):
             self._show_saved_tables_menu(user)
 
     async def _restore_saved_table(self, user: NetworkUser, save_id: int) -> None:
-        """Restore a saved table."""
+        """Restore a saved table into an active table.
+
+        Args:
+            user: Acting user.
+            save_id: Saved table id.
+        """
         import json
         from ..users.bot import Bot
 
@@ -1706,7 +1835,11 @@ class Server(AdministrationMixin):
         self._db.delete_saved_table(save_id)
 
     def _show_leaderboards_menu(self, user: NetworkUser) -> None:
-        """Show leaderboards game selection menu."""
+        """Show leaderboards game selection menu.
+
+        Args:
+            user: Acting user.
+        """
         categories = GameRegistry.get_by_category()
         items = []
 
@@ -1729,7 +1862,12 @@ class Server(AdministrationMixin):
         self._user_states[user.username] = {"menu": "leaderboards_menu"}
 
     def _show_leaderboard_types_menu(self, user: NetworkUser, game_type: str) -> None:
-        """Show leaderboard type selection menu for a game."""
+        """Show leaderboard type selection menu for a game.
+
+        Args:
+            user: Acting user.
+            game_type: Game type identifier.
+        """
         game_class = get_game_class(game_type)
         if not game_class:
             user.speak_l("game-type-not-found")
@@ -1829,7 +1967,13 @@ class Server(AdministrationMixin):
     def _show_wins_leaderboard(
         self, user: NetworkUser, game_type: str, game_name: str
     ) -> None:
-        """Show win leaders leaderboard."""
+        """Show win count leaderboard for a game.
+
+        Args:
+            user: Acting user.
+            game_type: Game type identifier.
+            game_name: Localized game name.
+        """
         from ..game_utils.stats_helpers import LeaderboardHelper
 
         game_results = self._get_game_results(game_type)
@@ -1896,7 +2040,13 @@ class Server(AdministrationMixin):
     def _show_rating_leaderboard(
         self, user: NetworkUser, game_type: str, game_name: str
     ) -> None:
-        """Show skill rating leaderboard."""
+        """Show skill rating leaderboard.
+
+        Args:
+            user: Acting user.
+            game_type: Game type identifier.
+            game_name: Localized game name.
+        """
         from ..game_utils.stats_helpers import RatingHelper
 
         rating_helper = RatingHelper(self._db, game_type)
@@ -1958,7 +2108,13 @@ class Server(AdministrationMixin):
     def _show_total_score_leaderboard(
         self, user: NetworkUser, game_type: str, game_name: str
     ) -> None:
-        """Show total score leaderboard."""
+        """Show total score leaderboard.
+
+        Args:
+            user: Acting user.
+            game_type: Game type identifier.
+            game_name: Localized game name.
+        """
         from ..game_utils.stats_helpers import LeaderboardHelper
 
         game_results = self._get_game_results(game_type)
@@ -2015,7 +2171,13 @@ class Server(AdministrationMixin):
     def _show_high_score_leaderboard(
         self, user: NetworkUser, game_type: str, game_name: str
     ) -> None:
-        """Show high score leaderboard."""
+        """Show high score leaderboard.
+
+        Args:
+            user: Acting user.
+            game_type: Game type identifier.
+            game_name: Localized game name.
+        """
         game_results = self._get_game_results(game_type)
 
         # Build high scores per player
@@ -2069,7 +2231,13 @@ class Server(AdministrationMixin):
     def _show_games_played_leaderboard(
         self, user: NetworkUser, game_type: str, game_name: str
     ) -> None:
-        """Show games played leaderboard."""
+        """Show games played leaderboard.
+
+        Args:
+            user: Acting user.
+            game_type: Game type identifier.
+            game_name: Localized game name.
+        """
         game_results = self._get_game_results(game_type)
 
         # Count games per player
@@ -2149,7 +2317,14 @@ class Server(AdministrationMixin):
         game_name: str,
         config: dict,
     ) -> None:
-        """Show a custom leaderboard using declarative config."""
+        """Show a custom leaderboard using declarative config.
+
+        Args:
+            user: Acting user.
+            game_type: Game type identifier.
+            game_name: Localized game name.
+            config: Leaderboard config dict from game class.
+        """
         game_results = self._get_game_results(game_type)
 
         lb_id = config["id"]
@@ -2259,7 +2434,13 @@ class Server(AdministrationMixin):
     async def _handle_leaderboards_selection(
         self, user: NetworkUser, selection_id: str, state: dict
     ) -> None:
-        """Handle leaderboards menu selection."""
+        """Handle leaderboards menu selection.
+
+        Args:
+            user: Acting user.
+            selection_id: Selected menu item id.
+            state: Current menu state.
+        """
         if selection_id.startswith("lb_"):
             game_type = selection_id[3:]  # Remove "lb_" prefix
             self._show_leaderboard_types_menu(user, game_type)
@@ -2269,7 +2450,13 @@ class Server(AdministrationMixin):
     async def _handle_leaderboard_types_selection(
         self, user: NetworkUser, selection_id: str, state: dict
     ) -> None:
-        """Handle leaderboard type selection."""
+        """Handle leaderboard type selection.
+
+        Args:
+            user: Acting user.
+            selection_id: Selected leaderboard type id.
+            state: Current menu state.
+        """
         game_type = state.get("game_type", "")
         game_name = state.get("game_name", "")
 
@@ -2301,7 +2488,13 @@ class Server(AdministrationMixin):
     async def _handle_game_leaderboard_selection(
         self, user: NetworkUser, selection_id: str, state: dict
     ) -> None:
-        """Handle game leaderboard menu selection."""
+        """Handle game leaderboard menu selection.
+
+        Args:
+            user: Acting user.
+            selection_id: Selected menu item id.
+            state: Current menu state.
+        """
         if selection_id == "back":
             game_type = state.get("game_type", "")
             game_name = state.get("game_name", "")
@@ -2313,7 +2506,11 @@ class Server(AdministrationMixin):
     # =========================================================================
 
     def _show_my_stats_menu(self, user: NetworkUser) -> None:
-        """Show game selection menu for personal stats (only games user has played)."""
+        """Show game selection menu for personal stats.
+
+        Args:
+            user: Acting user.
+        """
         categories = GameRegistry.get_by_category()
         items = []
 
@@ -2350,7 +2547,12 @@ class Server(AdministrationMixin):
         self._user_states[user.username] = {"menu": "my_stats_menu"}
 
     def _show_my_game_stats(self, user: NetworkUser, game_type: str) -> None:
-        """Show personal stats for a specific game."""
+        """Show personal stats for a specific game.
+
+        Args:
+            user: Acting user.
+            game_type: Game type identifier.
+        """
         from ..game_utils.stats_helpers import RatingHelper
 
         game_class = get_game_class(game_type)
@@ -2485,7 +2687,14 @@ class Server(AdministrationMixin):
         game_results: list,
         items: list,
     ) -> None:
-        """Add game-specific custom stats from leaderboard configs."""
+        """Add game-specific custom stats from leaderboard configs.
+
+        Args:
+            user: Acting user.
+            game_class: Game class for leaderboard config.
+            game_results: GameResult list for the game.
+            items: Menu item list to append to.
+        """
         for config in game_class.get_leaderboard_types():
             lb_id = config["id"]
             path = config.get("path")
@@ -2564,7 +2773,15 @@ class Server(AdministrationMixin):
                 items.append(MenuItem(text=text, id=f"custom_{lb_id}"))
 
     def _extract_path_value(self, data: dict, path: str) -> float | None:
-        """Extract a value from nested dict using dot notation path."""
+        """Extract a value from nested dict using dot-notation path.
+
+        Args:
+            data: Nested dict to read from.
+            path: Dot-separated path string.
+
+        Returns:
+            Float value if found, otherwise None.
+        """
         parts = path.split(".")
         current = data
         for part in parts:
@@ -2579,7 +2796,13 @@ class Server(AdministrationMixin):
     async def _handle_my_stats_selection(
         self, user: NetworkUser, selection_id: str, state: dict
     ) -> None:
-        """Handle my stats game selection."""
+        """Handle my stats game selection.
+
+        Args:
+            user: Acting user.
+            selection_id: Selected menu item id.
+            state: Current menu state.
+        """
         if selection_id == "back":
             self._show_main_menu(user)
         elif selection_id.startswith("stats_"):
@@ -2589,13 +2812,23 @@ class Server(AdministrationMixin):
     async def _handle_my_game_stats_selection(
         self, user: NetworkUser, selection_id: str, state: dict
     ) -> None:
-        """Handle my game stats menu selection."""
+        """Handle my game stats menu selection.
+
+        Args:
+            user: Acting user.
+            selection_id: Selected menu item id.
+            state: Current menu state.
+        """
         if selection_id == "back":
             self._show_my_stats_menu(user)
         # Other selections (stats entries) are informational only
 
     def on_table_destroy(self, table) -> None:
-        """Handle table destruction. Called by TableManager."""
+        """Handle table destruction.
+
+        Args:
+            table: Table being destroyed.
+        """
         if not table.game:
             return
         # Return all human players to main menu
@@ -2606,7 +2839,11 @@ class Server(AdministrationMixin):
                     self._show_main_menu(player_user)
 
     def on_game_result(self, result) -> None:
-        """Handle game result persistence. Called by Table when a game finishes."""
+        """Handle game result persistence.
+
+        Args:
+            result: GameResult instance.
+        """
         from ..game_utils.game_result import GameResult
 
         if not isinstance(result, GameResult):
@@ -2625,7 +2862,12 @@ class Server(AdministrationMixin):
         )
 
     def on_table_save(self, table, username: str) -> None:
-        """Handle table save request. Called by TableManager."""
+        """Handle table save request.
+
+        Args:
+            table: Table to save.
+            username: Requesting username.
+        """
         import json
         from datetime import datetime
 
@@ -2664,7 +2906,12 @@ class Server(AdministrationMixin):
         game.destroy()
 
     async def _handle_keybind(self, client: ClientConnection, packet: dict) -> None:
-        """Handle keybind press."""
+        """Handle keybind events.
+
+        Args:
+            client: Client connection.
+            packet: Incoming keybind payload.
+        """
         username = client.username
         if not username:
             return
@@ -2696,7 +2943,12 @@ class Server(AdministrationMixin):
                     self._show_main_menu(user)
 
     async def _handle_editbox(self, client: ClientConnection, packet: dict) -> None:
-        """Handle editbox submission."""
+        """Handle editbox submissions.
+
+        Args:
+            client: Client connection.
+            packet: Incoming editbox payload.
+        """
         username = client.username
         if not username:
             return
@@ -2919,6 +3171,7 @@ async def run_server(
     )
 
     def _log_uncaught(exc_type, exc, tb):
+        """Log uncaught exceptions while skipping shutdown interrupts."""
         if exc_type in (KeyboardInterrupt, asyncio.CancelledError):
             return
         logging.getLogger("playpalace").exception(
@@ -2929,6 +3182,7 @@ async def run_server(
     loop = asyncio.get_running_loop()
 
     def _asyncio_exception_handler(loop, context):
+        """Log asyncio exceptions with consistent context details."""
         exc = context.get("exception")
         if isinstance(exc, asyncio.CancelledError):
             return

@@ -10,9 +10,10 @@ if TYPE_CHECKING:
 
 
 class TableManager:
-    """Manages all active tables on the server."""
+    """Manage all active tables on the server."""
 
     def __init__(self):
+        """Initialize the table registry."""
         self._tables: dict[str, Table] = {}
         self._server: Any = None  # Reference to server for destroy/save notifications
 
@@ -22,7 +23,16 @@ class TableManager:
         host_username: str,
         host_user: "User",
     ) -> Table:
-        """Create a new table."""
+        """Create a new table and add the host as a member.
+
+        Args:
+            game_type: Game type identifier.
+            host_username: Username of the host.
+            host_user: Host User instance.
+
+        Returns:
+            Newly created Table instance.
+        """
         table_id = str(uuid.uuid4())[:8]
         table = Table(
             table_id=table_id,
@@ -42,7 +52,7 @@ class TableManager:
         return self._tables.get(table_id)
 
     def remove_table(self, table_id: str) -> None:
-        """Remove a table."""
+        """Remove a table by id."""
         self._tables.pop(table_id, None)
 
     def get_all_tables(self) -> list[Table]:
@@ -69,7 +79,7 @@ class TableManager:
         return None
 
     def on_tick(self) -> None:
-        """Tick all active tables."""
+        """Tick all active tables and destroy empty ones."""
         for table in list(self._tables.values()):
             if not table.members:
                 table.destroy()
