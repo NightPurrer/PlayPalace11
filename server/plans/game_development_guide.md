@@ -84,7 +84,9 @@ Look at the existing games for the structure you need. The key constraints are:
 Buffers: if a message advances game state or narrates table action, route it to the **table** buffer. Use `broadcast()` / `broadcast_l()` and `broadcast_personal_l()` for “you” vs “player” messages. Reserve `user.speak()` / `user.speak_l()` for direct command responses (e.g., “read top card”, “no saved tables”).
 
 Action/menu conventions:
+- Lobby menus are for table management only (start game, options, bots). Keep game actions out of the lobby.
 - Turn-menu actions should reflect things a player can do now. Keybinds are fine, but per-card/per-choice actions should not appear in the Actions menu; use `show_in_actions_menu=False` for those.
+- Non-turn game actions (e.g., view board, read top card/pot) should be Actions-menu only, not turn menu.
 - Keep Actions menu order consistent: turn actions → game-specific actions → standard/global actions.
 - If the game uses a custom status readout (e.g., Pirates/Mile by Mile), hide base `check_scores`/`check_scores_detailed` and wire `S`/`Shift+S` to the custom status.
 - If you want the global score system to work, initialize and update `TeamManager` (even in individual mode) unless you have a game-specific alternative.
