@@ -110,3 +110,15 @@ nix --extra-experimental-features "nix-command flakes" \
 - **Client:** Uses wxPython + the same pinned Python deps—no ad-hoc `.venv`.
 - **Audio:** Client uses the BASS audio library which requires a functional audio device.
 - **Silent/headless:** When no audio device is found, the client runs without sound. Set `PLAYPALACE_USE_XVFB=1` for GUI testing on headless builders.
+
+## Future: Removing Legacy `nix-shell`
+
+When the team is ready to drop legacy tooling entirely:
+
+1. **Delete `shell.nix`:** remove the compatibility file (or replace it with an error) so contributors must use `nix develop`. Update docs/scripts to reference flakes only.
+2. **Purge `nix-shell` references:** run `rg 'nix-shell' -n` and replace remaining instructions, CI snippets, or helper scripts with `nix --extra-experimental-features "nix-command flakes" develop …` (or rely on default experimental features if configured globally).
+3. **Enable flakes globally:** set `experimental-features = nix-command flakes` in `/etc/nix/nix.conf` or `~/.config/nix/nix.conf` so scripts no longer need to pass the flag explicitly.
+4. **Update docs/README:** clearly state that flakes are mandatory and that `nix develop` is the supported entrypoint.
+5. **Validate automation:** ensure CI and `test_run.sh` (or any other automation) invoke `nix develop` directly, then delete any fallback wrappers.
+
+Following those steps will leave the repository fully flake-based with no legacy `nix-shell` path.
