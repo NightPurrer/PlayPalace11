@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# One-time setup: sync client dependencies (except wxPython which comes from Nix)
+# Sync client dependencies inside the pinned Nix environment
 
-cd "$(dirname "$0")/client"
+set -euo pipefail
 
-echo "Syncing client dependencies (using system wxPython)..."
-nix-shell ../shell.nix --run "uv sync --no-install-project"
+PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
+CLIENT_DIR="$PROJECT_ROOT/client"
 
-echo ""
-echo "Setup complete! You can now run:"
-echo "  ./run_client.sh"
+cd "$CLIENT_DIR"
+
+nix --extra-experimental-features "nix-command flakes" \
+  develop "$PROJECT_ROOT" \
+  --command uv sync --no-install-project

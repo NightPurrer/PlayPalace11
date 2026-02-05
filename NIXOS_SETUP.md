@@ -16,12 +16,17 @@
 
 ### Client
 
-**Status:** Client works in **silent mode** (no sound effects) due to missing audio device.
+**Status:** Client works in **silent mode** (no sound effects) unless audio is configured.
 
 ```bash
-# Run client (works but without sound)
+# Run client (silent mode is OK)
 ./run_client.sh
+
+# Headless GUI smoke tests (launches Xvfb screen 0 @ 1024x768x24)
+PLAYPALACE_USE_XVFB=1 ./run_client.sh
 ```
+
+The launcher now enters the pinned flake devshell automatically—no extra `.venv` or manual `pip install` needed.
 
 **Expected Warnings (can be ignored):**
 - `Gtk-WARNING`: UI layout warnings (cosmetic only)
@@ -77,8 +82,10 @@ Pre-built wheels are available in:
 
 ### Running Tests
 ```bash
-# Server tests
-nix-shell --run "cd server && uv run pytest"
+# Server tests (enter the flake devshell)
+nix --extra-experimental-features "nix-command flakes" \
+  develop . \
+  --command bash -c "cd server && uv run pytest"
 
 # Quick verification
 ./test_run.sh
@@ -98,7 +105,20 @@ nix-shell --run "cd server && uv run pytest"
 
 ## Technical Notes
 
-- **Server:** Uses uv for dependency management, works perfectly on NixOS
-- **Client:** Uses system wxPython from Nix (avoids 30-min build), creates venv for other deps
-- **Audio:** Client uses BASS audio library which requires a functional audio device
-- **Silent mode:** When no audio device is found, client runs without sound (fully functional otherwise)
+- **Pinned environment:** `flake.nix` / `flake.lock` capture the exact nixpkgs revision plus Python wheels (wxPython, websockets 16, accessible-output2, sound-lib, etc.).
+- **Server:** Uses uv for dependency management but now runs inside the pinned flake devshell.
+- **Client:** Uses wxPython + the same pinned Python deps—no ad-hoc `.venv`.
+- **Audio:** Client uses the BASS audio library which requires a functional audio device.
+- **Silent/headless:** When no audio device is found, the client runs without sound. Set `PLAYPALACE_USE_XVFB=1` for GUI testing on headless builders.
+
+## Future: Removing Legacy `nix-shell`
+
+When the team is ready to drop legacy tooling entirely:
+
+1. **Delete `shell.nix`:** remove the compatibility file (or replace it with an error) so contributors must use `nix develop`. Update docs/scripts to reference flakes only.
+2. **Purge `nix-shell` references:** run `rg 'nix-shell' -n` and replace remaining instructions, CI snippets, or helper scripts with `nix --extra-experimental-features "nix-command flakes" develop …` (or rely on default experimental features if configured globally).
+3. **Enable flakes globally:** set `experimental-features = nix-command flakes` in `/etc/nix/nix.conf` or `~/.config/nix/nix.conf` so scripts no longer need to pass the flag explicitly.
+4. **Update docs/README:** clearly state that flakes are mandatory and that `nix develop` is the supported entrypoint.
+5. **Validate automation:** ensure CI and `test_run.sh` (or any other automation) invoke `nix develop` directly, then delete any fallback wrappers.
+
+Following those steps will leave the repository fully flake-based with no legacy `nix-shell` path.

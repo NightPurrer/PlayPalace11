@@ -25,11 +25,12 @@ Client starts in silent mode (no sound effects). All features work normally.
 - `server/dist/playpalace_server-11.0.0-py3-none-any.whl` (637 KB)
 - `client/dist/playpalace_client-11.0.0-py3-none-any.whl` (53 MB)
 
-### NixOS Configuration
-- `shell.nix` - Development environment with all dependencies
-- `run_server.sh` - Server launcher (uses nix-shell)
-- `run_client.sh` - Client launcher (uses nix-shell + venv)
-- `build.sh` - Rebuild distribution packages
+### Nix Environment
+- `flake.nix` / `flake.lock` - pinned dev environment
+- `shell.nix` - legacy entrypoint that delegates to the flake
+- `run_server.sh` - Server launcher (enters `nix develop`)
+- `run_client.sh` - Client launcher (enters `nix develop`, optional Xvfb)
+- `build.sh` - Rebuild distribution packages via the flake
 - `test_run.sh` - Quick verification test
 
 ### Documentation
@@ -40,12 +41,12 @@ Client starts in silent mode (no sound effects). All features work normally.
 
 ### Server
 - Uses `uv` for dependency management
-- All dependencies installed in nix-shell
+- All dependencies supplied by the flake devshell
 - Starts immediately (no build time)
 
 ### Client  
-- Uses system wxPython from Nix (avoids 30-min compile)
-- Creates `.venv` with other dependencies (websockets, accessible-output2, sound-lib)
+- Uses system wxPython and pinned Python deps from the flake (no ad-hoc venv)
+- Optional headless mode via `PLAYPALACE_USE_XVFB=1 ./run_client.sh`
 - Runs in silent mode when no audio device available
 - Fully functional for gameplay testing
 
@@ -67,7 +68,9 @@ The client tries to initialize BASS audio library at import time. When no audio 
 ./run_server.sh --ssl-cert cert.pem --ssl-key key.pem
 
 # Run server tests
-nix-shell --run "cd server && uv run pytest"
+nix --extra-experimental-features "nix-command flakes" \
+  develop . \
+  --command bash -c 'cd server && uv run pytest'
 
 # Rebuild packages
 ./build.sh
@@ -75,11 +78,11 @@ nix-shell --run "cd server && uv run pytest"
 
 ## File Locations
 
-All launcher scripts are in the root directory:
-- `/home/alek/git/PlayPalace/run_server.sh`
-- `/home/alek/git/PlayPalace/run_client.sh`
-- `/home/alek/git/PlayPalace/build.sh`
-- `/home/alek/git/PlayPalace/test_run.sh`
+All launcher scripts live at the repo root:
+- `./run_server.sh`
+- `./run_client.sh`
+- `./build.sh`
+- `./test_run.sh`
 
 ## Success Indicators
 

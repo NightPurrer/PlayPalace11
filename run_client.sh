@@ -1,24 +1,23 @@
 #!/usr/bin/env bash
-# PlayPalace Client Launcher for NixOS
+# PlayPalace Client Launcher via pinned Nix flake
 
-cd "$(dirname "$0")/client"
+set -euo pipefail
 
-nix-shell ../shell.nix --run '
-  # Suppress GTK warnings for cleaner output
-  export G_MESSAGES_DEBUG=""
-  export GTK_DISABLE_GAIL_WARNING=1
-  
-  # Check if venv exists, create with system-site-packages if not
-  if [ ! -d .venv ]; then
-    echo "Creating virtual environment with system packages access..."
-    python -m venv --system-site-packages .venv
-    source .venv/bin/activate
-    echo "Installing client dependencies (wxPython and speechd from system)..."
-    pip install --quiet websockets accessible-output2 sound-lib platformdirs
-  else
-    source .venv/bin/activate
-  fi
-  
-  # Run client (wxPython and speechd from system via PYTHONPATH)
-  python client.py '"$@"'
-'
+PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
+CLIENT_DIR="$PROJECT_ROOT/client"
+
+cd "$CLIENT_DIR"
+
+read -r -d '' LAUNCH_SCRIPT <<'INNER'
+export G_MESSAGES_DEBUG=""
+export GTK_DISABLE_GAIL_WARNING=1
+if [ -n "${PLAYPALACE_USE_XVFB:-}" ]; then
+  xvfb-run -s "-screen 0 ${PLAYPALACE_XVFB_SIZE:-1024x768x24}" python client.py "$@"
+else
+  python client.py "$@"
+fi
+INNER
+
+nix --extra-experimental-features "nix-command flakes" \
+  develop "$PROJECT_ROOT" \
+  --command bash -c "$LAUNCH_SCRIPT" run-client "$@"

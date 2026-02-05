@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
-# PlayPalace Server Launcher for NixOS
+# PlayPalace Server Launcher via pinned Nix flake
 
-cd "$(dirname "$0")/server"
+set -euo pipefail
 
-nix-shell ../shell.nix --run "uv run python main.py $@"
+PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
+SERVER_DIR="$PROJECT_ROOT/server"
+
+cd "$SERVER_DIR"
+
+nix --extra-experimental-features "nix-command flakes" \
+  develop "$PROJECT_ROOT" \
+  --command bash -c 'uv run python main.py "$@"' run-server "$@"
