@@ -1,6 +1,7 @@
 """Main server class that ties everything together."""
 
 import asyncio
+import contextlib
 import logging
 import os
 import shutil
@@ -90,6 +91,7 @@ class Server(AdministrationMixin):
         ssl_cert: str | Path | None = None,
         ssl_key: str | Path | None = None,
         config_path: str | Path | None = None,
+        preload_locales: bool = False,
     ):
         """Initialize the server and core managers.
 
@@ -101,6 +103,7 @@ class Server(AdministrationMixin):
             ssl_cert: Optional SSL certificate path for TLS.
             ssl_key: Optional SSL private key path for TLS.
             config_path: Optional config.toml path override.
+            preload_locales: Whether to block startup while compiling all locales.
         """
         self.host = host
         self.port = port
@@ -124,6 +127,7 @@ class Server(AdministrationMixin):
 
         # Virtual bot manager
         self._virtual_bots = VirtualBotManager(self)
+        self._localization_warmup_task: asyncio.Task | None = None
 
         # Credential limits (overridable via config)
         self._username_min_length = DEFAULT_USERNAME_MIN_LENGTH
@@ -133,6 +137,7 @@ class Server(AdministrationMixin):
         self._ws_max_message_size = DEFAULT_WS_MAX_MESSAGE_BYTES
         self._config_path = Path(config_path) if config_path else _MODULE_DIR / "config.toml"
         self._allow_insecure_ws = False
+        self._preload_locales = preload_locales
         self._login_ip_limit = DEFAULT_LOGIN_ATTEMPTS_PER_MINUTE
         self._login_user_limit = DEFAULT_LOGIN_FAILURES_PER_MINUTE
         self._registration_ip_limit = DEFAULT_REGISTRATION_ATTEMPTS_PER_MINUTE
@@ -155,7 +160,6 @@ class Server(AdministrationMixin):
                     provided_locales = candidate
             resolved_locales = provided_locales
         Localization.init(resolved_locales)
-        Localization.preload_bundles()
 
     async def start(self) -> None:
         """Start the server."""
@@ -177,6 +181,8 @@ class Server(AdministrationMixin):
                     file=sys.stderr,
                 )
                 raise SystemExit(1)
+
+        await self._preload_locales_if_requested()
 
         # Enforce transport requirements before bringing up listeners
         self._validate_transport_security()
@@ -230,10 +236,17 @@ class Server(AdministrationMixin):
 
         protocol = "wss" if self._ssl_cert else "ws"
         print(f"Server running on {protocol}://{self.host}:{self.port}")
+        self._start_localization_warmup()
 
     async def stop(self) -> None:
         """Stop the server."""
         print("Stopping server...")
+
+        if self._localization_warmup_task:
+            self._localization_warmup_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._localization_warmup_task
+            self._localization_warmup_task = None
 
         # Save all tables
         self._save_tables()
@@ -478,6 +491,38 @@ class Server(AdministrationMixin):
             "to create an initial administrator before exposing this server on the network. "
             f"Set {BOOTSTRAP_WARNING_ENV}=1 to suppress this warning for CI or local testing."
         )
+
+    def _start_localization_warmup(self) -> None:
+        """Kick off localization compilation in the background."""
+        if self._preload_locales:
+            return
+        if self._localization_warmup_task:
+            return
+        loop = asyncio.get_running_loop()
+        self._localization_warmup_task = loop.create_task(self._warm_locales_async())
+        print(
+            "Localization bundles compiling in background "
+            "(pass --preload-locales to block startup until finished)."
+        )
+
+    async def _warm_locales_async(self) -> None:
+        """Compile all locale bundles without blocking startup."""
+        logger = logging.getLogger("playpalace")
+        try:
+            await asyncio.to_thread(Localization.preload_bundles)
+            print("Localization bundles compiled.")
+        except SystemExit:
+            logger.warning("Localization preload aborted due to configuration error.")
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            logger.exception("Localization preload failed")
+
+    async def _preload_locales_if_requested(self) -> None:
+        """Synchronously compile locales when preload flag is set."""
+        if not self._preload_locales:
+            return
+        await asyncio.to_thread(Localization.preload_bundles)
 
     def _load_tables(self) -> None:
         """Load tables from database and restore their games."""
@@ -3155,6 +3200,7 @@ async def run_server(
     port: int = 8000,
     ssl_cert: str | Path | None = None,
     ssl_key: str | Path | None = None,
+    preload_locales: bool = False,
 ) -> None:
     """Run the server.
 
@@ -3163,6 +3209,7 @@ async def run_server(
         port: Port number to listen on
         ssl_cert: Path to SSL certificate file (for WSS support)
         ssl_key: Path to SSL private key file (for WSS support)
+        preload_locales: Whether to block on localization compilation.
     """
     logging.basicConfig(
         filename="errors.log",
@@ -3323,6 +3370,7 @@ async def run_server(
         ssl_cert=ssl_cert,
         ssl_key=ssl_key,
         db_path=str(db_path),
+        preload_locales=preload_locales,
     )
     await server.start()
 

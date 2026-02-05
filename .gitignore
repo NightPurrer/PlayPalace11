@@ -4,6 +4,7 @@
 server/.ruff_cache
 server/.pytest_cache
 server/errors.log
+server/.cache/
 server/playpalace.db
 server/config.toml
 
