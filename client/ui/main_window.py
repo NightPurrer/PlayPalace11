@@ -88,6 +88,8 @@ class MainWindow(wx.Frame):
         self.reconnect_attempts = 0  # Track reconnection attempts
         self.max_reconnect_attempts = 30  # Maximum reconnection attempts
         self.last_server_message = None  # Track last speak message for error display
+        self.last_server_status_packet = None  # Track last lifecycle status packet
+        self.last_status_announcement = None  # Track last lifecycle announcement text
         self.connection_timeout_timer = None  # Track connection timeout timer
 
         # Store user's options
@@ -1137,39 +1139,38 @@ class MainWindow(wx.Frame):
         if not self.expecting_reconnect and not self.returning_to_login:
             self._show_connection_error("Connection lost!")
 
+    def on_server_status(self, packet):
+        """Handle lifecycle status updates (initializing/maintenance)."""
+        self.last_server_status_packet = packet
+        message = self._format_status_text(packet)
+        self.last_status_announcement = message
+        self._announce_status_message(message)
+
     def on_server_disconnect(self, packet):
         """Handle server disconnect packet."""
         should_reconnect = packet.get("reconnect", False)
         show_message = packet.get("show_message", False)
         return_to_login = packet.get("return_to_login", False)
+        status_mode = packet.get("status_mode")
+        retry_after = packet.get("retry_after")
+
+        if status_mode:
+            message = self._format_status_text(self.last_server_status_packet or {})
+            self._show_connection_error(message, return_to_login=True)
+            if retry_after:
+                delay = max(1, int(retry_after))
+                self._schedule_reconnect_after(
+                    delay,
+                    f"{message} Reconnecting in {delay} seconds...",
+                )
+            return
 
         if should_reconnect:
-            # Server is restarting, reconnect after 3 seconds
-            self.expecting_reconnect = True
-            # Cancel any pending timeout timer
-            if self.connection_timeout_timer:
-                self.connection_timeout_timer.Stop()
-                self.connection_timeout_timer = None
-            self.speaker.speak(
-                "Server is restarting. Reconnecting in 3 seconds...", interrupt=False
+            delay = max(1, int(packet.get("retry_after", 3)))
+            self._schedule_reconnect_after(
+                delay,
+                f"Server is restarting. Reconnecting in {delay} seconds...",
             )
-
-            def reconnect():
-                # Attempt reconnection
-                server_url = self.credentials.get("server_url")
-                username = self.credentials.get("username")
-                password = self.credentials.get("password", "")
-                if server_url and username:
-                    self.speaker.speak("Reconnecting...", interrupt=False)
-                    # Disconnect old connection first
-                    self.network.disconnect()
-                    # Longer delay to let old thread fully terminate
-                    wx.CallLater(
-                        1000, lambda: self._do_reconnect(server_url, username, password)
-                    )
-
-            # Wait 3 seconds then reconnect
-            wx.CallLater(3000, reconnect)
         elif show_message:
             # Explicit disconnect with message dialog (e.g., account declined)
             self._show_connection_error("Disconnected by server.", return_to_login=return_to_login)
@@ -1177,6 +1178,57 @@ class MainWindow(wx.Frame):
             # Explicit disconnect, close quietly (e.g., user logout)
             self.speaker.speak("Disconnected.", interrupt=False)
             wx.CallLater(500, self.Close)
+
+    def _format_status_text(self, packet):
+        """Format a lifecycle status packet into readable text."""
+        if not packet:
+            return "Server is temporarily unavailable."
+        message = packet.get("message") or "Server is temporarily unavailable."
+        resume_at = packet.get("resume_at")
+        if resume_at:
+            message = f"{message} Expected availability: {resume_at}."
+        return message
+
+    def _announce_status_message(self, message: str):
+        """Speak and optionally log lifecycle status messages."""
+        buffer_system = getattr(self, "buffer_system", None)
+        history_text = getattr(self, "history_text", None)
+        can_log = (
+            buffer_system
+            and hasattr(buffer_system, "add_item")
+            and hasattr(buffer_system, "is_muted")
+            and hasattr(buffer_system, "get_current_buffer_name")
+            and history_text
+            and hasattr(history_text, "GetValue")
+        )
+        if can_log:
+            self.add_history(message, buffer_name="activity")
+        try:
+            self.speaker.speak(message, interrupt=False)
+        except Exception:
+            pass
+
+    def _schedule_reconnect_after(self, delay_seconds: int, announce_text: str):
+        """Schedule a reconnect attempt after a delay."""
+        delay_ms = max(1000, int(delay_seconds * 1000))
+        self.expecting_reconnect = True
+        if self.connection_timeout_timer:
+            self.connection_timeout_timer.Stop()
+            self.connection_timeout_timer = None
+        self.speaker.speak(announce_text, interrupt=False)
+
+        def reconnect():
+            server_url = self.credentials.get("server_url")
+            username = self.credentials.get("username")
+            password = self.credentials.get("password", "")
+            if server_url and username:
+                self.speaker.speak("Reconnecting...", interrupt=False)
+                self.network.disconnect()
+                wx.CallLater(
+                    1000, lambda: self._do_reconnect(server_url, username, password)
+                )
+
+        wx.CallLater(delay_ms, reconnect)
 
     def _do_reconnect(self, server_url, username, password):
         """Actually perform the reconnection attempt."""

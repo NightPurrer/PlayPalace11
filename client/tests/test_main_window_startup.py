@@ -90,7 +90,9 @@ def make_window_stub(monkeypatch, should_connect=True):
     window.add_history_calls = []
     window.add_history = lambda text, buffer="misc", *_: window.add_history_calls.append((text, buffer))
     window._show_connection_error_calls = []
-    window._show_connection_error = lambda message: window._show_connection_error_calls.append(message)
+    window._show_connection_error = lambda message, return_to_login=False: window._show_connection_error_calls.append(
+        message
+    )
     window.Close = lambda: None
     return window
 
@@ -141,6 +143,25 @@ def test_on_server_disconnect_reconnect_flow(monkeypatch, stub_call_later):
     assert reconnect_calls, "Reconnection callbacks should be scheduled"
     delays = [call[0] for call in reconnect_calls]
     assert 3000 in delays, "Initial reconnect delay expected"
+
+
+def test_on_server_disconnect_status_mode(monkeypatch):
+    window = make_window_stub(monkeypatch, should_connect=True)
+    window.connected = False
+    window.speaker = types.SimpleNamespace(speak=lambda *args, **kwargs: None)
+    window.last_server_status_packet = {"message": "Maintenance in progress.", "resume_at": "2026-02-07T18:00:00Z"}
+    reconnect_calls = []
+    monkeypatch.setattr(
+        main_mod.wx,
+        "CallLater",
+        lambda delay, func, *args, **kwargs: reconnect_calls.append((delay, func, args, kwargs)),
+    )
+
+    window.on_server_disconnect({"status_mode": "maintenance", "retry_after": 10})
+
+    assert window._show_connection_error_calls[-1].startswith("Maintenance in progress")
+    assert reconnect_calls
+    assert reconnect_calls[0][0] == 10000
 
 
 def test_do_reconnect_resets_after_max_attempts(monkeypatch):

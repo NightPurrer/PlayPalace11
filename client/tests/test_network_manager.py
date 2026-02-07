@@ -59,6 +59,7 @@ PACKET_TO_HANDLER = {
     "table_create": "on_table_create",
     "pong": "on_server_pong",
     "chat": "on_receive_chat",
+    "server_status": "on_server_status",
 }
 
 
