@@ -91,7 +91,7 @@ def test_menu_sounds_use_configured_names(tmp_path):
     manager.set_menuenter_sound("enter.ogg")
     manager.play_menuclick()
     manager.play_menuenter()
-    played = [call[0].split("/")[-1] for call in manager.sound_cacher.calls]
+    played = [call[0].rsplit("\\", 1)[-1].rsplit("/", 1)[-1] for call in manager.sound_cacher.calls]
     assert played == ["click.ogg", "enter.ogg"]
 
 
