@@ -73,6 +73,17 @@ The client requires wxPython and a few other dependencies from v10.
 The client supports both `ws://` and `wss://` connections. When connecting to a server with SSL enabled, enter the server address with the `wss://` prefix (e.g., `wss://example.com`). The client will handle SSL certificate validation automatically.
 Use the **Server Manager** button on the login screen to add/edit servers (name, host, port, notes) and manage saved accounts for each server. You can add `localhost` for local testing.
 
+### Packet Schema Validation
+
+Packet contracts are defined once in `server/network/packet_models.py` using Pydantic. Whenever you add or edit packet fields, regenerate the mirrored JSON schema files (used by both the server and client validators) with:
+
+```bash
+cd server
+uv run python tools/export_packet_schema.py
+```
+
+This command rewrites `server/packet_schema.json` and `client/packet_schema.json`; make sure both artifacts are committed alongside any packet changes. The server validates incoming packets before handing them to gameplay handlers, and the client validates both outgoing and incoming packets before they are sent or dispatched.
+
 #### TLS Verification
 
 PlayPalace now enforces TLS hostname and certificate verification for all `wss://` connections. When the server presents an unknown or self-signed certificate, the client shows the certificate details (CN, SANs, issuer, validity window, and SHA-256 fingerprint) and lets you explicitly trust it. Trusted certificates are pinned per server entry—subsequent connections will only succeed if the fingerprint matches, and you can remove a stored certificate from the Server Manager dialog at any time.

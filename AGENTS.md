@@ -13,6 +13,7 @@ This repo uses Python 3.11+ and `uv` for dependency management.
   - `cd server && uv sync` — install server deps.
   - `cd server && uv run python main.py` — run server on default `0.0.0.0:8000`.
   - `cd server && uv run python main.py --help` — view server flags (e.g., `--ssl-cert`, `--ssl-key`).
+  - `cd server && uv run python tools/export_packet_schema.py` — regenerate the shared packet schema JSON (writes to both `server/` and `client/`).
 - Client dev:
   - `cd client && uv sync` — install client deps.
   - `cd client && uv run python client.py` — run client.
@@ -22,6 +23,11 @@ This repo uses Python 3.11+ and `uv` for dependency management.
   - Inside `nix develop .`, helper scripts are available from repo root:
     - `./scripts/nix_server_pytest.sh`
     - `./scripts/nix_client_pytest.sh` (installs pytest/pydantic into `.nix-python/` automatically)
+
+## Packet Schema Workflow
+- Authoritative packet definitions live in `server/network/packet_models.py`. Update these models whenever packet shapes change.
+- Run `cd server && uv run python tools/export_packet_schema.py` after editing the models; commit the updated `server/packet_schema.json` and `client/packet_schema.json`.
+- Both the server and client perform runtime validation using these schemas, so stale JSON copies will break validation and should never be left un-regenerated.
 
 ## Coding Style & Naming Conventions
 - Python uses 4-space indentation and standard PEP 8 naming: `snake_case` for functions/vars, `CapWords` for classes, `UPPER_SNAKE_CASE` for constants.
