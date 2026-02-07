@@ -75,6 +75,7 @@ def make_window():
     window.menu_list = StubMenuList()
     window.chat_input = object()
     window.history_text = object()
+    window.speaker = types.SimpleNamespace(speak=lambda *args, **kwargs: None)
     window.sound_manager = types.SimpleNamespace(
         remove_all_playlists=lambda: window.sound_events.append("remove"),
         stop_music=lambda fade=True: window.sound_events.append(f"stop_music:{fade}"),
@@ -194,3 +195,19 @@ def test_on_server_clear_ui_resets_menu_and_audio():
     assert window.current_menu_id is None
     assert window.current_mode == "list"
     assert window.sound_events == ["remove", "stop_music:True", "stop_ambience:False"]
+
+
+def test_on_server_status_records_last_message():
+    window = make_window()
+    packet = {
+        "type": "server_status",
+        "mode": "maintenance",
+        "message": "Server maintenance in progress.",
+        "resume_at": "2026-02-07T18:00:00Z",
+        "retry_after": 120,
+    }
+
+    window.on_server_status(packet)
+
+    assert window.last_server_status_packet == packet
+    assert "Server maintenance in progress" in window.last_status_announcement

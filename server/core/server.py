@@ -2,12 +2,14 @@
 
 import asyncio
 import contextlib
+from contextlib import asynccontextmanager
 import logging
 import os
 import shutil
 import sys
 import time
 from collections import deque
+from datetime import datetime, timezone
 from getpass import getpass
 from pathlib import Path
 
@@ -19,6 +21,7 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - Python <3.11 fallback when available
     import tomli as tomllib  # type: ignore[import]
 
+from .state import ModeSnapshot, ServerLifecycleState, ServerMode
 from .tick import TickScheduler, load_server_config
 from .administration import AdministrationMixin
 from .virtual_bots import VirtualBotManager
@@ -46,6 +49,9 @@ DEFAULT_LOGIN_FAILURES_PER_MINUTE = 3
 DEFAULT_REGISTRATION_ATTEMPTS_PER_MINUTE = 2
 LOGIN_RATE_WINDOW_SECONDS = 60
 REGISTRATION_RATE_WINDOW_SECONDS = 60
+
+STARTUP_GATE_ID = "startup"
+LOCALIZATION_GATE_ID = "localization"
 
 
 def _coerce_bool(value: Any, default: bool) -> bool:
@@ -148,6 +154,9 @@ class Server(AdministrationMixin):
         self._login_attempts_ip: dict[str, deque[float]] = {}
         self._login_attempts_user: dict[str, deque[float]] = {}
         self._registration_attempts_ip: dict[str, deque[float]] = {}
+        self._lifecycle = ServerLifecycleState()
+        self._lifecycle.add_gate(STARTUP_GATE_ID, message="Server is starting up.")
+        self._localization_gate_registered = False
         self._load_config_settings()
 
         # Initialize localization
@@ -238,6 +247,7 @@ class Server(AdministrationMixin):
         protocol = "wss" if self._ssl_cert else "ws"
         print(f"Server running on {protocol}://{self.host}:{self.port}")
         self._start_localization_warmup()
+        self._lifecycle.resolve_gate(STARTUP_GATE_ID)
 
     async def stop(self) -> None:
         """Stop the server."""
@@ -505,6 +515,7 @@ class Server(AdministrationMixin):
             return
         if self._localization_warmup_task:
             return
+        self._ensure_localization_gate()
         loop = asyncio.get_running_loop()
         self._localization_warmup_task = loop.create_task(self._warm_locales_async())
         print(
@@ -517,19 +528,115 @@ class Server(AdministrationMixin):
         logger = logging.getLogger("playpalace")
         try:
             await asyncio.to_thread(Localization.preload_bundles)
+            self._lifecycle.resolve_gate(LOCALIZATION_GATE_ID)
             print("Localization bundles compiled.")
         except SystemExit:
             logger.warning("Localization preload aborted due to configuration error.")
+            self._lifecycle.enter_maintenance(
+                message="Localization preload failed due to configuration error."
+            )
+            await self._disconnect_clients_for_status(self._lifecycle.snapshot())
         except asyncio.CancelledError:
             pass
         except Exception:
             logger.exception("Localization preload failed")
+            self._lifecycle.enter_maintenance(message="Localization preload failed. Check server logs.")
+            await self._disconnect_clients_for_status(self._lifecycle.snapshot())
+
+    def _ensure_localization_gate(self) -> None:
+        """Register the localization gate exactly once."""
+        if self._localization_gate_registered:
+            return
+        self._localization_gate_registered = True
+        self._lifecycle.add_gate(LOCALIZATION_GATE_ID, message="Compiling localization bundles...")
+
+    async def _reject_client_during_unavailable(self, client: ClientConnection, snapshot: ModeSnapshot) -> None:
+        """Inform a newly connected client about current server status and disconnect."""
+        await self._send_status_and_disconnect(client, snapshot)
+
+    async def _disconnect_clients_for_status(self, snapshot: ModeSnapshot) -> None:
+        """Broadcast lifecycle status to all connected clients and disconnect them."""
+        if not self._ws_server or not self._ws_server.clients:
+            return
+        await asyncio.gather(
+            *[
+                self._send_status_and_disconnect(client, snapshot)
+                for client in list(self._ws_server.clients.values())
+            ]
+        )
+
+    @asynccontextmanager
+    async def maintenance_mode(self, message: str, resume_at: datetime | None = None):
+        """Context manager for internal maintenance tasks that require pausing clients."""
+        self._lifecycle.enter_maintenance(message=message, resume_at=resume_at)
+        await self._disconnect_clients_for_status(self._lifecycle.snapshot())
+        try:
+            yield
+        finally:
+            self._lifecycle.exit_maintenance()
+
+    async def _send_status_and_disconnect(self, client: ClientConnection, snapshot: ModeSnapshot) -> None:
+        """Send a lifecycle status update followed by a disconnect packet."""
+        retry_after = self._calculate_retry_after(snapshot)
+        status_packet = self._build_status_packet(snapshot, retry_after)
+        disconnect_packet = self._build_status_disconnect(snapshot, retry_after)
+        await client.send(status_packet)
+        await client.send(disconnect_packet)
+        await client.close()
+
+    def _build_status_packet(self, snapshot: ModeSnapshot, retry_after: int) -> dict[str, object]:
+        """Construct a status payload for clients."""
+        payload: dict[str, object] = {
+            "type": "server_status",
+            "mode": snapshot.mode.value,
+            "retry_after": retry_after,
+        }
+        if snapshot.message:
+            payload["message"] = snapshot.message
+        if snapshot.resume_at:
+            payload["resume_at"] = self._format_datetime(snapshot.resume_at)
+        return payload
+
+    def _build_status_disconnect(self, snapshot: ModeSnapshot, retry_after: int) -> dict[str, object]:
+        """Construct the disconnect payload paired with a lifecycle notification."""
+        return {
+            "type": "disconnect",
+            "reconnect": False,
+            "show_message": True,
+            "return_to_login": True,
+            "status_mode": snapshot.mode.value,
+            "retry_after": retry_after,
+        }
+
+    def _calculate_retry_after(self, snapshot: ModeSnapshot) -> int:
+        """Compute a recommended retry delay for clients."""
+        if snapshot.resume_at:
+            now = datetime.now(timezone.utc)
+            delta = int((snapshot.resume_at - now).total_seconds())
+            return max(1, delta)
+        if snapshot.mode == ServerMode.INITIALIZING:
+            return 5
+        if snapshot.mode == ServerMode.MAINTENANCE:
+            return 30
+        return 5
+
+    @staticmethod
+    def _format_datetime(value: datetime) -> str:
+        """Format datetimes as ISO-8601 strings with Z suffix when UTC."""
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        iso_value = value.astimezone(timezone.utc).isoformat()
+        if iso_value.endswith("+00:00"):
+            iso_value = iso_value[:-6] + "Z"
+        return iso_value
 
     async def _preload_locales_if_requested(self) -> None:
         """Synchronously compile locales when preload flag is set."""
         if not self._preload_locales:
             return
+        self._ensure_localization_gate()
         await asyncio.to_thread(Localization.preload_bundles)
+        self._lifecycle.resolve_gate(LOCALIZATION_GATE_ID)
 
     def _load_tables(self) -> None:
         """Load tables from database and restore their games."""
@@ -596,6 +703,11 @@ class Server(AdministrationMixin):
 
     async def _on_client_connect(self, client: ClientConnection) -> None:
         """Handle new client connection."""
+        snapshot = self._lifecycle.snapshot()
+        if snapshot.mode != ServerMode.RUNNING:
+            print(f"Client deferred ({snapshot.mode.value}): {client.address}")
+            await self._reject_client_during_unavailable(client, snapshot)
+            return
         print(f"Client connected: {client.address}")
 
     async def _on_client_disconnect(self, client: ClientConnection) -> None:

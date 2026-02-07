@@ -481,3 +481,5 @@ class NetworkManager:
             self.main_window.on_server_pong(packet)
         elif packet_type == "chat":
             self.main_window.on_receive_chat(packet)
+        elif packet_type == "server_status":
+            self.main_window.on_server_status(packet)
