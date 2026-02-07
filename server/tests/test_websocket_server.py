@@ -1,5 +1,7 @@
 """Tests for WebSocket server helpers and client handling."""
 
+import json
+
 import pytest
 
 from server.network import websocket_server
@@ -27,8 +29,8 @@ async def test_client_connection_send_and_close():
     ws = DummyWebSocket()
     conn = ClientConnection(websocket=ws, address="127.0.0.1:1234")
 
-    await conn.send({"type": "ping", "value": 1})
-    assert ws.sent == ['{"type": "ping", "value": 1}']
+    await conn.send({"type": "pong"})
+    assert json.loads(ws.sent[-1]) == {"type": "pong"}
 
     await conn.close()
     assert ws.closed
@@ -55,15 +57,27 @@ async def test_websocket_server_broadcast_and_send_to_user():
         c3.address: c3,
     })
 
-    await server.broadcast({"msg": "hello"}, exclude=c1)
+    broadcast_packet = {
+        "type": "chat",
+        "convo": "global",
+        "sender": "server",
+        "message": "hello",
+        "language": "English",
+    }
+
+    await server.broadcast(broadcast_packet, exclude=c1)
     assert c1.websocket.sent == []  # excluded
     assert c2.websocket.sent == []  # not authenticated
-    assert c3.websocket.sent == ['{"msg": "hello"}']
+    assert json.loads(c3.websocket.sent[-1]) == broadcast_packet
 
-    sent = await server.send_to_user("alice", {"type": "notice"})
-    assert sent and c1.websocket.sent[-1] == '{"type": "notice"}'
+    notice_packet = {"type": "speak", "text": "hi"}
+    sent = await server.send_to_user("alice", notice_packet)
+    assert sent
+    notice_payload = json.loads(c1.websocket.sent[-1])
+    assert notice_payload["type"] == "speak"
+    assert notice_payload["text"] == "hi"
 
-    assert not await server.send_to_user("unknown", {"type": "noop"})
+    assert not await server.send_to_user("unknown", notice_packet)
     assert server.get_client_by_username("carol") is c3
     assert server.get_client_by_username("nobody") is None
 
