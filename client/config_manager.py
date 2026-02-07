@@ -117,6 +117,7 @@ class ConfigManager:
         """Get default identities structure."""
         return {
             "last_server_id": None,
+            "default_options_profile": {},
             "servers": {},  # server_id -> server info with accounts
         }
 
@@ -131,8 +132,16 @@ class ConfigManager:
         """
         needs_save = False
 
-        # Migration: Add email field to all existing accounts
+        # Migration: Add default_options_profile to root
+        if "default_options_profile" not in identities:
+            identities["default_options_profile"] = {}
+            needs_save = True
+
+        # Migration: Add options_profile to each server, and email to accounts
         for server_id, server in identities.get("servers", {}).items():
+            if "options_profile" not in server:
+                server["options_profile"] = {}
+                needs_save = True
             for account_id, account in server.get("accounts", {}).items():
                 if "email" not in account:
                     account["email"] = ""
@@ -142,7 +151,7 @@ class ConfigManager:
         if needs_save:
             self.identities = identities
             self.save_identities()
-            print("Identities migration completed: added email field to accounts.")
+            print("Identities migration completed.")
 
         return identities
 
@@ -431,6 +440,7 @@ class ConfigManager:
             "port": port,
             "notes": notes,
             "accounts": {},  # account_id -> account info
+            "options_profile": {},
             "trusted_certificate": None,
         }
         self.save_identities()

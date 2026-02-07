@@ -96,7 +96,7 @@ class AccountEditorDialog(wx.Dialog):
         sizer.Add(self.email_input, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
 
         # Notes
-        notes_label = wx.StaticText(panel, label="N&otes:")
+        notes_label = wx.StaticText(panel, label="&Notes:")
         sizer.Add(notes_label, 0, wx.LEFT | wx.TOP, 10)
 
         notes_value = ""
@@ -452,6 +452,11 @@ class ServerEditorDialog(wx.Dialog):
         panel = wx.Panel(self)
         sizer = wx.BoxSizer(wx.VERTICAL)
 
+        # Options Profile button
+        self.options_profile_btn = wx.Button(panel, label="&Options Profile")
+        self.options_profile_btn.Bind(wx.EVT_BUTTON, self.on_options_profile)
+        sizer.Add(self.options_profile_btn, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
+
         # User Accounts section
         accounts_label = wx.StaticText(panel, label="&User Accounts:")
         sizer.Add(accounts_label, 0, wx.LEFT | wx.TOP, 10)
@@ -518,7 +523,7 @@ class ServerEditorDialog(wx.Dialog):
         sizer.Add(self.cert_btn, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
 
         # Notes
-        notes_label = wx.StaticText(panel, label="N&otes:")
+        notes_label = wx.StaticText(panel, label="&Notes:")
         sizer.Add(notes_label, 0, wx.LEFT | wx.TOP, 10)
 
         notes_value = ""
@@ -548,10 +553,11 @@ class ServerEditorDialog(wx.Dialog):
         self.port_input.Bind(wx.EVT_KILL_FOCUS, self.on_field_change)
         self.notes_input.Bind(wx.EVT_KILL_FOCUS, self.on_field_change)
 
-        # Set focus - first account if editing existing server, otherwise name input
-        if self.server_id and self.accounts_list.GetCount() > 0:
-            self.accounts_list.SetSelection(0)
-            self.accounts_list.SetFocus()
+        # Set focus - options profile if editing existing server, otherwise name input
+        if self.server_id:
+            self.options_profile_btn.SetFocus()
+            if self.accounts_list.GetCount() > 0:
+                self.accounts_list.SetSelection(0)
         else:
             self.name_input.SetFocus()
 
@@ -600,6 +606,14 @@ class ServerEditorDialog(wx.Dialog):
         dlg = TrustedCertificateDialog(self, self.config_manager, self.server_id)
         dlg.ShowModal()
         dlg.Destroy()
+
+    def on_options_profile(self, event):
+        """Handle options profile button click."""
+        wx.MessageBox(
+            "Not implemented yet.",
+            "Options Profile",
+            wx.OK | wx.ICON_INFORMATION,
+        )
 
     def on_key(self, event):
         """Handle key events."""
@@ -839,6 +853,11 @@ class ServerManagerDialog(wx.Dialog):
 
         sizer.Add(button_sizer, 0, wx.ALL | wx.CENTER, 10)
 
+        # Default options profile button
+        self.default_options_btn = wx.Button(panel, label="Default &Options Profile")
+        self.default_options_btn.Bind(wx.EVT_BUTTON, self.on_default_options_profile)
+        sizer.Add(self.default_options_btn, 0, wx.LEFT | wx.RIGHT, 10)
+
         # Close button
         close_sizer = wx.BoxSizer(wx.HORIZONTAL)
         close_btn = wx.Button(panel, wx.ID_CANCEL, "&Close")
@@ -882,6 +901,14 @@ class ServerManagerDialog(wx.Dialog):
         if selection == wx.NOT_FOUND:
             return None
         return self._server_ids[selection]
+
+    def on_default_options_profile(self, event):
+        """Handle default options profile button click."""
+        wx.MessageBox(
+            "Not implemented yet.",
+            "Default Options Profile",
+            wx.OK | wx.ICON_INFORMATION,
+        )
 
     def on_key(self, event):
         """Handle key events."""
