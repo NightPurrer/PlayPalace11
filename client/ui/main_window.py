@@ -44,6 +44,25 @@ class UiPlatformConfig:
 class MainWindow(wx.Frame):
     """Main application window for Play Palace v9 client."""
 
+    _NAVIGATION_KEYS = {
+        wx.WXK_LEFT,
+        wx.WXK_RIGHT,
+        wx.WXK_UP,
+        wx.WXK_DOWN,
+        wx.WXK_NUMPAD_LEFT,
+        wx.WXK_NUMPAD_RIGHT,
+        wx.WXK_NUMPAD_UP,
+        wx.WXK_NUMPAD_DOWN,
+        wx.WXK_HOME,
+        wx.WXK_END,
+        wx.WXK_NUMPAD_HOME,
+        wx.WXK_NUMPAD_END,
+        wx.WXK_PAGEUP,
+        wx.WXK_PAGEDOWN,
+        wx.WXK_NUMPAD_PAGEUP,
+        wx.WXK_NUMPAD_PAGEDOWN,
+    }
+
     def __init__(self, credentials=None):
         """
         Initialize the main window.
@@ -113,6 +132,8 @@ class MainWindow(wx.Frame):
         self.current_menu_item_ids = []  # Track item IDs for current menu (parallel to menu items)
         self.current_edit_multiline = False  # Track if current editbox is multiline
         self.current_edit_read_only = False  # Track if current editbox is read-only
+        self._pending_edit_clear = False  # Clear single-line value on first printable key
+        self._pending_multiline_clear = False  # Clear multiline value on first printable key
 
         # Ping tracking
         self._ping_start_time = None  # Track when ping was sent
@@ -919,6 +940,7 @@ class MainWindow(wx.Frame):
             self.edit_input_multiline.SetEditable(not read_only)
             self.edit_input_multiline.SetFocus()
             self.current_edit_multiline = True
+            self._schedule_pending_clear(self.edit_input_multiline, True, default_value, read_only)
         else:
             self.edit_input_multiline.Hide()
             self.edit_input.Show()
@@ -927,6 +949,7 @@ class MainWindow(wx.Frame):
             self.edit_input.SetEditable(not read_only)
             self.edit_input.SetFocus()
             self.current_edit_multiline = False
+            self._schedule_pending_clear(self.edit_input, False, default_value, read_only)
 
         self.edit_label.Show()
 
@@ -953,6 +976,8 @@ class MainWindow(wx.Frame):
 
         self.current_mode = "list"
         self.edit_mode_callback = None
+        self._pending_edit_clear = False
+        self._pending_multiline_clear = False
 
     def on_edit_enter(self, event):
         """Handle Enter key in edit mode input."""
@@ -982,6 +1007,19 @@ class MainWindow(wx.Frame):
             self.switch_to_list_mode()
             return  # Don't process the Escape key
 
+        if key_code in self._NAVIGATION_KEYS or event.ShiftDown() or event.ControlDown() or event.AltDown() or event.MetaDown():
+            self._pending_edit_clear = False
+            event.Skip()
+            return
+
+        if (
+            self._pending_edit_clear
+            and self._should_clear_on_char_event(event, key_code)
+            and not self.current_edit_read_only
+        ):
+            self.edit_input.Clear()
+            self._pending_edit_clear = False
+
         # Only play typing sounds for printable characters (not Enter, Backspace, etc.)
         # Don't play if read-only or if user has disabled typing sounds
         if 32 <= key_code <= 126:  # Printable ASCII range
@@ -1009,6 +1047,19 @@ class MainWindow(wx.Frame):
                 self.edit_mode_callback("")
             self.switch_to_list_mode()
             return  # Don't process the Escape key
+
+        if key_code in self._NAVIGATION_KEYS or event.ShiftDown() or event.ControlDown() or event.AltDown() or event.MetaDown():
+            self._pending_multiline_clear = False
+            event.Skip()
+            return
+
+        if (
+            self._pending_multiline_clear
+            and self._should_clear_on_char_event(event, key_code)
+            and not self.current_edit_read_only
+        ):
+            self.edit_input_multiline.Clear()
+            self._pending_multiline_clear = False
 
         # Check for Enter key
         if key_code == wx.WXK_RETURN:
@@ -1058,6 +1109,33 @@ class MainWindow(wx.Frame):
 
         # Allow all other keys (including plain Enter for newlines in editable mode)
         event.Skip()
+
+    def _schedule_pending_clear(self, ctrl, multiline: bool, default_value: str, read_only: bool) -> None:
+        should_select = bool(default_value) and not read_only and ctrl.IsEnabled()
+        if multiline:
+            self._pending_edit_clear = False
+            self._pending_multiline_clear = should_select
+        else:
+            self._pending_multiline_clear = False
+            self._pending_edit_clear = should_select
+
+        if should_select:
+            wx.CallAfter(self._select_all_text, ctrl)
+
+    @staticmethod
+    def _select_all_text(ctrl) -> None:
+        if not ctrl:
+            return
+        length = ctrl.GetLastPosition()
+        ctrl.SetSelection(0, length)
+
+    @staticmethod
+    def _should_clear_on_char_event(event, key_code: int) -> bool:
+        if not (32 <= key_code <= 126):
+            return False
+        if event.ControlDown() or event.AltDown() or event.MetaDown():
+            return False
+        return True
 
     # Sound and music methods (for server calls via CallAfter)
 
