@@ -78,6 +78,7 @@ const menuView = createMenuView({
   },
 });
 let pendingInlineInput = null;
+let focusMenuOnNextMenuPacket = false;
 
 let network = null;
 
@@ -182,7 +183,8 @@ function submitInlineInput(text) {
     input_id: pendingInlineInput.input_id,
     text,
   });
-  closeInlineInput({ returnFocus: true });
+  focusMenuOnNextMenuPacket = true;
+  closeInlineInput({ returnFocus: false });
 }
 
 function showInlineInput(packet) {
@@ -335,6 +337,12 @@ function handlePacket(packet) {
         gridEnabled: packet.grid_enabled ?? false,
         gridWidth: packet.grid_width ?? 1,
       });
+      if (focusMenuOnNextMenuPacket) {
+        focusMenuOnNextMenuPacket = false;
+        requestAnimationFrame(() => {
+          elements.menuList.focus();
+        });
+      }
       break;
     }
     case "speak": {
