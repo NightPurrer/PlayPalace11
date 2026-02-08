@@ -433,8 +433,9 @@ function handlePacket(packet) {
       break;
     }
     case "menu": {
+      const previousMenu = store.state.currentMenu;
       const items = parseMenuItems(packet.items);
-      let selection = items.length > 0 ? 0 : 0;
+      let selection = 0;
 
       if (packet.selection_id) {
         const byId = items.findIndex((item) => item.id === packet.selection_id);
@@ -443,6 +444,30 @@ function handlePacket(packet) {
         }
       } else if (typeof packet.position === "number") {
         selection = Math.max(0, Math.min(items.length - 1, packet.position));
+      } else if (items.length > 0 && previousMenu.menuId === packet.menu_id) {
+        const previousSelection = Math.max(
+          0,
+          Math.min(previousMenu.items.length - 1, previousMenu.selection)
+        );
+        const previousItem = previousMenu.items[previousSelection];
+
+        if (previousItem?.id !== null && previousItem?.id !== undefined) {
+          const byPreviousId = items.findIndex((item) => item.id === previousItem.id);
+          if (byPreviousId >= 0) {
+            selection = byPreviousId;
+          } else {
+            selection = Math.max(0, Math.min(items.length - 1, previousSelection));
+          }
+        } else if (previousItem?.text) {
+          const byPreviousText = items.findIndex((item) => item.text === previousItem.text);
+          if (byPreviousText >= 0) {
+            selection = byPreviousText;
+          } else {
+            selection = Math.max(0, Math.min(items.length - 1, previousSelection));
+          }
+        } else {
+          selection = Math.max(0, Math.min(items.length - 1, previousSelection));
+        }
       }
 
       store.setMenu({
