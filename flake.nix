@@ -15,75 +15,85 @@
           pkgs = import nixpkgs { inherit system; };
           python = pkgs.python311;
           pyPkgs = pkgs.python311Packages;
-          hatchVcs = pyPkgs."hatch-vcs";
 
-          mkSetuptools = { pname, version, srcPname ? pname, sha256, propagatedBuildInputs ? [], postPatch ? "" }:
-            pyPkgs.buildPythonPackage {
-              inherit pname version propagatedBuildInputs;
-              format = "setuptools";
-              inherit postPatch;
-              src = pkgs.fetchPypi {
-                pname = srcPname;
-                inherit version;
-                sha256 = sha256;
-              };
-              doCheck = false;
+          pypiSrc = { pname, version, sha256, srcPname ? pname }:
+            pkgs.fetchPypi {
+              pname = srcPname;
+              inherit version;
+              sha256 = sha256;
             };
 
-          mkPyproject = { pname, version, sha256, buildInputs ? [], propagatedBuildInputs ? [], srcPname ? pname }:
-            pyPkgs.buildPythonPackage {
-              inherit pname version propagatedBuildInputs;
-              pyproject = true;
-              build-system = buildInputs;
-              nativeBuildInputs = buildInputs;
-              src = pkgs.fetchPypi {
-                pname = srcPname;
-                inherit version;
-                sha256 = sha256;
-              };
-              pythonImportsCheck = [];
-              doCheck = false;
-            };
-
-          platform-utils = mkPyproject {
+          platform-utils = pyPkgs.buildPythonPackage {
             pname = "platform_utils";
             version = "1.6.0";
-            sha256 = "sha256-kg11Xhks6KzQllzoiEXFuO8UdFETs+THVvhzdKNeQbA=";
+            src = pypiSrc {
+              pname = "platform_utils";
+              version = "1.6.0";
+              sha256 = "sha256-kg11Xhks6KzQllzoiEXFuO8UdFETs+THVvhzdKNeQbA=";
+            };
             propagatedBuildInputs = [ pyPkgs.platformdirs ];
-            buildInputs = [ pyPkgs.hatchling ];
+            pyproject = true;
+            build-system = [ pyPkgs.hatchling ];
+            nativeBuildInputs = [ pyPkgs.hatchling ];
+            pythonImportsCheck = [];
+            doCheck = false;
           };
 
-          libloader = mkPyproject {
+          libloader = pyPkgs.buildPythonPackage {
             pname = "libloader";
             version = "1.4.3";
-            sha256 = "sha256-nFax7i6GbjFMNdEJXR47mcHHYuiaJ78myYvWXVj04YI=";
-            buildInputs = [ pyPkgs.hatchling ];
+            src = pypiSrc {
+              pname = "libloader";
+              version = "1.4.3";
+              sha256 = "sha256-nFax7i6GbjFMNdEJXR47mcHHYuiaJ78myYvWXVj04YI=";
+            };
+            pyproject = true;
+            build-system = [ pyPkgs.hatchling ];
+            nativeBuildInputs = [ pyPkgs.hatchling ];
+            pythonImportsCheck = [];
+            doCheck = false;
           };
 
-          accessible-output2 = mkSetuptools {
+          accessible-output2 = pyPkgs.buildPythonPackage {
             pname = "accessible-output2";
-            srcPname = "accessible_output2";
             version = "0.17";
-            sha256 = "sha256-WS2ij7u9U46B7NFyNqrvPFuGze6Pvz9vK4uBvOvZk4k=";
+            src = pypiSrc {
+              pname = "accessible_output2";
+              version = "0.17";
+              sha256 = "sha256-WS2ij7u9U46B7NFyNqrvPFuGze6Pvz9vK4uBvOvZk4k=";
+            };
             propagatedBuildInputs = [ libloader platform-utils ];
+            format = "setuptools";
+            doCheck = false;
           };
 
-          sound-lib = mkSetuptools {
+          sound-lib = pyPkgs.buildPythonPackage {
             pname = "sound-lib";
-            srcPname = "sound_lib";
             version = "0.83";
-            sha256 = "sha256-ysXjESGSz50TrIgP72+CyhNGtt7M+Asv+ha3t5ICHwQ=";
+            src = pypiSrc {
+              pname = "sound_lib";
+              version = "0.83";
+              sha256 = "sha256-ysXjESGSz50TrIgP72+CyhNGtt7M+Asv+ha3t5ICHwQ=";
+            };
             propagatedBuildInputs = [ libloader platform-utils ];
+            format = "setuptools";
+            doCheck = false;
           };
 
-          websockets = mkSetuptools {
+          websockets = pyPkgs.buildPythonPackage {
             pname = "websockets";
             version = "16.0";
-            sha256 = "sha256-X2JhpeVujVxCpEl7Nk6iTZTZVj6PvUTnisQIecYBebU=";
+            src = pypiSrc {
+              pname = "websockets";
+              version = "16.0";
+              sha256 = "sha256-X2JhpeVujVxCpEl7Nk6iTZTZVj6PvUTnisQIecYBebU=";
+            };
+            format = "setuptools";
             postPatch = ''
               substituteInPlace pyproject.toml \
                 --replace 'license = "BSD-3-Clause"' 'license = { text = "BSD-3-Clause" }'
             '';
+            doCheck = false;
           };
 
           pythonEnv = python.withPackages (ps: with ps; [
@@ -106,6 +116,8 @@
             pkgs.mkShell {
               name = "playpalace-devshell";
               packages = with pkgs; [
+                bashInteractive
+                glibcLocales
                 pythonEnv
                 uv
                 gcc
@@ -114,10 +126,13 @@
                 dbus
                 pulseaudio
                 espeak
-              ];
+              ] ++ runtimeLibs;
 
               buildInputs = runtimeLibs;
-              LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath runtimeLibs;
+
+              LOCALE_ARCHIVE = "${pkgs.glibcLocales}/lib/locale/locale-archive";
+              LANG = "C.UTF-8";
+              LC_ALL = "C.UTF-8";
 
               shellHook = ''
                 export UV_SYSTEM_PYTHON=1
