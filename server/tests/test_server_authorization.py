@@ -34,8 +34,8 @@ class DummyAuth:
         self.calls["authenticate"].append((username, password))
         return self.authenticate_result
 
-    def register(self, username, password):
-        self.calls["register"].append((username, password))
+    def register(self, username, password, locale="en"):
+        self.calls["register"].append((username, password, locale))
         return self.register_result
 
     def get_user(self, username):
@@ -90,7 +90,7 @@ async def test_authorize_registers_and_waits_for_approval(monkeypatch, server):
     await server._handle_authorize(client, packet)
 
     assert auth.calls["authenticate"] == [("newbie", "pw")]
-    assert auth.calls["register"] == [("newbie", "pw")]
+    assert auth.calls["register"] == [("newbie", "pw", "en")]
     assert notifications == [("account-request", "accountrequest.ogg")]
     assert client.authenticated and client.username == "newbie"
     assert sent_game_list == ["newbie"]
@@ -176,7 +176,7 @@ async def test_register_success_notifies_admins(server):
         "type": "speak",
         "text": "Registration successful! You can now log in with your credentials.",
     }
-    assert auth.calls["register"] == [("fresh", "pw")]
+    assert auth.calls["register"] == [("fresh", "pw", "en")]
     assert notifications == [("account-request", "accountrequest.ogg")]
 
 
@@ -194,7 +194,7 @@ async def test_register_rejects_duplicate_username(server):
         "type": "speak",
         "text": "Username already taken. Please choose a different username.",
     }
-    assert auth.calls["register"] == [("taken", "pw")]
+    assert auth.calls["register"] == [("taken", "pw", "en")]
 
 
 @pytest.mark.asyncio
@@ -302,6 +302,26 @@ max_message_bytes = 2048
     assert srv._password_min_length == 10
     assert srv._password_max_length == 42
     assert srv._ws_max_message_size == 2048
+
+
+@pytest.mark.asyncio
+async def test_register_uses_config_default_locale(tmp_path):
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(
+        """
+[localization]
+default_locale = "es"
+"""
+    )
+    srv = Server(db_path=str(tmp_path / "auth.db"), locales_dir="locales", config_path=config_path)
+    srv._db = SimpleNamespace(get_user_count=lambda: 0)
+    auth = DummyAuth(register_result=True)
+    srv._auth = auth
+    client = DummyClient()
+
+    await srv._handle_register(client, {"username": "nuevo", "password": "validpass"})
+
+    assert auth.calls["register"] == [("nuevo", "validpass", "es")]
 
 
 def test_network_max_size_defaults(tmp_path):

@@ -359,6 +359,35 @@ class Server(AdministrationMixin):
                 rate_cfg, "registration_window_seconds", self._registration_ip_window, minimum=1
             )
 
+    def _resolve_locale(self, requested_locale: Any | None) -> str:
+        """Resolve a locale code from client/config input.
+
+        Falls back to configured default locale, then "en" if needed.
+        """
+        available = Localization.get_available_languages(fallback="en")
+        available_codes = set(available.keys())
+
+        candidate = requested_locale if isinstance(requested_locale, str) else None
+        candidate = candidate.strip() if isinstance(candidate, str) else ""
+        if not candidate:
+            candidate = self._default_locale
+
+        if candidate in available_codes:
+            return candidate
+
+        candidate_lower = candidate.lower()
+        for code in available_codes:
+            if code.lower() == candidate_lower:
+                return code
+
+        for code, name in available.items():
+            if isinstance(name, str) and name.lower() == candidate_lower:
+                return code
+
+        if self._default_locale in available_codes:
+            return self._default_locale
+        return "en"
+
 
     def _validate_transport_security(self) -> None:
         """Validate TLS/insecure configuration and exit on invalid combos."""
@@ -827,7 +856,7 @@ class Server(AdministrationMixin):
         """
         username_raw = packet.get("username", "")
         password_raw = packet.get("password", "")
-        locale = packet.get("locale") or self._default_locale
+        locale = self._resolve_locale(packet.get("locale"))
 
         username, password, error = self._validate_credentials(username_raw, password_raw)
         if error:
@@ -898,7 +927,7 @@ class Server(AdministrationMixin):
 
         # Create network user with preferences and persistent UUID
         user_record = self._auth.get_user(username)
-        locale = user_record.locale if user_record else "en"
+        locale = self._resolve_locale(user_record.locale if user_record else None)
         user_uuid = user_record.uuid if user_record else None
         trust_level = user_record.trust_level if user_record else TrustLevel.USER
         is_approved = user_record.approved if user_record else False
@@ -1000,7 +1029,7 @@ class Server(AdministrationMixin):
         username_raw = packet.get("username", "")
         password_raw = packet.get("password", "")
         # email and bio are sent but not stored yet
-        locale = packet.get("locale") or self._default_locale
+        locale = self._resolve_locale(packet.get("locale"))
 
         username, password, error = self._validate_credentials(username_raw, password_raw)
         if error:
