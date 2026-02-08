@@ -7,8 +7,22 @@ import { createChat } from "./ui/chat.js";
 import { installKeybinds } from "./keybinds.js";
 import { createNetworkClient, loadPacketValidator } from "./network.js";
 
-const DEFAULT_SERVER_URL = "ws://127.0.0.1:8000";
 const REMEMBERED_USERNAME_KEY = "playpalace.web.remembered_username";
+
+function getDefaultServerUrl() {
+  const host = window.location.hostname;
+  const isLocalHost = host === "localhost" || host === "127.0.0.1" || host === "::1";
+  if (isLocalHost) {
+    return "ws://127.0.0.1:8000";
+  }
+
+  const isHttps = window.location.protocol === "https:";
+  const wsScheme = isHttps ? "wss" : "ws";
+  const port = window.location.port;
+  const isDefaultPort = (!isHttps && port === "80") || (isHttps && port === "443");
+  const portSuffix = port && !isDefaultPort ? `:${port}` : "";
+  return `${wsScheme}://${host}${portSuffix}`;
+}
 
 const elements = {
   loginDialog: document.getElementById("login-dialog"),
@@ -483,7 +497,7 @@ async function bootstrap() {
 
   elements.connectForm.addEventListener("submit", (event) => {
     event.preventDefault();
-    const serverUrl = DEFAULT_SERVER_URL;
+    const serverUrl = getDefaultServerUrl();
     const username = elements.username.value.trim();
     const password = elements.password.value;
 
