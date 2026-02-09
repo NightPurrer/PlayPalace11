@@ -129,7 +129,10 @@ export function createMenuView({
       if (!isCoarsePointer) {
         li.setAttribute("aria-selected", active ? "true" : "false");
       } else {
-        li.setAttribute("aria-current", active ? "true" : "false");
+        const button = li.querySelector("button");
+        if (button) {
+          button.setAttribute("aria-current", active ? "true" : "false");
+        }
       }
       li.classList.toggle("active", active);
     }
@@ -149,7 +152,7 @@ export function createMenuView({
     listEl.innerHTML = "";
     if (isCoarsePointer) {
       listEl.removeAttribute("role");
-      listEl.setAttribute("aria-label", "Menu");
+      listEl.removeAttribute("aria-label");
     } else {
       listEl.setAttribute("role", "listbox");
     }
@@ -158,28 +161,35 @@ export function createMenuView({
       li.id = currentOptionId(index);
       li.className = "menu-item";
       if (isCoarsePointer) {
-        li.setAttribute("role", "listitem");
+        li.setAttribute("role", "presentation");
       } else {
         li.setAttribute("role", "option");
       }
       li.dataset.index = String(index);
-      li.textContent = item.text;
-      li.addEventListener("click", () => {
-        if (isCoarsePointer) {
+      if (isCoarsePointer) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "menu-item-touch";
+        button.textContent = item.text;
+        button.addEventListener("click", () => {
           setSelection(index);
           activateSelection();
-          return;
-        }
-        const wasSelected = index === store.state.currentMenu.selection;
-        setSelection(index);
-        if (wasSelected) {
+        });
+        li.appendChild(button);
+      } else {
+        li.textContent = item.text;
+        li.addEventListener("click", () => {
+          const wasSelected = index === store.state.currentMenu.selection;
+          setSelection(index);
+          if (wasSelected) {
+            activateSelection();
+          }
+        });
+        li.addEventListener("dblclick", () => {
+          setSelection(index);
           activateSelection();
-        }
-      });
-      li.addEventListener("dblclick", () => {
-        setSelection(index);
-        activateSelection();
-      });
+        });
+      }
       listEl.appendChild(li);
     });
     applySelection(menu.selection);

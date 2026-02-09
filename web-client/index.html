@@ -83,6 +83,16 @@
         background: #e5f1fb;
         outline: 2px solid #93c5fd;
       }
+      .menu-item-touch {
+        width: 100%;
+        min-height: 44px;
+        padding: 8px;
+        text-align: left;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        color: var(--text);
+      }
       .history {
         border: 1px solid var(--border);
         border-radius: 8px;
@@ -125,7 +135,7 @@
     <main>
       <h1>PlayPalace V11 Web</h1>
 
-      <section class="panel" aria-label="Connection status">
+      <section class="panel">
         <div class="row">
           <button id="open-login-btn" type="button" class="secondary" tabindex="-1">Login/Reconnect</button>
           <button id="disconnect-btn" type="button" class="secondary" tabindex="-1">Disconnect</button>
@@ -134,9 +144,9 @@
       </section>
 
       <section id="game-shell" class="grid" hidden>
-        <section class="panel" aria-label="Menu">
+        <section class="panel">
           <h2>Game</h2>
-          <ul id="menu-list" class="menu-list" tabindex="0" role="listbox"></ul>
+          <ul id="menu-list" class="menu-list" tabindex="0"></ul>
           <section id="inline-input" class="panel" hidden style="margin-top: 8px;">
             <p id="inline-input-prompt" style="margin: 0 0 6px 0;"></p>
             <div class="row">
@@ -147,7 +157,7 @@
           </section>
         </section>
 
-        <section class="panel" aria-label="History and chat">
+        <section class="panel">
           <h2>History</h2>
           <textarea id="history" class="history" readonly tabindex="0" aria-label="History"></textarea>
 
