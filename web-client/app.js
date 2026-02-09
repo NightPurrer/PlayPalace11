@@ -349,6 +349,16 @@ function openLoginDialog() {
   elements.username.focus();
 }
 
+function installLoginKeyboardFlow() {
+  elements.username.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") {
+      return;
+    }
+    event.preventDefault();
+    elements.password.focus();
+  });
+}
+
 function closeLoginDialog() {
   if (elements.loginDialog.open) {
     elements.loginDialog.close();
@@ -755,6 +765,7 @@ async function bootstrap() {
   installAudioUnlock();
   installInGameTabTrap();
   installFocusHotkeys();
+  installLoginKeyboardFlow();
   installDialogTabTrap(elements.inputDialog, [
     elements.inputValue,
     elements.inputCancel,
