@@ -9,6 +9,7 @@ export function createMenuView({
   let renderVersion = 0;
   let lastStructureSnapshot = "";
   let lastSelection = -1;
+  const useActiveDescendant = !window.matchMedia("(pointer: coarse)").matches;
   let searchBuffer = "";
   let lastTypeTime = 0;
   const typeTimeoutSeconds = 0.15;
@@ -127,7 +128,7 @@ export function createMenuView({
       li.setAttribute("aria-selected", active ? "true" : "false");
       li.classList.toggle("active", active);
     }
-    if (menu.items.length > 0) {
+    if (useActiveDescendant && menu.items.length > 0) {
       listEl.setAttribute("aria-activedescendant", currentOptionId(boundedSelection));
     } else {
       listEl.removeAttribute("aria-activedescendant");
@@ -149,7 +150,11 @@ export function createMenuView({
       li.dataset.index = String(index);
       li.textContent = item.text;
       li.addEventListener("click", () => {
+        const wasSelected = index === store.state.currentMenu.selection;
         setSelection(index);
+        if (wasSelected) {
+          activateSelection();
+        }
       });
       li.addEventListener("dblclick", () => {
         setSelection(index);
