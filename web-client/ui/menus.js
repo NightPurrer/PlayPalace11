@@ -7,18 +7,18 @@ export function createMenuView({
   onBoundaryRepeat,
 }) {
   let renderVersion = 0;
-  let lastMenuSnapshot = "";
+  let lastStructureSnapshot = "";
+  let lastSelection = -1;
   let searchBuffer = "";
   let lastTypeTime = 0;
   const typeTimeoutSeconds = 0.15;
 
-  function menuSnapshot(menu) {
+  function menuStructureSnapshot(menu) {
     const itemsSnapshot = (menu.items || [])
       .map((item) => `${item?.id ?? ""}|${item?.text ?? ""}|${item?.sound ?? ""}`)
       .join("||");
     return [
       menu.menuId ?? "",
-      menu.selection ?? 0,
       menu.multiletterEnabled ? "1" : "0",
       menu.escapeBehavior ?? "",
       menu.gridEnabled ? "1" : "0",
@@ -117,22 +117,35 @@ export function createMenuView({
     onActivate(item, menu.selection);
   }
 
-  function render() {
+  function applySelection(selectionIndex) {
+    const menu = store.state.currentMenu;
+    const boundedSelection = Math.max(0, Math.min(menu.items.length - 1, selectionIndex));
+    const children = listEl.children;
+    for (let i = 0; i < children.length; i += 1) {
+      const li = children[i];
+      const active = i === boundedSelection;
+      li.setAttribute("aria-selected", active ? "true" : "false");
+      li.classList.toggle("active", active);
+    }
+    if (menu.items.length > 0) {
+      listEl.setAttribute("aria-activedescendant", currentOptionId(boundedSelection));
+    } else {
+      listEl.removeAttribute("aria-activedescendant");
+    }
+    lastSelection = boundedSelection;
+  }
+
+  function renderFull() {
     const menu = store.state.currentMenu;
     renderVersion += 1;
     searchBuffer = "";
     lastTypeTime = 0;
     listEl.innerHTML = "";
-
     menu.items.forEach((item, index) => {
       const li = document.createElement("li");
       li.id = currentOptionId(index);
       li.className = "menu-item";
       li.setAttribute("role", "option");
-      li.setAttribute("aria-selected", index === menu.selection ? "true" : "false");
-      if (index === menu.selection) {
-        li.classList.add("active");
-      }
       li.dataset.index = String(index);
       li.textContent = item.text;
       li.addEventListener("click", () => {
@@ -142,33 +155,37 @@ export function createMenuView({
         setSelection(index);
         activateSelection();
       });
+      li.addEventListener("pointerup", (event) => {
+        if (event.pointerType !== "touch") {
+          return;
+        }
+        event.preventDefault();
+        setSelection(index);
+        activateSelection();
+      });
       listEl.appendChild(li);
     });
-    if (menu.items.length > 0) {
-      listEl.setAttribute(
-        "aria-activedescendant",
-        currentOptionId(Math.max(0, Math.min(menu.selection, menu.items.length - 1)))
-      );
-    } else {
-      listEl.removeAttribute("aria-activedescendant");
-    }
-
+    applySelection(menu.selection);
   }
 
   listEl.addEventListener("focus", () => {
-    render();
+    applySelection(store.state.currentMenu.selection);
   });
 
   store.subscribe(() => {
-    const nextSnapshot = menuSnapshot(store.state.currentMenu);
-    if (nextSnapshot === lastMenuSnapshot) {
+    const menu = store.state.currentMenu;
+    const nextStructureSnapshot = menuStructureSnapshot(menu);
+    if (nextStructureSnapshot !== lastStructureSnapshot) {
+      lastStructureSnapshot = nextStructureSnapshot;
+      renderFull();
       return;
     }
-    lastMenuSnapshot = nextSnapshot;
-    render();
+    if (menu.selection !== lastSelection) {
+      applySelection(menu.selection);
+    }
   });
-  lastMenuSnapshot = menuSnapshot(store.state.currentMenu);
-  render();
+  lastStructureSnapshot = menuStructureSnapshot(store.state.currentMenu);
+  renderFull();
 
   return {
     setSelection,
