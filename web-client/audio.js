@@ -51,6 +51,7 @@ export function createAudioEngine(options = {}) {
   const pendingEffectPackets = [];
   const MAX_PENDING_EFFECTS = 24;
   const activeEffects = new Set();
+  let muted = false;
 
   if (context) {
     effectsGain = context.createGain();
@@ -79,6 +80,7 @@ export function createAudioEngine(options = {}) {
   }
 
   function safePlay(audio, { onRejected } = {}) {
+    audio.muted = muted;
     try {
       const maybePromise = audio.play();
       if (maybePromise && typeof maybePromise.catch === "function") {
@@ -131,6 +133,7 @@ export function createAudioEngine(options = {}) {
     }
 
     const audio = createAudioElement(url);
+    audio.muted = muted;
     audio.preload = "auto";
     audio.volume = Math.max(0, Math.min(1, (packet.volume ?? 100) / 100));
     audio.playbackRate = Math.max(0.5, Math.min(2, (packet.pitch ?? 100) / 100));
@@ -191,6 +194,7 @@ export function createAudioEngine(options = {}) {
     stopMusic();
 
     const audio = createAudioElement(url);
+    audio.muted = muted;
     audio.preload = "auto";
     audio.loop = looping;
     audio.volume = 1.0;
@@ -280,6 +284,7 @@ export function createAudioEngine(options = {}) {
     stopAmbience();
 
     const loopAudio = createAudioElement(toSoundUrl(loopName, soundBaseUrl));
+    loopAudio.muted = muted;
     loopAudio.preload = "auto";
     loopAudio.loop = true;
     loopAudio.volume = 1.0;
@@ -306,6 +311,7 @@ export function createAudioEngine(options = {}) {
 
     if (introName) {
       const introAudio = createAudioElement(toSoundUrl(introName, soundBaseUrl));
+      introAudio.muted = muted;
       introAudio.preload = "auto";
       introAudio.loop = false;
       introAudio.volume = 1.0;
@@ -376,6 +382,26 @@ export function createAudioEngine(options = {}) {
     return bounded;
   }
 
+  function setMuted(nextMuted) {
+    muted = Boolean(nextMuted);
+    if (currentMusic) {
+      currentMusic.muted = muted;
+    }
+    if (currentAmbience) {
+      currentAmbience.muted = muted;
+    }
+    if (currentAmbienceLoop) {
+      currentAmbienceLoop.muted = muted;
+    }
+    for (const effect of activeEffects) {
+      effect.muted = muted;
+    }
+  }
+
+  function isMuted() {
+    return muted;
+  }
+
   function getMusicVolumePercent() {
     if (musicGain) {
       return Math.round(musicGain.gain.value * 100);
@@ -422,6 +448,8 @@ export function createAudioEngine(options = {}) {
     setAmbienceVolumePercent,
     getMusicVolumePercent,
     getAmbienceVolumePercent,
+    setMuted,
+    isMuted,
     retryPendingPlayback,
   };
 }

@@ -10,6 +10,7 @@ import { createNetworkClient, loadPacketValidator } from "./network.js";
 const REMEMBERED_USERNAME_KEY = "playpalace.web.remembered_username";
 const MUSIC_VOLUME_KEY = "playpalace.web.music_volume";
 const AMBIENCE_VOLUME_KEY = "playpalace.web.ambience_volume";
+const AUDIO_MUTED_KEY = "playpalace.web.audio_muted";
 const DEFAULT_MUSIC_VOLUME = 20;
 const DEFAULT_AMBIENCE_VOLUME = 100;
 const DEFAULT_APP_VERSION = "2026.02.08.1";
@@ -84,6 +85,26 @@ function saveStoredPercent(key, value) {
   }
 }
 
+function loadStoredBool(key, fallback = false) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw === null) {
+      return fallback;
+    }
+    return raw === "1" || raw === "true";
+  } catch {
+    return fallback;
+  }
+}
+
+function saveStoredBool(key, value) {
+  try {
+    localStorage.setItem(key, value ? "1" : "0");
+  } catch {
+    // Ignore persistence failures.
+  }
+}
+
 const elements = {
   loginDialog: document.getElementById("login-dialog"),
   gameShell: document.getElementById("game-shell"),
@@ -99,6 +120,7 @@ const elements = {
   musicVolumeValue: document.getElementById("music-volume-value"),
   ambienceVolume: document.getElementById("ambience-volume"),
   ambienceVolumeValue: document.getElementById("ambience-volume-value"),
+  audioMute: document.getElementById("audio-mute"),
 
   menuList: document.getElementById("menu-list"),
   inlineInput: document.getElementById("inline-input"),
@@ -143,6 +165,7 @@ const audio = createAudioEngine({
 });
 audio.setMusicVolumePercent(loadStoredPercent(MUSIC_VOLUME_KEY, DEFAULT_MUSIC_VOLUME));
 audio.setAmbienceVolumePercent(loadStoredPercent(AMBIENCE_VOLUME_KEY, DEFAULT_AMBIENCE_VOLUME));
+audio.setMuted(loadStoredBool(AUDIO_MUTED_KEY, false));
 
 const historyView = createHistoryView({
   store,
@@ -207,6 +230,9 @@ function renderVolumeControls() {
   }
   if (elements.ambienceVolumeValue) {
     elements.ambienceVolumeValue.textContent = `${ambience}%`;
+  }
+  if (elements.audioMute) {
+    elements.audioMute.checked = audio.isMuted();
   }
 }
 
@@ -847,6 +873,12 @@ async function bootstrap() {
     const value = event.target?.value ?? "0";
     setAmbienceVolumePercent(value, { announce: false });
     await audio.unlock();
+  });
+  elements.audioMute?.addEventListener("change", (event) => {
+    const nextMuted = Boolean(event.target?.checked);
+    audio.setMuted(nextMuted);
+    saveStoredBool(AUDIO_MUTED_KEY, nextMuted);
+    a11y.announce(nextMuted ? "Audio muted" : "Audio unmuted", { assertive: true });
   });
 
   elements.menuList.addEventListener("click", () => {
