@@ -1,6 +1,7 @@
 """Main window for Play Palace v9 client."""
 
 import wx
+import logging
 from .menu_list import MenuList
 from .login_dialog import LoginDialog
 import accessible_output2.outputs.auto as auto_output
@@ -18,6 +19,7 @@ from network_manager import NetworkManager
 from buffer_system import BufferSystem
 from config_manager import set_item_in_dict
 
+LOG = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class UiPlatformConfig:
@@ -552,149 +554,166 @@ class MainWindow(wx.Frame):
             # Also use accessible_output2 as backup
             try:
                 self.speaker.speak(text, interrupt=True)
-            except:
-                pass
+            except (AttributeError, RuntimeError) as exc:
+                LOG.debug("Failed to announce menu selection: %s", exc)
 
     def on_char_hook(self, event):
         """Handle character input for game keypresses."""
-
         key_code = event.GetKeyCode()
-        focused = wx.Window.FindFocus()
+        if self._handle_edit_mode_char(event, key_code):
+            return
+        if not self._should_handle_menu_key(event):
+            return
+        if self._handle_escape_behavior(event, key_code):
+            return
 
-        # Handle edit mode specially
-        if self.current_mode == "edit":
-            # Handle Escape key - dismiss edit field
-            if key_code == wx.WXK_ESCAPE:
-                if self.edit_mode_callback:
-                    self.edit_mode_callback("")
-                self.switch_to_list_mode()
-                return  # Event handled, don't skip
-
-            # Let the event continue to the text control
-            # Typing sounds are handled by on_edit_char and on_edit_multiline_char
+        key_name = self._map_keybind_name(event, key_code)
+        if not key_name:
             event.Skip()
             return
 
-        # Only process keybinds when menu list has focus
-        # All other controls (chat, history) get normal keyboard handling
+        if self._send_keybind_if_allowed(event, key_name):
+            return
+
+        event.Skip()
+
+    def _handle_edit_mode_char(self, event, key_code: int) -> bool:
+        """Handle key presses while in edit mode."""
+        if self.current_mode != "edit":
+            return False
+        if key_code == wx.WXK_ESCAPE:
+            if self.edit_mode_callback:
+                self.edit_mode_callback("")
+            self.switch_to_list_mode()
+            return True
+        event.Skip()
+        return True
+
+    def _should_handle_menu_key(self, event) -> bool:
+        """Return True if menu list has focus; otherwise allow default handling."""
+        focused = wx.Window.FindFocus()
         if focused != self.menu_list:
             event.Skip()
-            return
+            return False
+        return True
 
-        # Get modifiers
-        modifiers = event.GetModifiers()
+    def _handle_escape_behavior(self, event, key_code: int) -> bool:
+        """Handle escape/backspace behaviors that bypass normal keybind flow."""
+        if key_code not in (wx.WXK_ESCAPE, wx.WXK_BACK):
+            return False
+        if key_code == wx.WXK_BACK and self.current_menu_id == "main_menu":
+            event.Skip()
+            return True
+        if self.escape_behavior == "select_last_option":
+            if self.current_mode == "list" and self.connected:
+                item_count = self.menu_list.GetCount()
+                if item_count > 0:
+                    if self.sound_manager:
+                        self.sound_manager.play_menuenter()
+                    packet = {
+                        "type": "menu",
+                        "menu_id": self.current_menu_id,
+                        "selection": item_count,
+                    }
+                    last_index = item_count - 1
+                    if 0 <= last_index < len(self.current_menu_item_ids):
+                        item_id = self.current_menu_item_ids[last_index]
+                        if item_id is not None:
+                            packet["selection_id"] = item_id
+                    self.network.send_packet(packet)
+            return True
+        if self.escape_behavior == "escape_event":
+            if self.connected:
+                self.network.send_packet(
+                    {"type": "escape", "menu_id": self.current_menu_id}
+                )
+            return True
+        return False
 
-        # Map key codes to key names for the server
-        key_name = None
-
-        # Handle arrow keys - only send as keybinds if menu is empty
+    def _map_keybind_name(self, event, key_code: int) -> str | None:
+        """Map wx key codes to server keybind names."""
         menu_is_empty = self.menu_list.GetCount() == 0
-        if key_code == wx.WXK_UP:
-            if menu_is_empty:
-                key_name = "up"
-            else:
-                event.Skip()
-                return
-        elif key_code == wx.WXK_DOWN:
-            if menu_is_empty:
-                key_name = "down"
-            else:
-                event.Skip()
-                return
-        elif key_code == wx.WXK_LEFT:
-            if menu_is_empty:
-                key_name = "left"
-            else:
-                event.Skip()
-                return
-        elif key_code == wx.WXK_RIGHT:
-            if menu_is_empty:
-                key_name = "right"
-            else:
-                event.Skip()
-                return
-        # Handle function keys
-        elif key_code == wx.WXK_F1:
-            key_name = "f1"
-        elif key_code == wx.WXK_F2:
-            # F2 is handled by accelerator table for online list
-            # Don't send to server, let it bubble up to the accelerator
-            event.Skip()
-            return
-        elif key_code == wx.WXK_F3:
-            key_name = "f3"
-        elif key_code == wx.WXK_F4:
-            # F4 is handled by accelerator table for buffer mute
-            # Don't send to server, let it bubble up to the accelerator
-            event.Skip()
-            return
-        elif key_code == wx.WXK_F5:
-            key_name = "f5"
-        elif key_code == wx.WXK_ESCAPE or key_code == wx.WXK_BACK:
-            if key_code == wx.WXK_BACK and self.current_menu_id == "main_menu":
-                event.Skip()
-                return
-            # Handle escape based on current menu's escape_behavior
-            if self.escape_behavior == "select_last_option":
-                # Send selection for the last item without actually moving focus
-                if self.current_mode == "list" and self.connected:
-                    item_count = self.menu_list.GetCount()
-                    if item_count > 0:
-                        # Play menuenter sound like a normal activation
-                        if self.sound_manager:
-                            self.sound_manager.play_menuenter()
-                        # Build packet with selection (1-based index)
-                        packet = {
-                            "type": "menu",
-                            "menu_id": self.current_menu_id,
-                            "selection": item_count,
-                        }
-                        # Include selection_id for the last item if available
-                        last_index = item_count - 1  # 0-based for array access
-                        if 0 <= last_index < len(self.current_menu_item_ids):
-                            item_id = self.current_menu_item_ids[last_index]
-                            if item_id is not None:
-                                packet["selection_id"] = item_id
-                        self.network.send_packet(packet)
-                return
-            elif self.escape_behavior == "escape_event":
-                # Send explicit escape event to server
-                if self.connected:
-                    self.network.send_packet(
-                        {"type": "escape", "menu_id": self.current_menu_id}
-                    )
-                return
-            # else: "keybind" - fall through to send as normal keybind
-            key_name = "escape"
-        elif key_code == wx.WXK_SPACE:
-            key_name = "space"
-        elif key_code == wx.WXK_BACK:
-            key_name = "backspace"
-        elif key_code == wx.WXK_RETURN or key_code == wx.WXK_NUMPAD_ENTER:
-            # Only send Enter as keybind if modifiers are held
-            # Plain Enter should activate the menu (handled by MenuList)
-            if event.ControlDown() or event.ShiftDown() or event.AltDown():
-                key_name = "enter"
-        # Handle letter keys (case insensitive)
-        elif 65 <= key_code <= 90:  # A-Z
-            # Alt+P is handled by accelerator table for ping
-            if key_code == ord("P") and event.AltDown():
-                event.Skip()
-                return
-            key_name = chr(key_code).lower()
-        # Handle number keys
-        elif 48 <= key_code <= 57:  # 0-9
-            key_name = chr(key_code)
+        direction_key = self._map_direction_key(event, key_code, menu_is_empty)
+        if direction_key is not None:
+            return direction_key
 
-        # Extract modifier flags
+        function_key = self._map_function_key(event, key_code)
+        if function_key is not None:
+            return function_key
+
+        if key_code in (wx.WXK_ESCAPE, wx.WXK_BACK):
+            return "escape"
+        if key_code == wx.WXK_SPACE:
+            return "space"
+
+        enter_key = self._map_enter_key(event, key_code)
+        if enter_key is not None:
+            return enter_key
+
+        letter_key = self._map_letter_key(event, key_code)
+        if letter_key is not None:
+            return letter_key
+
+        number_key = self._map_number_key(key_code)
+        if number_key is not None:
+            return number_key
+
+        return None
+
+    def _map_direction_key(
+        self, event, key_code: int, menu_is_empty: bool
+    ) -> str | None:
+        key_map = {
+            wx.WXK_UP: "up",
+            wx.WXK_DOWN: "down",
+            wx.WXK_LEFT: "left",
+            wx.WXK_RIGHT: "right",
+        }
+        if key_code not in key_map:
+            return None
+        if menu_is_empty:
+            return key_map[key_code]
+        event.Skip()
+        return None
+
+    def _map_function_key(self, event, key_code: int) -> str | None:
+        key_map = {
+            wx.WXK_F1: "f1",
+            wx.WXK_F3: "f3",
+            wx.WXK_F5: "f5",
+        }
+        if key_code in (wx.WXK_F2, wx.WXK_F4):
+            event.Skip()
+            return None
+        return key_map.get(key_code)
+
+    def _map_enter_key(self, event, key_code: int) -> str | None:
+        if key_code not in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER):
+            return None
+        if event.ControlDown() or event.ShiftDown() or event.AltDown():
+            return "enter"
+        return None
+
+    def _map_letter_key(self, event, key_code: int) -> str | None:
+        if key_code < 65 or key_code > 90:
+            return None
+        if key_code == ord("P") and event.AltDown():
+            event.Skip()
+            return None
+        return chr(key_code).lower()
+
+    def _map_number_key(self, key_code: int) -> str | None:
+        if 48 <= key_code <= 57:
+            return chr(key_code)
+        return None
+
+    def _send_keybind_if_allowed(self, event, key_name: str) -> bool:
+        """Send a keybind packet when policy allows it."""
+        modifiers = event.GetModifiers()
         has_control = (modifiers & wx.MOD_CONTROL) != 0
         has_alt = (modifiers & wx.MOD_ALT) != 0
         has_shift = (modifiers & wx.MOD_SHIFT) != 0
 
-        # Send keybind event to server if we mapped it
-        # Don't send letter/number keys when multiletter nav is on (they do navigation)
-        # But DO send function keys, escape, space, backspace, and arrow keys (when menu is empty) always
-        # Note: F4 is excluded as it's handled by accelerator table for buffer mute
         is_function_key = key_name in [
             "f1",
             "f2",
@@ -710,7 +729,6 @@ class MainWindow(wx.Frame):
             "right",
         ]
 
-        # Send if: connected AND (is function key OR multiletter nav is off OR has modifiers)
         should_send = (
             key_name
             and self.connected
@@ -722,38 +740,33 @@ class MainWindow(wx.Frame):
                 or has_shift
             )
         )
+        if not should_send:
+            return False
 
-        if should_send:
-            # Get current menu context
-            menu_selection = self.menu_list.GetSelection()
-            if menu_selection == wx.NOT_FOUND:
-                menu_index = None
-                menu_item_id = None
+        menu_selection = self.menu_list.GetSelection()
+        if menu_selection == wx.NOT_FOUND:
+            menu_index = None
+            menu_item_id = None
+        else:
+            menu_index = menu_selection + 1
+            if 0 <= menu_selection < len(self.current_menu_item_ids):
+                menu_item_id = self.current_menu_item_ids[menu_selection]
             else:
-                menu_index = menu_selection + 1  # Convert to 1-based index for server
-                # Get item ID if available
-                if 0 <= menu_selection < len(self.current_menu_item_ids):
-                    menu_item_id = self.current_menu_item_ids[menu_selection]
-                else:
-                    menu_item_id = None
+                menu_item_id = None
 
-            self.network.send_packet(
-                {
-                    "type": "keybind",
-                    "key": key_name,
-                    "control": has_control,
-                    "alt": has_alt,
-                    "shift": has_shift,
-                    "menu_id": self.current_menu_id,
-                    "menu_index": menu_index,  # 1-based index, or None if nothing selected
-                    "menu_item_id": menu_item_id,  # Item ID, or None if not available
-                }
-            )
-            # Don't skip - we handled it
-            return
-
-        # Let other keys be processed normally (including Enter on menu)
-        event.Skip()
+        self.network.send_packet(
+            {
+                "type": "keybind",
+                "key": key_name,
+                "control": has_control,
+                "alt": has_alt,
+                "shift": has_shift,
+                "menu_id": self.current_menu_id,
+                "menu_index": menu_index,
+                "menu_item_id": menu_item_id,
+            }
+        )
+        return True
 
     def on_menu_activate(self, event):
         """Handle menu item activation (Enter/Space/Double-click)."""
@@ -897,8 +910,8 @@ class MainWindow(wx.Frame):
                 # Use interrupt=False to queue messages without interrupting
                 try:
                     self.speaker.speak(text, interrupt=False)
-                except Exception:
-                    pass
+                except (AttributeError, RuntimeError) as exc:
+                    LOG.debug("Failed to speak history text: %s", exc)
 
     # List/Edit mode switching methods
 
@@ -1028,9 +1041,9 @@ class MainWindow(wx.Frame):
             should_play = not self.current_edit_read_only and self.client_options.get(
                 "interface", {}
             ).get("play_typing_sounds", True)
-            if should_play:
+            if should_play:  # nosec B311
                 # Randomly pick typing1.ogg through typing4.ogg
-                sound_num = random.randint(1, 4)
+                sound_num = random.randint(1, 4)  # nosec B311
                 sound_name = f"typing{sound_num}.ogg"
                 self.sound_manager.play(sound_name, volume=0.5)
 
@@ -1057,9 +1070,9 @@ class MainWindow(wx.Frame):
             should_play = not self.current_edit_read_only and self.client_options.get(
                 "interface", {}
             ).get("play_typing_sounds", True)
-            if should_play:
+            if should_play:  # nosec B311
                 # Randomly pick typing1.ogg through typing4.ogg
-                sound_num = random.randint(1, 4)
+                sound_num = random.randint(1, 4)  # nosec B311
                 sound_name = f"typing{sound_num}.ogg"
                 self.sound_manager.play(sound_name, volume=0.5)
 
@@ -1300,8 +1313,8 @@ class MainWindow(wx.Frame):
             self.add_history(message, buffer_name="activity")
         try:
             self.speaker.speak(message, interrupt=False)
-        except Exception:
-            pass
+        except (AttributeError, RuntimeError) as exc:
+            LOG.debug("Failed to speak status message: %s", exc)
 
     def _schedule_reconnect_after(self, delay_seconds: int, announce_text: str):
         """Schedule a reconnect attempt after a delay."""
@@ -2210,6 +2223,5 @@ class MainWindow(wx.Frame):
         try:
             with open(preferences_file, "w") as f:
                 json.dump(preferences, f, indent=2)
-        except Exception:
-            # Silently fail if we can't save preferences
-            pass
+        except (OSError, TypeError, ValueError) as exc:
+            LOG.debug("Failed to save preferences: %s", exc)
