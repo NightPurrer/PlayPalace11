@@ -931,36 +931,102 @@ class Server(AdministrationMixin):
         if not user_record:
             await self._send_credential_error(client, "Account not found.")
             return
-        locale = user_record.locale if user_record else "en"
-        user_uuid = user_record.uuid if user_record else None
-        trust_level = user_record.trust_level if user_record else TrustLevel.USER
-        is_approved = user_record.approved if user_record else False
-        preferences = UserPreferences()
-        if user_record and user_record.preferences_json:
+        preferences = self._load_user_preferences(user_record)
+        user, is_new_login = await self._attach_or_update_user(
+            client, username, user_record, preferences
+        )
+
+        await self._send_login_success(
+            client,
+            username,
+            session_token=session_token,
+            session_expires_at=session_expires_at,
+            refresh_token=refresh_token,
+            refresh_expires_at=refresh_expires_at,
+            success_type=success_type,
+        )
+
+        # Send game list
+        await self._send_game_list(client)
+
+        # Check if user is banned
+        if await self._handle_banned_login(user):
+            return
+
+        # Check if user is approved
+        if self._handle_unapproved_login(user):
+            return
+
+        # Broadcast online announcement (only for approved, non-banned users) once per login
+        if is_new_login:
+            self._broadcast_login_presence(user)
+
+        # Notify admin of pending account approvals (excluding banned users)
+        if user.trust_level.value >= TrustLevel.ADMIN.value:
+            self._notify_pending_account_requests(user)
+
+        # Check if user is in a table
+        if not self._restore_login_table(user, username):
+            self._show_main_menu(user)
+
+    def _load_user_preferences(self, user_record: "AuthUserRecord") -> UserPreferences:
+        """Load stored preferences, falling back to defaults."""
+        if user_record.preferences_json:
             try:
                 prefs_data = json.loads(user_record.preferences_json)
-                preferences = UserPreferences.from_dict(prefs_data)
+                return UserPreferences.from_dict(prefs_data)
             except (json.JSONDecodeError, KeyError):
-                pass  # Use defaults on error
+                pass
+        return UserPreferences()
+
+    async def _attach_or_update_user(
+        self,
+        client: ClientConnection,
+        username: str,
+        user_record: "AuthUserRecord",
+        preferences: UserPreferences,
+    ) -> tuple[NetworkUser, bool]:
+        """Attach a connection to an existing user or create a new one."""
+        locale = user_record.locale or "en"
+        user_uuid = user_record.uuid
+        trust_level = user_record.trust_level or TrustLevel.USER
+        is_approved = user_record.approved
+
         existing_user = self._users.get(username)
         if existing_user:
             await self._handoff_existing_session(existing_user, client)
-            user = existing_user
-            user.set_locale(locale)
-            user.set_preferences(preferences)
-            user.set_trust_level(trust_level)
-            user.set_approved(is_approved)
-        else:
-            client.username = username
-            client.authenticated = True
-            user = NetworkUser(
-                username, locale, client, uuid=user_uuid, preferences=preferences,
-                trust_level=trust_level, approved=is_approved
-            )
-            self._users[username] = user
-        is_new_login = existing_user is None
+            existing_user.set_locale(locale)
+            existing_user.set_preferences(preferences)
+            existing_user.set_trust_level(trust_level)
+            existing_user.set_approved(is_approved)
+            return existing_user, False
 
-        # Send success response
+        client.username = username
+        client.authenticated = True
+        user = NetworkUser(
+            username,
+            locale,
+            client,
+            uuid=user_uuid,
+            preferences=preferences,
+            trust_level=trust_level,
+            approved=is_approved,
+        )
+        self._users[username] = user
+        return user, True
+
+    async def _send_login_success(
+        self,
+        client: ClientConnection,
+        username: str,
+        *,
+        session_token: str,
+        session_expires_at: int,
+        refresh_token: str,
+        refresh_expires_at: int,
+        success_type: str,
+    ) -> None:
+        """Send the login/refresh success packet."""
         payload = {
             "username": username,
             "session_token": session_token,
@@ -975,82 +1041,82 @@ class Server(AdministrationMixin):
         await client.send(payload)
         print(f"Client authorized: {username}@{client.address}")
 
-        # Send game list
-        await self._send_game_list(client)
+    async def _handle_banned_login(self, user: NetworkUser) -> bool:
+        """Handle disconnecting banned users."""
+        if user.trust_level != TrustLevel.BANNED:
+            return False
+        ban_message = Localization.get(user.locale, "account-banned")
+        user.play_sound("accountban.ogg")
+        user.speak_l("account-banned", buffer="activity")
+        for msg in user.get_queued_messages():
+            await user.connection.send(msg)
+        await user.connection.send({
+            "type": "disconnect",
+            "reconnect": False,
+            "show_message": True,
+            "message": ban_message,
+        })
+        return True
 
-        # Check if user is banned
-        if user.trust_level == TrustLevel.BANNED:
-            ban_message = Localization.get(user.locale, "account-banned")
-            user.play_sound("accountban.ogg")
-            user.speak_l("account-banned", buffer="activity")
-            for msg in user.get_queued_messages():
-                await user.connection.send(msg)
-            await user.connection.send({
-                "type": "disconnect",
-                "reconnect": False,
-                "show_message": True,
-                "message": ban_message,
-            })
+    def _handle_unapproved_login(self, user: NetworkUser) -> bool:
+        """Route unapproved users to the limited main menu."""
+        if user.approved:
+            return False
+        user.speak_l("waiting-for-approval", buffer="activity")
+        self._show_main_menu(user)
+        return True
+
+    def _broadcast_login_presence(self, user: NetworkUser) -> None:
+        """Broadcast login presence and role announcements."""
+        online_sound = (
+            "onlineadmin.ogg"
+            if user.trust_level.value >= TrustLevel.ADMIN.value
+            else "online.ogg"
+        )
+        self._broadcast_presence_l("user-online", user.username, online_sound)
+
+        if user.trust_level.value >= TrustLevel.SERVER_OWNER.value:
+            self._broadcast_server_owner_announcement(user.username)
+        elif user.trust_level.value >= TrustLevel.ADMIN.value:
+            self._broadcast_admin_announcement(user.username)
+
+    def _notify_pending_account_requests(self, user: NetworkUser) -> None:
+        """Notify admins about pending account approvals."""
+        pending_users = self._db.get_pending_users(exclude_banned=True)
+        if not pending_users:
             return
+        user.speak_l("account-request", buffer="activity")
+        user.play_sound("accountrequest.ogg")
 
-        # Check if user is approved
-        if not user.approved:
-            # User needs approval - show limited main menu
-            user.speak_l("waiting-for-approval", buffer="activity")
-            self._show_main_menu(user)
-            return
-
-        # Broadcast online announcement (only for approved, non-banned users) once per login
-        if is_new_login:
-            online_sound = "onlineadmin.ogg" if trust_level.value >= TrustLevel.ADMIN.value else "online.ogg"
-            self._broadcast_presence_l("user-online", username, online_sound)
-
-            # If user is server owner, announce that; otherwise if admin, announce that
-            if trust_level.value >= TrustLevel.SERVER_OWNER.value:
-                self._broadcast_server_owner_announcement(username)
-            elif trust_level.value >= TrustLevel.ADMIN.value:
-                self._broadcast_admin_announcement(username)
-
-        # Notify admin of pending account approvals (excluding banned users)
-        if trust_level.value >= TrustLevel.ADMIN.value:
-            pending_users = self._db.get_pending_users(exclude_banned=True)
-            if pending_users:
-                user.speak_l("account-request", buffer="activity")
-                user.play_sound("accountrequest.ogg")
-
-        # Check if user is in a table
+    def _restore_login_table(self, user: NetworkUser, username: str) -> bool:
+        """Attempt to restore a user into their existing table."""
         table = self._tables.find_user_table(username)
+        if not (table and table.game):
+            return False
 
-        if table and table.game:
-            # Rejoin table - use same approach as _restore_saved_table
-            game = table.game
+        game = table.game
+        table.attach_user(username, user)
+        table.add_member(username, user, as_spectator=False)
+        player = game.get_player_by_id(user.uuid)
+        if not player:
+            return True
 
-            # Attach user to table and game
-            table.attach_user(username, user)
-            table.add_member(username, user, as_spectator=False)
-            player = game.get_player_by_id(user.uuid)
-            if player:
-                was_bot = player.is_bot
-                if was_bot:
-                    player.is_bot = False
-                game.attach_user(player.id, user)
-                if was_bot:
-                    game.broadcast_l("player-took-over", player=user.username)
-                    game.broadcast_sound("join.ogg")
-                    game.rebuild_all_menus()
+        was_bot = player.is_bot
+        if was_bot:
+            player.is_bot = False
+        game.attach_user(player.id, user)
+        if was_bot:
+            game.broadcast_l("player-took-over", player=user.username)
+            game.broadcast_sound("join.ogg")
+            game.rebuild_all_menus()
 
-                # Set user state so menu selections are handled correctly
-                self._user_states[username] = {
-                    "menu": "in_game",
-                    "table_id": table.table_id,
-                }
-
-                # Rebuild menu for this player
-                game.rebuild_player_menu(player)
-                self._queue_transcript_replay(user, game, player.id)
-        else:
-            # Show main menu
-            self._show_main_menu(user)
+        self._user_states[username] = {
+            "menu": "in_game",
+            "table_id": table.table_id,
+        }
+        game.rebuild_player_menu(player)
+        self._queue_transcript_replay(user, game, player.id)
+        return True
 
     async def _handle_authorize(self, client: ClientConnection, packet: dict) -> None:
         """Authorize a client and attach a NetworkUser if successful.
