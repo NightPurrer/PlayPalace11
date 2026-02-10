@@ -847,13 +847,29 @@ class ConfigSharingDialog(wx.Dialog, audio_events.SoundBindingsMixin):
 
     def _execute_import(self):
         selected = self._get_selected_servers()
-        if not selected:
-            wx.MessageBox("No servers selected.", "Import", wx.OK | wx.ICON_INFORMATION, self)
+        if not self._validate_import_selection(selected):
             return
 
-        # Check if any server includes accounts
-        any_accounts = any(self._per_server_state[idx]["accounts"] for idx, _ in selected)
-        if any_accounts:
+        snapshot = copy.deepcopy(self.config_manager.identities)
+        description = self.imported_data.get("description", "")
+        timestamp = self.imported_data.get("timestamp", 0)
+        stats = {"new_servers": 0, "updated_servers": 0, "new_accounts": 0, "updated_accounts": 0, "skipped_accounts": 0}
+
+        try:
+            self._run_import(selected, description, timestamp, stats)
+            self.config_manager.save_identities()
+        except Exception as e:
+            self._rollback_import(snapshot, e)
+            return
+
+        self._show_import_summary(stats)
+        self.EndModal(wx.ID_OK)
+
+    def _validate_import_selection(self, selected) -> bool:
+        if not selected:
+            wx.MessageBox("No servers selected.", "Import", wx.OK | wx.ICON_INFORMATION, self)
+            return False
+        if self._has_selected_accounts(selected):
             result = wx.MessageBox(
                 "User accounts are included in this import. Are you sure you want to proceed?\n\n"
                 "Some servers will ban the account owner and anyone else who attempts to access the same account.",
@@ -862,11 +878,8 @@ class ConfigSharingDialog(wx.Dialog, audio_events.SoundBindingsMixin):
                 self,
             )
             if result != wx.YES:
-                return
-
-        # Check if any server includes options
-        any_options = any(self._per_server_state[idx]["options"] for idx, _ in selected)
-        if any_options:
+                return False
+        if self._has_selected_options(selected):
             result = wx.MessageBox(
                 "Option profiles will overwrite your existing settings. Do you want to proceed?",
                 "Import Warning",
@@ -874,40 +887,37 @@ class ConfigSharingDialog(wx.Dialog, audio_events.SoundBindingsMixin):
                 self,
             )
             if result != wx.YES:
-                return
+                return False
+        return True
 
-        # Snapshot for rollback
-        snapshot = copy.deepcopy(self.config_manager.identities)
-        description = self.imported_data.get("description", "")
-        timestamp = self.imported_data.get("timestamp", 0)
+    def _has_selected_accounts(self, selected) -> bool:
+        return any(self._per_server_state[idx]["accounts"] for idx, _ in selected)
 
-        stats = {"new_servers": 0, "updated_servers": 0, "new_accounts": 0, "updated_accounts": 0, "skipped_accounts": 0}
+    def _has_selected_options(self, selected) -> bool:
+        return any(self._per_server_state[idx]["options"] for idx, _ in selected)
 
-        try:
-            for idx, sdata in selected:
-                state = self._per_server_state[idx]
-                imp_server = sdata["server_dict"]
-                is_new = sdata["is_new"]
+    def _run_import(self, selected, description: str, timestamp: int, stats: dict) -> None:
+        for idx, sdata in selected:
+            state = self._per_server_state[idx]
+            imp_server = sdata["server_dict"]
+            is_new = sdata["is_new"]
 
-                if is_new:
-                    self._import_new_server(imp_server, state, description, timestamp, stats)
-                else:
-                    self._import_existing_server(sdata, state, description, timestamp, stats)
+            if is_new:
+                self._import_new_server(imp_server, state, description, timestamp, stats)
+            else:
+                self._import_existing_server(sdata, state, description, timestamp, stats)
 
-            self.config_manager.save_identities()
-        except Exception as e:
-            # Rollback
-            self.config_manager.identities = snapshot
-            self.config_manager.save_identities()
-            wx.MessageBox(
-                f"Import failed and changes were rolled back: {e}",
-                "Import Error",
-                wx.OK | wx.ICON_ERROR,
-                self,
-            )
-            return
+    def _rollback_import(self, snapshot, error: Exception) -> None:
+        self.config_manager.identities = snapshot
+        self.config_manager.save_identities()
+        wx.MessageBox(
+            f"Import failed and changes were rolled back: {error}",
+            "Import Error",
+            wx.OK | wx.ICON_ERROR,
+            self,
+        )
 
-        # Success summary
+    def _show_import_summary(self, stats: dict) -> None:
         parts = []
         if stats["new_servers"]:
             parts.append(f"{stats['new_servers']} new server{'s' if stats['new_servers'] != 1 else ''}")
@@ -922,7 +932,6 @@ class ConfigSharingDialog(wx.Dialog, audio_events.SoundBindingsMixin):
 
         summary = "Imported " + ", ".join(parts) + "." if parts else "No changes were made."
         wx.MessageBox(summary, "Import Complete", wx.OK | wx.ICON_INFORMATION, self)
-        self.EndModal(wx.ID_OK)
 
     def _import_new_server(self, imp_server: dict, state: dict, description: str, timestamp: int, stats: dict):
         """Import a completely new server."""
