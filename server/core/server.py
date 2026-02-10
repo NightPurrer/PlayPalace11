@@ -259,6 +259,10 @@ class Server(AdministrationMixin):
 
         protocol = "wss" if self._ssl_cert else "ws"
         print(f"Server running on {protocol}://{self.host}:{self.port}")
+        if self.host == "127.0.0.1":
+            print("Bind IP is 127.0.0.1, use 0.0.0.0 to allow connections on all interfaces.")
+        elif self.host == "0.0.0.0":
+            print("Bind IP is 0.0.0.0, use 127.0.0.1 to limit to local connections.")
         self._start_localization_warmup()
         self._lifecycle.resolve_gate(STARTUP_GATE_ID)
 
@@ -3528,7 +3532,7 @@ class Server(AdministrationMixin):
 
 
 async def run_server(
-    host: str = "::",
+    host: str | None = None,
     port: int = 8000,
     ssl_cert: str | Path | None = None,
     ssl_key: str | Path | None = None,
@@ -3694,6 +3698,14 @@ async def run_server(
         except RuntimeError as exc:
             print(f"ERROR: {exc}", file=sys.stderr)
             raise SystemExit(1) from exc
+
+    if host is None:
+        server_config = load_server_config(config_path)
+        bind_ip = server_config.get("bind_ip")
+        if isinstance(bind_ip, str) and bind_ip.strip():
+            host = bind_ip.strip()
+        else:
+            host = "127.0.0.1"
 
     print(f"Starting PlayPalace v{VERSION} server...")
     server = Server(
