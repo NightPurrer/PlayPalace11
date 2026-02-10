@@ -1959,16 +1959,43 @@ class MainWindow(wx.Frame):
 
     def on_server_menu(self, packet):
         """Handle menu packet from server."""
+        menu_data = self._parse_menu_packet(packet)
+        items = menu_data["items"]
+        item_ids = menu_data["item_ids"]
+        item_sounds = menu_data["item_sounds"]
+        menu_id = menu_data["menu_id"]
+        position = menu_data["position"]
+
+        if self._menu_state_is_unchanged(menu_data):
+            self._apply_menu_position(items, position)
+            return
+
+        self._apply_menu_settings(menu_data)
+        is_same_menu_id = self.current_menu_id == menu_id
+        self._prepare_menu_mode(menu_id)
+        old_item_ids = getattr(self, "current_menu_item_ids", [])
+        self.current_menu_item_ids = item_ids
+
+        if not is_same_menu_id:
+            self._rebuild_menu(items, position)
+        elif self.menu_list.GetCount() > 0:
+            self._apply_menu_diff_update(items, item_ids, old_item_ids, position)
+        else:
+            self._rebuild_menu(items, position)
+
+        self._update_menu_sounds(item_sounds)
+
+    def _parse_menu_packet(self, packet: dict) -> dict:
+        """Parse menu packet into structured data."""
         items_raw = packet.get("items", [])
         menu_id = packet.get("menu_id", None)
         multiletter_enabled = packet.get("multiletter_enabled", True)
         escape_behavior = packet.get("escape_behavior", "keybind")
-        position = packet.get("position", None)  # Optional position to move to
-        selection_id = packet.get("selection_id", None)  # Optional item ID to focus
+        position = packet.get("position", None)
+        selection_id = packet.get("selection_id", None)
         grid_enabled = packet.get("grid_enabled", False)
         grid_width = packet.get("grid_width", 1)
 
-        # Parse items - can be strings or objects with {text, id}
         items = []
         item_ids = []
         item_sounds = []
@@ -1982,135 +2009,96 @@ class MainWindow(wx.Frame):
                 item_ids.append(None)
                 item_sounds.append(None)
 
-        # Save old item IDs before updating (for diff algorithm)
-        old_item_ids = getattr(self, 'current_menu_item_ids', [])
-
-        # Store item IDs for later use
-        self.current_menu_item_ids = item_ids
-
-        # Convert selection_id to position if provided
         if selection_id is not None and position is None:
             try:
                 position = item_ids.index(selection_id)
             except ValueError:
-                pass  # ID not found, ignore
+                pass
 
-        # Handle menus even if empty (items could be [])
-        # Check if this menu is identical to the previous one
-        new_menu_state = {
-            "menu_id": menu_id,
+        return {
             "items": items,
+            "item_ids": item_ids,
             "item_sounds": item_sounds,
+            "menu_id": menu_id,
             "multiletter_enabled": multiletter_enabled,
             "escape_behavior": escape_behavior,
             "grid_enabled": grid_enabled,
             "grid_width": grid_width,
+            "position": position,
         }
 
+    def _menu_state_is_unchanged(self, menu_data: dict) -> bool:
+        new_menu_state = {
+            "menu_id": menu_data["menu_id"],
+            "items": menu_data["items"],
+            "item_sounds": menu_data["item_sounds"],
+            "multiletter_enabled": menu_data["multiletter_enabled"],
+            "escape_behavior": menu_data["escape_behavior"],
+            "grid_enabled": menu_data["grid_enabled"],
+            "grid_width": menu_data["grid_width"],
+        }
         if self.current_menu_state == new_menu_state:
-            # Menu is identical - skip wx update to avoid confusing screen readers
-            # However, if position is specified, we should still move to it
-            if position is not None and len(items) > 0:
-                if 0 <= position < len(items):
-                    self.menu_list.SetSelection(position)
-            return
-
-        # Store new menu state for future comparisons
+            return True
         self.current_menu_state = new_menu_state
+        return False
 
-        # Set multiletter navigation for this menu
-        self.set_multiletter_navigation(multiletter_enabled)
+    def _apply_menu_settings(self, menu_data: dict) -> None:
+        self.set_multiletter_navigation(menu_data["multiletter_enabled"])
+        self.set_grid_mode(menu_data["grid_enabled"], menu_data["grid_width"])
+        self.escape_behavior = menu_data["escape_behavior"]
 
-        # Set grid mode for this menu
-        self.set_grid_mode(grid_enabled, grid_width)
-
-        # Set escape behavior for this menu
-        self.escape_behavior = escape_behavior
-
-        # Make sure we're in list mode
+    def _prepare_menu_mode(self, menu_id) -> None:
         if self.current_mode == "edit":
             self.switch_to_list_mode()
-
-        # Check if this is the same menu or a different one
-        is_same_menu_id = self.current_menu_id == menu_id
-
-        # Store the menu_id so we can send it back with selections
         self.current_menu_id = menu_id
 
-        # Different menu ID → always clear and rebuild (don't bother with diff)
-        if not is_same_menu_id:
-            self.menu_list.Clear()
-            for item in items:
-                self.menu_list.Append(item)
+    def _apply_menu_position(self, items: list[str], position: int | None) -> None:
+        if position is not None and len(items) > 0 and 0 <= position < len(items):
+            self.menu_list.SetSelection(position)
 
-            # Set focus first to make sure list is active
-            focused = wx.Window.FindFocus()
-            if focused != self.chat_input and focused != self.history_text:
-                self.menu_list.SetFocus()
+    def _set_menu_focus(self) -> None:
+        focused = wx.Window.FindFocus()
+        if focused != self.chat_input and focused != self.history_text:
+            self.menu_list.SetFocus()
 
-            # Set initial selection (use position if provided, otherwise 0)
-            if len(items) > 0:
-                if position is not None and 0 <= position < len(items):
-                    self.menu_list.SetSelection(position)
-                else:
-                    self.menu_list.SetSelection(0)
+    def _rebuild_menu(self, items: list[str], position: int | None) -> None:
+        self.menu_list.Clear()
+        for item in items:
+            self.menu_list.Append(item)
+        self._set_menu_focus()
+        if len(items) > 0:
+            if position is not None and 0 <= position < len(items):
+                self.menu_list.SetSelection(position)
+            else:
+                self.menu_list.SetSelection(0)
 
-        # Update client data (sounds)
-        # Moved to end of function to ensure menu items exist
+    def _apply_menu_diff_update(
+        self,
+        items: list[str],
+        item_ids: list[str | None],
+        old_item_ids: list[str | None],
+        position: int | None,
+    ) -> None:
+        old_items = [
+            self.menu_list.GetString(i) for i in range(self.menu_list.GetCount())
+        ]
+        old_selection = self.menu_list.GetSelection()
+        operations = self.compute_menu_diff(old_items, items, old_item_ids, item_ids)
+        new_selection = self.apply_menu_diff(operations, old_selection)
 
-        # Same menu ID → use diff algorithm to minimize screen reader disruption
-        elif self.menu_list.GetCount() > 0:
-            # Get current menu items
-            old_items = [
-                self.menu_list.GetString(i) for i in range(self.menu_list.GetCount())
-            ]
-
-            # Preserve current selection
-            old_selection = self.menu_list.GetSelection()
-
-            # Compute minimal diff (pass IDs if available for simpler algorithm)
-            operations = self.compute_menu_diff(old_items, items, old_item_ids, item_ids)
-
-            # Apply diff operations (screen reader friendly)
-            new_selection = self.apply_menu_diff(operations, old_selection)
-
-            # Override selection if position is explicitly provided
-            if position is not None and len(items) > 0:
-                if 0 <= position < len(items):
-                    new_selection = position
-                    # Force selection update when position is explicitly provided
+        if position is not None and len(items) > 0 and 0 <= position < len(items):
+            new_selection = position
+            self.menu_list.SetSelection(new_selection)
+        elif len(items) > 0:
+            current_selection = self.menu_list.GetSelection()
+            if new_selection != wx.NOT_FOUND:
+                if current_selection != new_selection:
                     self.menu_list.SetSelection(new_selection)
-            # Set selection after diff operations
-            elif len(items) > 0:
-                # Check if an item is actually selected and if it matches our target
-                current_selection = self.menu_list.GetSelection()
-                if new_selection != wx.NOT_FOUND:
-                    # Only call SetSelection if nothing is selected or wrong item is selected
-                    if current_selection != new_selection:
-                        self.menu_list.SetSelection(new_selection)
-                else:
-                    # No valid selection computed, default to 0 if nothing selected
-                    if current_selection == wx.NOT_FOUND:
-                        self.menu_list.SetSelection(0)
-        else:
-            # Same menu ID but list is empty - full rebuild
-            self.menu_list.Clear()
-            for item in items:
-                self.menu_list.Append(item)
-
-            # Set focus first to make sure list is active
-            focused = wx.Window.FindFocus()
-            if focused != self.chat_input and focused != self.history_text:
-                self.menu_list.SetFocus()
-
-            # Set initial selection (use position if provided, otherwise 0)
-            if len(items) > 0:
-                if position is not None and 0 <= position < len(items):
-                    self.menu_list.SetSelection(position)
-                else:
+            else:
+                if current_selection == wx.NOT_FOUND:
                     self.menu_list.SetSelection(0)
 
-        # Update client data (sounds) - ensure we update ALL items after any changes
+    def _update_menu_sounds(self, item_sounds: list[str | None]) -> None:
         for i, sound in enumerate(item_sounds):
             if i < self.menu_list.GetCount():
                 if sound:
