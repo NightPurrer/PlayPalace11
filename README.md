@@ -29,13 +29,23 @@ Once inside the shell, use the helper scripts under `scripts/` (documented below
 
 ### Running the Server
 
+PlayPalace always reads configuration from `server/config.toml`. On a fresh clone, copy the template once and edit it to suit your environment. See [Server Configuration](#server-configuration) for descriptions of each knob.
+
 ```bash
 cd server
+cp config.example.toml config.toml  # first run only
+```
+
+TLS is required unless you explicitly allow plaintext websockets. For production, leave `[network].allow_insecure_ws = false` and pass `--ssl-cert/--ssl-key`. For trusted local development, set `allow_insecure_ws = true` in `config.toml` so you can run without certificates.
+
+After the config is in place, install dependencies and launch the server:
+
+```bash
 uv sync
 uv run python main.py
 ```
 
-To run a local server with the default configuration, you can launch the "run_server.bat" file as a shortcut.
+You can also double-click `run_server.bat` (Windows) or use the `run_server.sh` helper in the repo root as shortcuts.
 
 The server starts on port 8000 by default. Use `--help` to see all options:
 
@@ -48,8 +58,9 @@ Common options:
 - `--host HOST` - Host address (default: 0.0.0.0)
 - `--ssl-cert PATH` - SSL certificate for WSS (secure WebSocket)
 - `--ssl-key PATH` - SSL private key for WSS
+- `--preload-locales` - Block startup until every Fluent bundle compiles, instead of warming them in the background.
 
-If running for the first time, you will be prompted for a username/password to create the first owner account. The default config file will also be copied.
+On the first launch, the server copies `config.example.toml` to `config.toml`, prints a reminder to edit it, and exits so you can review the settings. When a config file exists but the database is empty, the server (only when attached to a TTY) prompts you to create the initial owner account; in headless environments, run `uv run python -m server.cli bootstrap-owner --username <name>` instead.
 
 ### Running with SSL/WSS (Secure WebSocket)
 
@@ -105,7 +116,7 @@ PlayPalace now enforces TLS hostname and certificate verification for all `wss:/
 
 ### Server Configuration
 
-Copy `server/config.example.toml` to `server/config.toml` to tweak runtime behavior. Alongside the existing `[virtual_bots]` settings, the `[auth]` section lets you clamp username and password lengths that the server will accept:
+After the first server launch creates `server/config.toml`, edit that file (or re-copy `config.example.toml` if you need a fresh baseline) to adjust behavior. Alongside the existing `[virtual_bots]` settings, the `[auth]` section lets you clamp username and password lengths that the server will accept:
 
 ```toml
 [auth]
@@ -115,9 +126,13 @@ password_min_length = 8
 password_max_length = 128
 
 [auth.rate_limits]
-login_per_minute = 
+login_per_minute = 5
 login_failures_per_minute = 3
 registration_per_minute = 2
+# Optional sliding-window overrides (defaults: 60s each)
+# login_window_seconds = 60
+# login_failure_window_seconds = 60
+# registration_window_seconds = 60
 ```
 
 If the `[auth]` table is omitted, PlayPalace falls back to the defaults shown above. Adjust these values to match your policies (for example, force longer passwords on public deployments).
@@ -132,58 +147,26 @@ allow_insecure_ws = false      # force TLS by default
 
 Values are in bytes and map directly to the `max_size` setting used by the underlying websockets server.
 Set `allow_insecure_ws` to `true` only for trusted development setups where TLS certificates are unavailable; the server will refuse to start without TLS when this flag is `false`, and it will print a loud warning whenever it runs in plaintext mode.
+You cannot combine `allow_insecure_ws = true` with `--ssl-cert/--ssl-key`; pick either plaintext development mode or full TLS.
 `[auth.rate_limits]` caps how many login attempts each IP can make per minute, how many failed attempts a specific username can accrue, and how many registrations are allowed per minute from the same IP. Setting any of the limits to `0` disables that particular throttle.
 
 #### Guided Virtual Bots
 
-The `[virtual_bots]` section now supports deterministic "guided tables" for staging named bot groups into specific games:
+The `server/core/virtual_bots.py` manager reads the `[virtual_bots]` block to run deterministic “guided tables” that stage named bot groups into specific games.
 
-- `fallback_behavior` controls whether unassigned bots continue using the legacy probabilistic matchmaking (`"default"`) or stay offline until a guided rule needs them (`"disabled"`). `allocation_mode` (`"best_effort"` vs `"strict"`) dictates what happens when there aren't enough tagged bots to meet every `min_bots` target.
-- `[virtual_bots.profiles.<name>]` let you override any timing/behavior knob (idle/online/offline windows, join/create/offline probabilities, logout delays, plus the new `min_bots_per_table`, `max_bots_per_table`, and `waiting_*` guards) per persona—e.g., `host`, `patron`, `mixer`.
-- `[virtual_bots.bot_groups.<tag>]` enumerates which bot usernames belong to each tag and optionally pins them to a profile. Guided tables refer to these tags instead of raw names, so you can reassign bots without editing every rule.
-- `[[virtual_bots.guided_tables]]` entries describe each "channel": set the unique `table` label, the single allowed `game`, deterministic `priority`, desired bot counts (`min_bots`/`max_bots`), and the `bot_groups` allowed to fill the seats. Optional `profile` overrides force all bots in that rule to adopt one profile, and optional `cycle_ticks` + `active_ticks = [start, end]` windows provide tick-based scheduling without referencing wall-clock time.
-- Server owners can review the live guided-table plan from the admin → Virtual Bots menu: **Guided Tables** shows rule health (active, shortages, current table IDs), **Bot Groups** lists inventory per tag, and **Profiles** dumps the effective overrides so you can audit behavior without opening `config.toml`.
+##### Profiles
+Define `[virtual_bots.profiles.<name>]` to override any timing/behavior knob (idle/online/offline windows, join/create/offline probabilities, logout delays, plus `min_bots_per_table`, `max_bots_per_table`, and `waiting_*` guards) per persona—e.g., `host`, `patron`, `mixer`. Unspecified fields inherit from the top-level `[virtual_bots]` block.
 
-See `server/config.example.toml` for a complete annotated sample that keeps four bots glued to a Crazy Eights table while rotating a mixer profile across a Scopa lounge during half of each scheduling cycle.
+##### Bot Groups
+Use `[virtual_bots.bot_groups.<tag>]` to enumerate bot usernames and optionally pin them to a profile. Guided tables reference these tags instead of raw usernames so you can reshuffle bots without editing every rule.
 
-#### Example: Single-Game Stress Test With Bots
+##### Guided Tables
+Each `[[virtual_bots.guided_tables]]` entry describes a “channel”: set the unique `table` label, the allowed `game`, deterministic `priority`, desired seat counts (`min_bots`/`max_bots`), and the `bot_groups` allowed to fill the seats. Optional `profile` overrides force all bots in that rule to adopt one profile, and optional `cycle_ticks` plus `active_ticks = [start, end]` windows provide tick-based scheduling with no wall-clock dependency. `fallback_behavior` controls whether unassigned bots keep using probabilistic matchmaking (`"default"`) or stay offline until a guided slot needs them (`"disabled"`). `allocation_mode` (`"best_effort"` vs `"strict"`) dictates what happens when the bot pool cannot satisfy all `min_bots` requirements.
 
-To hammer a single game with an always-on crew of bots (useful for load testing rules, UI, or translations), drop a minimal config like this into `server/config.toml`:
+##### Admin Monitoring
+Server owners can review the live guided-table plan from the admin → Virtual Bots menu: **Guided Tables** shows rule health (active, shortages, current table IDs), **Bot Groups** lists inventory per tag, and **Profiles** dumps the effective overrides so you can audit behavior without opening `config.toml`.
 
-```toml
-[virtual_bots]
-names = ["Alex", "Jordan", "Taylor", "Morgan"]
-min_idle_ticks = 20      # 1s
-max_idle_ticks = 60      # 3s
-min_online_ticks = 1000000
-max_online_ticks = 1000000
-go_offline_chance = 0.0
-logout_after_game_chance = 0.0
-max_tables_per_game = 1
-fallback_behavior = "disabled"
-
-[virtual_bots.profiles.default]
-min_bots_per_table = 0
-max_bots_per_table = 4
-
-[virtual_bots.bot_groups.all_bots]
-bots = ["Alex", "Jordan", "Taylor", "Morgan"]
-
-[[virtual_bots.guided_tables]]
-table = "Crazy Table"
-game = "crazyeights"
-bot_groups = ["all_bots"]
-min_bots = 4
-max_bots = 4
-priority = 10
-```
-
-Key behaviors:
-- Bots make a decision every 1–3 seconds and never voluntarily log off, so the lobby and table stay hot.
-- `max_tables_per_game = 1` plus a single guided-table entry pins every bot to Crazy Eights; nothing else can spawn.
-- `fallback_behavior = "disabled"` keeps any unassigned bots offline, eliminating random tables when testing.
-
-This setup is ideal when you want to observe repeated starts/finishes of one game (e.g., Crazy Eights) without human supervision.
+See `server/config.example.toml` for an annotated sample, and refer to [Appendix A](#appendix-a-single-game-stress-test-with-bots) for a minimal stress-test configuration.
 
 ## Project Structure
 
@@ -240,16 +223,21 @@ Inside any of the dev shells you can run the server tests without remembering th
 ```
 
 Under the hood the script changes into `server/` and runs `uv run pytest`, ensuring the correct environment variables from the nix shell are honored.
+If you want to spawn the shell, run, and exit in one command, let nix wrap the helper:
+
+```bash
+nix --extra-experimental-features 'nix-command flakes' develop .#server --command ./scripts/nix_server_pytest.sh
+```
 
 ### Client tests inside `nix develop`
 
-Running the wxPython-based client tests under `nix develop` needs a small amount of extra Python tooling (pytest + pydantic). To make that repeatable, use the helper script below from the repo root:
+Running the wxPython-based client tests under `nix develop` needs a small amount of extra Python tooling (pytest, pydantic, jsonschema). To make that repeatable, use the helper script below from the repo root:
 
 ```bash
 nix --extra-experimental-features 'nix-command flakes' develop . --command ./scripts/nix_client_pytest.sh
 ```
 
-The script installs the required Python packages under `.nix-python/` (per-repo, not system-wide), exports the appropriate `PYTHONPATH`, and executes:
+Already inside `nix develop`, you can also call `./scripts/nix_client_pytest.sh` directly; the helper takes care of the rest either way. It installs the required Python packages under `.nix-python/` (per-repo, not system-wide), exports `PYTHONPATH` so that site-packages and `client/` itself are importable, and executes:
 
 ```
 client/tests/test_network_manager.py
@@ -293,6 +281,14 @@ uv run python -m server.cli bootstrap-owner --username admin
 ```
 
 The command prompts for a password (or accept `--password-file/--password-stdin`) and creates an approved `SERVER_OWNER` user. Passing `--force` lets you update an existing account’s password/trust level if you’re repairing a database.
+Verify the owner account with:
+
+```bash
+cd server
+uv run python -m server.cli list-users
+```
+
+Look for the `SERVER_OWNER` trust level in the output before exposing the port.
 
 When the server starts and finds zero users, it now prints a warning reminding you to run the bootstrap command. Automated test environments can silence the message by setting `PLAYPALACE_SUPPRESS_BOOTSTRAP_WARNING=1`, but this is not recommended for real deployments.
 
@@ -316,9 +312,11 @@ Note: many games are still works in progress.
 - **Left Right Center** - Dice-and-chip elimination game
 - **Age of Heroes** - Civilization-building card game (cities, monument, or last standing)
 
+Each implementation lives under `server/games/<game>/` (see `server/games/registry.py` for the registration map), so you can inspect or extend the rules directly in code after finding the title here.
+
 ## CLI Tool
 
-The server also includes a CLI for simulating games without running the full server. This is useful for testing and for AI agents. It does not supercede play tests, but works alongside them, and allows you to very quickly test specific scenarios.
+The server also includes a CLI (`server/cli.py`) for simulating games without running the full server. This is useful for testing and for AI agents. It does not supercede play tests, but works alongside them, and allows you to very quickly test specific scenarios.
 
 ```bash
 cd server
@@ -373,3 +371,42 @@ uv add --dev <package>
 ```
 
 When writing new games, look at existing implementations in `server/games/` for patterns. Pig is a good simple example. Scopa demonstrates card games with team support.
+
+## Appendix A: Single-Game Stress Test With Bots
+
+To hammer a single game with an always-on crew of bots (useful for load testing rules, UI, or translations), drop a minimal config like this into `server/config.toml`:
+
+```toml
+[virtual_bots]
+names = ["Alex", "Jordan", "Taylor", "Morgan"]
+min_idle_ticks = 20      # 1s
+max_idle_ticks = 60      # 3s
+min_online_ticks = 1000000
+max_online_ticks = 1000000
+go_offline_chance = 0.0
+logout_after_game_chance = 0.0
+max_tables_per_game = 1
+fallback_behavior = "disabled"
+
+[virtual_bots.profiles.default]
+min_bots_per_table = 0
+max_bots_per_table = 4
+
+[virtual_bots.bot_groups.all_bots]
+bots = ["Alex", "Jordan", "Taylor", "Morgan"]
+
+[[virtual_bots.guided_tables]]
+table = "Crazy Table"
+game = "crazyeights"
+bot_groups = ["all_bots"]
+min_bots = 4
+max_bots = 4
+priority = 10
+```
+
+Key behaviors:
+- Bots make a decision every 1–3 seconds and never voluntarily log off, so the lobby and table stay hot.
+- `max_tables_per_game = 1` plus a single guided-table entry pins every bot to Crazy Eights; nothing else can spawn.
+- `fallback_behavior = "disabled"` keeps any unassigned bots offline, eliminating random tables when testing.
+
+This setup is ideal when you want to observe repeated starts/finishes of one game (e.g., Crazy Eights) without human supervision.
