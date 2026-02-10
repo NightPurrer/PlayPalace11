@@ -1043,59 +1043,13 @@ class MainWindow(wx.Frame):
 
         key_code = event.GetKeyCode()
 
-        # Handle Escape key - send empty value
-        if key_code == wx.WXK_ESCAPE:
-            if self.edit_mode_callback:
-                self.edit_mode_callback("")
-            self.switch_to_list_mode()
-            return  # Don't process the Escape key
-
-        if key_code in self._NAVIGATION_KEYS or event.ShiftDown() or event.ControlDown() or event.AltDown() or event.MetaDown():
-            self._pending_multiline_clear = False
-            event.Skip()
+        if self._handle_multiline_escape(key_code):
             return
-
-        if (
-            self._pending_multiline_clear
-            and self._should_clear_on_char_event(event, key_code)
-            and not self.current_edit_read_only
-        ):
-            self.edit_input_multiline.Clear()
-            self._pending_multiline_clear = False
-
-        # Check for Enter key
-        if key_code == wx.WXK_RETURN:
-            # For read-only editboxes, plain Enter closes them
-            if self.current_edit_read_only:
-                text = self.edit_input_multiline.GetValue()
-                if self.edit_mode_callback:
-                    self.edit_mode_callback(text)
-                self.switch_to_list_mode()
-                return  # Don't process the Enter key
-
-            # For editable editboxes, behavior depends on invert_multiline_enter_behavior
-            if not self.client_options.get("interface", {}).get(
-                "invert_multiline_enter_behavior", False
-            ):
-                # Default behavior: Enter submits, Shift/Ctrl+Enter adds newline
-                if not event.ShiftDown() and not event.ControlDown():
-                    # Plain Enter submits
-                    text = self.edit_input_multiline.GetValue()
-                    if self.edit_mode_callback:
-                        self.edit_mode_callback(text)
-                    self.switch_to_list_mode()
-                    return  # Don't process the Enter key
-                # Shift/Ctrl+Enter adds newline (falls through to Skip())
-            else:
-                # Swapped behavior: Enter adds newline, Shift/Ctrl+Enter submits
-                if event.ShiftDown() or event.ControlDown():
-                    # Shift/Ctrl+Enter submits
-                    text = self.edit_input_multiline.GetValue()
-                    if self.edit_mode_callback:
-                        self.edit_mode_callback(text)
-                    self.switch_to_list_mode()
-                    return  # Don't process the Enter key
-                # Plain Enter adds newline (falls through to Skip())
+        if self._should_defer_multiline_to_default(event, key_code):
+            return
+        self._clear_multiline_pending_if_needed(event, key_code)
+        if self._handle_multiline_enter(event, key_code):
+            return
 
         # Play typing sounds for printable characters (not Enter, Backspace, etc.)
         # Don't play if read-only or if user has disabled typing sounds
@@ -1112,6 +1066,63 @@ class MainWindow(wx.Frame):
         # Allow all other keys (including plain Enter for newlines in editable mode)
         event.Skip()
 
+    def _handle_multiline_escape(self, key_code: int) -> bool:
+        if key_code != wx.WXK_ESCAPE:
+            return False
+        if self.edit_mode_callback:
+            self.edit_mode_callback("")
+        self.switch_to_list_mode()
+        return True
+
+    def _should_defer_multiline_to_default(self, event, key_code: int) -> bool:
+        if (
+            key_code in self._NAVIGATION_KEYS
+            or event.ShiftDown()
+            or event.ControlDown()
+            or event.AltDown()
+            or event.MetaDown()
+        ):
+            self._pending_multiline_clear = False
+            event.Skip()
+            return True
+        return False
+
+    def _clear_multiline_pending_if_needed(self, event, key_code: int) -> None:
+        if (
+            self._pending_multiline_clear
+            and self._should_clear_on_char_event(event, key_code)
+            and not self.current_edit_read_only
+        ):
+            self.edit_input_multiline.Clear()
+            self._pending_multiline_clear = False
+
+    def _handle_multiline_enter(self, event, key_code: int) -> bool:
+        if key_code != wx.WXK_RETURN:
+            return False
+        if self.current_edit_read_only:
+            text = self.edit_input_multiline.GetValue()
+            if self.edit_mode_callback:
+                self.edit_mode_callback(text)
+            self.switch_to_list_mode()
+            return True
+        invert = self.client_options.get("interface", {}).get(
+            "invert_multiline_enter_behavior", False
+        )
+        if not invert:
+            if not event.ShiftDown() and not event.ControlDown():
+                text = self.edit_input_multiline.GetValue()
+                if self.edit_mode_callback:
+                    self.edit_mode_callback(text)
+                self.switch_to_list_mode()
+                return True
+        else:
+            if event.ShiftDown() or event.ControlDown():
+                text = self.edit_input_multiline.GetValue()
+                if self.edit_mode_callback:
+                    self.edit_mode_callback(text)
+                self.switch_to_list_mode()
+                return True
+        return False
     def _schedule_pending_clear(self, ctrl, multiline: bool, default_value: str, read_only: bool) -> None:
         should_select = bool(default_value) and not read_only and ctrl.IsEnabled()
         if multiline:
