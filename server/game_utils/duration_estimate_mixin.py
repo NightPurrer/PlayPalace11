@@ -1,6 +1,6 @@
 """Mixin providing game duration estimation via simulation."""
 
-import subprocess
+import subprocess  # nosec B404
 import sys
 import json as json_module
 import threading
@@ -81,6 +81,7 @@ class DurationEstimateMixin:
                     capture_output=True,
                     text=True,
                     timeout=600,  # 10 minute timeout per simulation
+                    shell=False,
                 )
                 if result.returncode == 0 and result.stdout:
                     data = json_module.loads(result.stdout)
