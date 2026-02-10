@@ -11,6 +11,8 @@ export function createHistoryView({
   const bufferPositions = {};
   const isMobileLike = window.matchMedia("(pointer: coarse)").matches;
   let mobileCollapsed = false;
+  let renderedLogBuffer = "";
+  let renderedLogCount = 0;
 
   function ensureBufferPosition(bufferName) {
     if (!Object.hasOwn(bufferPositions, bufferName)) {
@@ -80,12 +82,26 @@ export function createHistoryView({
     historyEl.scrollTop = historyEl.scrollHeight;
 
     if (historyLogEl) {
-      historyLogEl.replaceChildren();
-      for (const line of lines) {
-        const row = document.createElement("p");
-        row.className = "history-line";
-        row.textContent = line;
-        historyLogEl.appendChild(row);
+      const needsRebuild = renderedLogBuffer !== bufferName || renderedLogCount > lines.length;
+      if (needsRebuild) {
+        historyLogEl.replaceChildren();
+        for (const line of lines) {
+          const row = document.createElement("p");
+          row.className = "history-line";
+          row.textContent = line;
+          historyLogEl.appendChild(row);
+        }
+        renderedLogBuffer = bufferName;
+        renderedLogCount = lines.length;
+      } else if (lines.length > renderedLogCount) {
+        for (let i = renderedLogCount; i < lines.length; i += 1) {
+          const row = document.createElement("p");
+          row.className = "history-line";
+          row.textContent = lines[i];
+          historyLogEl.appendChild(row);
+        }
+        renderedLogBuffer = bufferName;
+        renderedLogCount = lines.length;
       }
       historyLogEl.scrollTop = historyLogEl.scrollHeight;
     }
