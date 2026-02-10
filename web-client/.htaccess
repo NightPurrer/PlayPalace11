@@ -1,0 +1,9 @@
+<IfModule mod_headers.c>
+  # During active web-client iteration, prevent stale asset caches
+  # (especially iOS home-screen web app containers).
+  <FilesMatch "\.(html?|js|mjs|json|css|map|ogg|mp3|wav|png|jpe?g|gif|svg|ico|webp)$">
+    Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+  </FilesMatch>
+</IfModule>

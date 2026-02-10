@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PlayPalace Web Client</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main>
+      <h1>PlayPalace V11 Web</h1>
+
+      <section class="panel">
+        <div class="row">
+          <button id="open-login-btn" type="button" class="secondary" tabindex="-1">Login/Reconnect</button>
+          <button id="disconnect-btn" type="button" class="secondary" tabindex="-1">Disconnect</button>
+          <span id="status" class="status" role="text">Disconnected</span>
+        </div>
+        <div class="row volume-controls">
+          <label for="audio-mute">
+            Mute
+            <input id="audio-mute" type="checkbox" />
+          </label>
+          <label for="music-volume">
+            Music
+            <input id="music-volume" type="range" min="0" max="100" step="10" value="20" />
+            <span id="music-volume-value" class="status">20%</span>
+          </label>
+          <label for="ambience-volume">
+            Ambience
+            <input id="ambience-volume" type="range" min="0" max="100" step="10" value="100" />
+            <span id="ambience-volume-value" class="status">100%</span>
+          </label>
+        </div>
+      </section>
+
+      <section id="game-shell" class="grid" hidden>
+        <section class="panel">
+          <div class="row">
+            <h2>Game</h2>
+            <button id="actions-btn" class="secondary actions-btn" type="button" tabindex="-1">Actions</button>
+          </div>
+          <ul id="menu-list" class="menu-list" tabindex="0"></ul>
+          <section id="inline-input" class="panel" hidden style="margin-top: 8px;">
+            <p id="inline-input-prompt" style="margin: 0 0 6px 0;"></p>
+            <div class="row">
+              <input id="inline-input-value" type="text" style="flex: 1;" />
+              <button id="inline-input-submit" type="button" tabindex="-1">Submit</button>
+              <button id="inline-input-cancel" type="button" class="secondary" tabindex="-1">Cancel</button>
+            </div>
+          </section>
+        </section>
+
+        <section class="panel">
+          <div class="history-header">
+            <h2><button id="history-toggle" class="history-toggle-title" type="button" tabindex="-1" aria-expanded="true">History</button></h2>
+          </div>
+          <div id="history-content">
+            <textarea id="history" class="history" readonly tabindex="0" aria-label="History"></textarea>
+            <div
+              id="history-log"
+              class="history-log"
+              tabindex="0"
+              aria-label="History"
+              hidden
+            ></div>
+          </div>
+
+          <h2 style="margin-top: 10px;">Chat</h2>
+          <form id="chat-form" class="row" style="margin-top: 10px;">
+            <label>
+              Chat
+              <input id="chat-input" type="text" placeholder="Type message. Prefix with . for global." size="32" aria-label="Chat" />
+            </label>
+            <button type="submit" tabindex="-1">Send</button>
+          </form>
+        </section>
+      </section>
+
+      <dialog id="input-dialog">
+        <form method="dialog" id="input-dialog-form">
+          <p id="input-prompt"></p>
+          <input id="input-value" type="text" style="width: 100%;" />
+          <div class="row" style="justify-content: flex-end; margin-top: 10px;">
+            <button value="cancel" type="button" id="input-cancel" class="secondary">Cancel</button>
+            <button value="submit" type="submit" id="input-submit">Submit</button>
+          </div>
+        </form>
+      </dialog>
+
+      <dialog id="actions-dialog">
+        <div id="actions-dialog-form">
+          <p><strong>Actions</strong></p>
+          <ul id="actions-list" class="actions-list"></ul>
+          <div class="row" style="justify-content: flex-end; margin-top: 10px;">
+            <button value="cancel" type="button" id="actions-cancel" class="secondary">Close</button>
+          </div>
+        </div>
+      </dialog>
+
+      <dialog id="login-dialog">
+        <form id="connect-form" method="dialog">
+          <p><strong>Connect to PlayPalace</strong></p>
+          <p>Welcome to PlayPalace. Please log in, or choose a username and password below and an account will be created for you.</p>
+          <p id="login-error" class="status error" hidden></p>
+          <div style="display: grid; gap: 8px;">
+            <label>
+              Username
+              <input
+                id="username"
+                type="text"
+                required
+                autocomplete="username"
+                autocapitalize="none"
+                autocorrect="off"
+                spellcheck="false"
+                enterkeyhint="next"
+              />
+            </label>
+            <label>
+              Password
+              <div class="row">
+                <input
+                  id="password"
+                  type="password"
+                  required
+                  autocomplete="current-password"
+                  autocapitalize="none"
+                  autocorrect="off"
+                  spellcheck="false"
+                  enterkeyhint="go"
+                  style="flex: 1;"
+                />
+                <button id="toggle-password" type="button" class="secondary">Show password</button>
+              </div>
+            </label>
+            <label>
+              <input id="remember-me" type="checkbox" />
+              Remember username
+            </label>
+          </div>
+          <div class="row" style="justify-content: flex-end; margin-top: 10px;">
+            <button id="connect-btn" type="submit">Connect</button>
+          </div>
+        </form>
+      </dialog>
+
+      <div id="live-polite" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+      <div id="live-assertive" class="sr-only" aria-live="assertive" aria-atomic="true"></div>
+
+      <footer class="panel footer">
+        <small id="app-version" role="text">Version</small>
+      </footer>
+    </main>
+
+    <script>
+      (() => {
+        const cacheBust = `cb=${Date.now()}`;
+
+        function loadScript(src, { type = "text/javascript", optional = false } = {}) {
+          return new Promise((resolve, reject) => {
+            const script = document.createElement("script");
+            if (type === "module") {
+              script.type = "module";
+            }
+            script.src = src;
+            script.onload = () => resolve();
+            script.onerror = () => {
+              if (optional) {
+                resolve();
+              } else {
+                reject(new Error(`Failed to load script: ${src}`));
+              }
+            };
+            document.body.appendChild(script);
+          });
+        }
+
+        (async () => {
+          await loadScript(`./version.js?${cacheBust}`, { optional: true });
+          await loadScript(`./config.sample.js?${cacheBust}`, { optional: true });
+          await loadScript(`./config.js?${cacheBust}`, { optional: true });
+
+          const version = String(window.PLAYPALACE_WEB_VERSION || "2026.02.08.1").trim();
+          await loadScript(`./app.js?v=${encodeURIComponent(version)}&${cacheBust}`, {
+            type: "module",
+          });
+        })().catch((error) => {
+          // Keep failures visible for deployment debugging.
+          console.error(error);
+        });
+      })();
+    </script>
+  </body>
+</html>
