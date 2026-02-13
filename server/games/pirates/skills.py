@@ -185,7 +185,7 @@ class SailorsInstinctSkill(Skill):
         return True, None
 
     def do_action(self, game: "PiratesGame", player: "PiratesPlayer") -> str:
-        sound_num = random.randint(1, 2)
+        sound_num = random.randint(1, 2)  # nosec B311
         game.play_sound(f"game_pirates/instinct{sound_num}.ogg", volume=60)
 
         ocean_index = (player.position - 1) // 10
@@ -276,7 +276,7 @@ class GemSeekerSkill(Skill):
     def do_action(self, game: "PiratesGame", player: "PiratesPlayer") -> str:
         self.set_uses(player, self.get_uses(player) - 1)
 
-        sound_num = random.randint(1, 2)
+        sound_num = random.randint(1, 2)  # nosec B311
         game.play_sound(f"game_pirates/gemseeker{sound_num}.ogg", volume=60)
 
         from .gems import GEM_NAMES
@@ -332,7 +332,7 @@ class PushSkill(BuffSkill):
 
     def do_action(self, game: "PiratesGame", player: "PiratesPlayer") -> str:
         self.activate(player)
-        sound_num = random.randint(1, 2)
+        sound_num = random.randint(1, 2)  # nosec B311
         game.play_sound(f"game_pirates/push{sound_num}.ogg", volume=60)
 
         user = game.get_user(player)

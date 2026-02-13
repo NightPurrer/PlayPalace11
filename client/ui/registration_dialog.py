@@ -3,6 +3,7 @@
 import wx
 import json
 import asyncio
+import logging
 import threading
 import websockets
 import ssl
@@ -18,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from constants import USERNAME_LENGTH_HINT, PASSWORD_LENGTH_HINT
 from certificate_prompt import CertificatePromptDialog, CertificateInfo
 
+LOG = logging.getLogger(__name__)
 
 class RegistrationDialog(wx.Dialog):
     """Registration dialog for creating new accounts."""
@@ -223,8 +225,8 @@ class RegistrationDialog(wx.Dialog):
             finally:
                 try:
                     await ws.close()
-                except Exception:
-                    pass
+                except (OSError, RuntimeError, websockets.exceptions.ConnectionClosed) as exc:
+                    LOG.debug("Failed to close registration websocket: %s", exc)
 
         except asyncio.TimeoutError:
             return "Server did not respond in time"
@@ -311,8 +313,8 @@ class RegistrationDialog(wx.Dialog):
             if websocket:
                 try:
                     await websocket.close()
-                except Exception:
-                    pass
+                except (OSError, RuntimeError, websockets.exceptions.ConnectionClosed) as exc:
+                    LOG.debug("Failed to close TLS probe websocket: %s", exc)
 
     def _prompt_trust_decision(self, cert_info: CertificateInfo) -> bool:
         decision = {"trust": False}
@@ -392,39 +394,12 @@ class RegistrationDialog(wx.Dialog):
     def _build_certificate_info(
         self, cert_dict, fingerprint_hex: str, pem: str, host: str
     ) -> CertificateInfo:
-        cert_dict = cert_dict or {}
-        if pem and (not cert_dict or "notBefore" not in cert_dict or "notAfter" not in cert_dict):
-            decoded = self._decode_certificate_dict(pem)
-            if decoded:
-                merged = dict(decoded)
-                for key, value in cert_dict.items():
-                    if value:
-                        merged[key] = value
-                cert_dict = merged
-
-        subject = cert_dict.get("subject", [])
-        common_name = ""
-        for entry in subject:
-            for key, value in entry:
-                if key == "commonName":
-                    common_name = value
-        issuer = []
-        for entry in cert_dict.get("issuer", []):
-            issuer.append("=".join(entry_part[1] for entry_part in entry))
-        issuer_text = ", ".join(issuer) if issuer else "(unknown)"
-        sans = [
-            value for kind, value in cert_dict.get("subjectAltName", []) if kind == "DNS"
-        ]
-        matches = False
-        host_lower = (host or "").lower()
-        if host_lower:
-            if common_name.lower() == host_lower:
-                matches = True
-            elif any(san.lower() == host_lower for san in sans):
-                matches = True
-        display_fp = ":".join(
-            fingerprint_hex[i : i + 2] for i in range(0, len(fingerprint_hex), 2)
-        )
+        cert_dict = self._merge_certificate_dict(cert_dict, pem)
+        common_name = self._extract_common_name(cert_dict.get("subject", []))
+        issuer_text = self._format_issuer(cert_dict.get("issuer", []))
+        sans = self._extract_sans(cert_dict)
+        matches = self._host_matches(common_name, sans, host)
+        display_fp = self._format_fingerprint(fingerprint_hex)
         return CertificateInfo(
             host=host,
             common_name=common_name,
@@ -436,6 +411,53 @@ class RegistrationDialog(wx.Dialog):
             fingerprint_hex=fingerprint_hex,
             pem=pem,
             matches_host=matches,
+        )
+
+    def _merge_certificate_dict(self, cert_dict, pem: str) -> dict:
+        cert_dict = cert_dict or {}
+        if not pem or (cert_dict and "notBefore" in cert_dict and "notAfter" in cert_dict):
+            return cert_dict
+        decoded = self._decode_certificate_dict(pem)
+        if not decoded:
+            return cert_dict
+        merged = dict(decoded)
+        for key, value in cert_dict.items():
+            if value:
+                merged[key] = value
+        return merged
+
+    def _extract_common_name(self, subject) -> str:
+        for entry in subject:
+            for key, value in entry:
+                if key == "commonName":
+                    return value
+        return ""
+
+    def _format_issuer(self, issuer_entries) -> str:
+        issuer = [
+            "=".join(entry_part[1] for entry_part in entry)
+            for entry in issuer_entries
+        ]
+        return ", ".join(issuer) if issuer else "(unknown)"
+
+    def _extract_sans(self, cert_dict) -> list[str]:
+        return [
+            value
+            for kind, value in cert_dict.get("subjectAltName", [])
+            if kind == "DNS"
+        ]
+
+    def _host_matches(self, common_name: str, sans: list[str], host: str) -> bool:
+        host_lower = (host or "").lower()
+        if not host_lower:
+            return False
+        if common_name.lower() == host_lower:
+            return True
+        return any(san.lower() == host_lower for san in sans)
+
+    def _format_fingerprint(self, fingerprint_hex: str) -> str:
+        return ":".join(
+            fingerprint_hex[i : i + 2] for i in range(0, len(fingerprint_hex), 2)
         )
 
     def _get_server_host(self, server_url: str) -> str:

@@ -332,82 +332,33 @@ def check_and_execute_trades(game: AgeOfHeroesGame) -> bool:
     i = 0
     while i < len(game.trade_offers):
         offer1 = game.trade_offers[i]
-        if offer1.player_index >= len(active_players):
+        selection1 = _get_offer_selection(active_players, offer1)
+        if selection1 is None:
             i += 1
             continue
 
-        player1 = active_players[offer1.player_index]
-        if not hasattr(player1, "hand"):
-            i += 1
-            continue
-
-        if offer1.card_index >= len(player1.hand):
-            i += 1
-            continue
-
-        card1 = player1.hand[offer1.card_index]
+        player1, card1 = selection1
 
         j = i + 1
         while j < len(game.trade_offers):
             offer2 = game.trade_offers[j]
-            if offer2.player_index >= len(active_players):
-                j += 1
-                continue
             if offer2.player_index == offer1.player_index:
                 j += 1
                 continue
 
-            player2 = active_players[offer2.player_index]
-            if not hasattr(player2, "hand"):
+            selection2 = _get_offer_selection(active_players, offer2)
+            if selection2 is None:
                 j += 1
                 continue
 
-            if offer2.card_index >= len(player2.hand):
-                j += 1
-                continue
-
-            card2 = player2.hand[offer2.card_index]
+            player2, card2 = selection2
 
             # Check if offers match
             # offer1 wants what player2 offers, and offer2 wants what player1 offers
-            match1 = (
-                (offer1.wanted_type is None or offer1.wanted_type == card2.card_type)
-                and (offer1.wanted_subtype is None or offer1.wanted_subtype == card2.subtype)
-            )
-            match2 = (
-                (offer2.wanted_type is None or offer2.wanted_type == card1.card_type)
-                and (offer2.wanted_subtype is None or offer2.wanted_subtype == card1.subtype)
-            )
-
-            if match1 and match2:
-                # Check special resource restrictions
-                # Special resources can only go to the tribe that needs them
-                valid = True
-                if card1.card_type == CardType.SPECIAL:
-                    needed_by = None
-                    for tribe, special in TRIBE_SPECIAL_RESOURCE.items():
-                        if special == card1.subtype:
-                            needed_by = tribe
-                            break
-                    if needed_by and hasattr(player2, "tribe_state") and player2.tribe_state:
-                        if player2.tribe_state.tribe != needed_by:
-                            valid = False
-
-                if card2.card_type == CardType.SPECIAL:
-                    needed_by = None
-                    for tribe, special in TRIBE_SPECIAL_RESOURCE.items():
-                        if special == card2.subtype:
-                            needed_by = tribe
-                            break
-                    if needed_by and hasattr(player1, "tribe_state") and player1.tribe_state:
-                        if player1.tribe_state.tribe != needed_by:
-                            valid = False
-
-                if valid:
-                    # Execute the trade
+            if _offers_match(offer1, card2) and _offers_match(offer2, card1):
+                if _trade_is_valid(player1, card1, player2, card2):
                     execute_matched_trade(game, player1, offer1, player2, offer2)
                     trades_made = True
-                    # Restart search since indices changed
                     i = 0
                     break
 
@@ -418,6 +369,51 @@ def check_and_execute_trades(game: AgeOfHeroesGame) -> bool:
         break  # Restart outer loop after trade
 
     return trades_made
+
+
+def _get_offer_selection(
+    active_players: list[AgeOfHeroesPlayer],
+    offer: TradeOffer,
+) -> tuple[AgeOfHeroesPlayer, Card] | None:
+    if offer.player_index >= len(active_players):
+        return None
+    player = active_players[offer.player_index]
+    if not hasattr(player, "hand"):
+        return None
+    if offer.card_index >= len(player.hand):
+        return None
+    return player, player.hand[offer.card_index]
+
+
+def _offers_match(offer: TradeOffer, card: Card) -> bool:
+    return (
+        (offer.wanted_type is None or offer.wanted_type == card.card_type)
+        and (offer.wanted_subtype is None or offer.wanted_subtype == card.subtype)
+    )
+
+
+def _trade_is_valid(
+    player1: AgeOfHeroesPlayer,
+    card1: Card,
+    player2: AgeOfHeroesPlayer,
+    card2: Card,
+) -> bool:
+    return _special_resource_allows_transfer(player1, card2) and _special_resource_allows_transfer(player2, card1)
+
+
+def _special_resource_allows_transfer(player: AgeOfHeroesPlayer, card: Card) -> bool:
+    if card.card_type != CardType.SPECIAL:
+        return True
+    needed_by = None
+    for tribe, special in TRIBE_SPECIAL_RESOURCE.items():
+        if special == card.subtype:
+            needed_by = tribe
+            break
+    if not needed_by:
+        return True
+    if not hasattr(player, "tribe_state") or not player.tribe_state:
+        return True
+    return player.tribe_state.tribe == needed_by
 
 
 def execute_matched_trade(

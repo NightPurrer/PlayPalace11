@@ -73,89 +73,88 @@ def _bot_evaluate_card(
 
     # RS Games variant
     if is_rs_games:
-        if rank == 1:
-            # Ace: Always +1 in RS Games
-            return _bot_evaluate_count(game, player, current_count + 1, rank)
-        elif rank == 2:
-            # 2: Always +2 in RS Games
-            return _bot_evaluate_count(game, player, current_count + 2, rank)
-        elif 3 <= rank <= 9:
-            # Number cards 3-9
-            return _bot_evaluate_count(game, player, current_count + rank, rank)
-        elif rank == RS_RANK_PLUS_10:
-            # 10 card (always +10)
-            return _bot_evaluate_count(game, player, current_count + 10, rank)
-        elif rank == RS_RANK_MINUS_10:
-            # -10 card
-            return _bot_evaluate_count(game, player, current_count - 10, rank)
-        elif rank == RS_RANK_PASS:
-            # Pass (no change to count)
-            return _bot_evaluate_count(game, player, current_count, rank)
-        elif rank == RS_RANK_REVERSE:
-            # Reverse (no change to count)
-            return _bot_evaluate_count(game, player, current_count, rank)
-        elif rank == RS_RANK_SKIP:
-            # Skip (no change to count)
-            return _bot_evaluate_count(game, player, current_count, rank)
-        elif rank == RS_RANK_NINETY_NINE:
-            # Ninety Nine (sets count to 99)
-            return _bot_evaluate_count(game, player, 99, rank)
+        return _bot_eval_rs_card(game, player, current_count, rank)
 
     # Quentin C variant
     else:
-        if rank == 1:
-            # Ace: Try both +1 and +11
-            score_plus_11 = _bot_evaluate_count(game, player, current_count + 11, rank)
-            score_plus_1 = _bot_evaluate_count(game, player, current_count + 1, rank)
-            return max(score_plus_11, score_plus_1)
-
-        elif rank == 10 and current_count < 90:
-            # 10: Try both +10 and -10
-            score_plus = _bot_evaluate_count(game, player, current_count + 10, rank)
-            score_minus = _bot_evaluate_count(game, player, current_count - 10, rank)
-            return max(score_plus, score_minus)
-
-        elif rank == 2:
-            # 2: Calculate multiply/divide effect
-            new_count = _calculate_two_effect(current_count)
-            return _bot_evaluate_count(game, player, new_count, rank)
-
-        elif rank == 9:
-            # 9: No change to count
-            return _bot_evaluate_count(game, player, current_count, rank)
-
-        elif rank == 11 and len(game.alive_players) == 2:
-            # Jack in 2-player: evaluate the chain (skip = play again)
-            # Only worth doing lookahead if we have Jacks
-            jack_count = sum(1 for c in player.hand if c.rank == 11)
-            if jack_count >= 1:
-                new_count = current_count + 10
-                if new_count > 99:
-                    return -99999
-                # Check for milestone pass-through on this first Jack
-                if current_count < 33 < new_count:
-                    return -8000  # Passing through 33
-                if current_count < 66 < new_count:
-                    return -8000  # Passing through 66
-                remaining_hand = [c for c in player.hand if c is not card]
-                return _evaluate_jack_chain(game, current_count + 10, remaining_hand)
-            else:
-                # No Jacks, shouldn't happen but fallback
-                return _bot_evaluate_count(game, player, current_count + 10, rank)
-
-        else:
-            # Regular cards: Add face value
-            value = _get_card_value(rank)
-            return _bot_evaluate_count(game, player, current_count + value, rank)
+        return _bot_eval_quentin_card(game, player, current_count, rank, card)
 
     return 0
+
+
+def _bot_eval_rs_card(
+    game: "NinetyNineGame",
+    player: "NinetyNinePlayer",
+    current_count: int,
+    rank: int,
+) -> int:
+    if rank == 1:
+        return _bot_evaluate_count(game, player, current_count + 1, rank)
+    if rank == 2:
+        return _bot_evaluate_count(game, player, current_count + 2, rank)
+    if 3 <= rank <= 9:
+        return _bot_evaluate_count(game, player, current_count + rank, rank)
+    if rank == RS_RANK_PLUS_10:
+        return _bot_evaluate_count(game, player, current_count + 10, rank)
+    if rank == RS_RANK_MINUS_10:
+        return _bot_evaluate_count(game, player, current_count - 10, rank)
+    if rank in (RS_RANK_PASS, RS_RANK_REVERSE, RS_RANK_SKIP):
+        return _bot_evaluate_count(game, player, current_count, rank)
+    if rank == RS_RANK_NINETY_NINE:
+        return _bot_evaluate_count(game, player, 99, rank)
+    return 0
+
+
+def _bot_eval_quentin_card(
+    game: "NinetyNineGame",
+    player: "NinetyNinePlayer",
+    current_count: int,
+    rank: int,
+    card: Card,
+) -> int:
+    if rank == 1:
+        score_plus_11 = _bot_evaluate_count(game, player, current_count + 11, rank)
+        score_plus_1 = _bot_evaluate_count(game, player, current_count + 1, rank)
+        return max(score_plus_11, score_plus_1)
+    if rank == 10 and current_count < 90:
+        score_plus = _bot_evaluate_count(game, player, current_count + 10, rank)
+        score_minus = _bot_evaluate_count(game, player, current_count - 10, rank)
+        return max(score_plus, score_minus)
+    if rank == 2:
+        new_count = _calculate_two_effect(current_count)
+        return _bot_evaluate_count(game, player, new_count, rank)
+    if rank == 9:
+        return _bot_evaluate_count(game, player, current_count, rank)
+    if rank == 11 and len(game.alive_players) == 2:
+        return _bot_eval_two_player_jack(game, player, current_count, card)
+    value = _get_card_value(rank)
+    return _bot_evaluate_count(game, player, current_count + value, rank)
+
+
+def _bot_eval_two_player_jack(
+    game: "NinetyNineGame",
+    player: "NinetyNinePlayer",
+    current_count: int,
+    card: Card,
+) -> int:
+    jack_count = sum(1 for c in player.hand if c.rank == 11)
+    if jack_count < 1:
+        return _bot_evaluate_count(game, player, current_count + 10, 11)
+    new_count = current_count + 10
+    if new_count > 99:
+        return -99999
+    if current_count < 33 < new_count:
+        return -8000
+    if current_count < 66 < new_count:
+        return -8000
+    remaining_hand = [c for c in player.hand if c is not card]
+    return _evaluate_jack_chain(game, current_count + 10, remaining_hand)
 
 
 def _bot_evaluate_count(
     game: "NinetyNineGame", player: "NinetyNinePlayer", new_count: int, rank: int
 ) -> int:
     """Evaluate a potential new count."""
-    score = 0
     current_count = game.count
     is_rs_games = not game.is_quentin_c
 
@@ -163,179 +162,178 @@ def _bot_evaluate_count(
     if new_count > 99:
         return -99999
 
-    # Milestone logic (Quentin C only)
-    if not is_rs_games:
-        # Priority 2: Hit milestones (33, 66, 99) - highest priority!
-        # But only if we're ADDING to reach the milestone (positive value cards)
-        # Dividing/subtracting to a milestone doesn't trigger the bonus
-        if new_count in (33, 66, 99) and new_count > current_count:
-            return 10000
-
-        # Priority 1b: NEVER pass through a milestone (loses a token!)
-        # Check if we cross 33 or 66 without landing on them
-        if current_count < 33 < new_count:
-            return -8000  # Passing through 33
-        if current_count < 66 < new_count:
-            return -8000  # Passing through 66
-
-    # Check if this is a Skip card in a 2-player game (self-trap detection)
     alive_count = len(game.alive_players)
     is_two_player = alive_count == 2
-    is_skip_card = (rank == 11 and not is_rs_games) or (rank == RS_RANK_SKIP and is_rs_games)
+    milestone_score = _score_quentin_milestone_transition(
+        current_count, new_count, is_rs_games
+    )
+    if milestone_score is not None:
+        return milestone_score
+
+    is_skip_card = (rank == 11 and not is_rs_games) or (
+        rank == RS_RANK_SKIP and is_rs_games
+    )
+
+    two_player_score = _score_two_player_setup(
+        is_rs_games, is_two_player, is_skip_card, current_count, new_count
+    )
+    if two_player_score is not None:
+        return two_player_score
+
+    setup_zone_score = _score_setup_zones(is_rs_games, new_count)
+    if setup_zone_score is not None:
+        return setup_zone_score
 
     if not is_rs_games:
-        # Quentin C variant: milestone-based trap logic
-        if is_two_player and is_skip_card:
-            # In 2-player games, Skip skips opponent, so bot plays again immediately
-            # Check if the count after Skip would be dangerous for bot's next turn
+        trap_score = _score_quentin_trap_avoidance(player, new_count)
+        if trap_score is not None:
+            return trap_score
 
-            # Danger zones where bot would struggle to play safely:
-            # - Near milestones: 28-32, 61-65, 88-98 (hard to avoid passing/hitting)
-            # - Trap setups: 23, 56, 89 (opponents can hit milestones)
+    score = 0
+    score += _score_special_card_usage(is_rs_games, current_count, rank)
+    score += _score_count_ranges(is_rs_games, current_count, new_count)
+
+    return score
+
+
+def _score_quentin_milestone_transition(
+    current_count: int, new_count: int, is_rs_games: bool
+) -> int | None:
+    """Handle Quentin C milestone rewards and pass-through penalties."""
+    if is_rs_games:
+        return None
+    if new_count in (33, 66, 99) and new_count > current_count:
+        return 10000
+    if current_count < 33 < new_count:
+        return -8000
+    if current_count < 66 < new_count:
+        return -8000
+    return None
+
+
+def _score_two_player_setup(
+    is_rs_games: bool,
+    is_two_player: bool,
+    is_skip_card: bool,
+    current_count: int,
+    new_count: int,
+) -> int | None:
+    """Score two-player trap setups and skip usage."""
+    if not is_two_player:
+        return None
+
+    if not is_rs_games:
+        if is_skip_card:
             is_danger_zone = (
                 (28 <= new_count <= 32)
                 or (61 <= new_count <= 65)
                 or (88 <= new_count <= 98)
                 or new_count in (23, 56, 89)
             )
-
             if is_danger_zone:
-                # Heavily penalize setting trap for ourselves!
                 return -5000
 
-        # Priority 2a: PERFECT TRAPS in 2-player (31, 97) - opponent is doomed!
-        # 31: Requires 9, Ace+1, or 10-10 to avoid passing through 33
-        # 97: Requires 9, Ace+1, or 10-10 to avoid going over 99
-        if is_two_player and new_count in (31, 97):
+        if new_count in (31, 97):
             return 7000
-
-        # Priority 2b: 64 is weaker in 2-player (opponent can use 2 to divide to 32)
-        if is_two_player and new_count == 64:
+        if new_count == 64:
             return 3000
+        return None
 
-        # Priority 2c: Setup zones - put opponents in bad positions
-        if (29 <= new_count <= 32) or (62 <= new_count <= 65) or (95 <= new_count <= 98):
-            return 5000
+    if is_skip_card and 88 <= new_count <= 98:
+        return -5000
+    if new_count == 97:
+        return 7000
+    return None
 
-    else:
-        # RS Games variant: simpler strategy (no milestones)
-        if is_two_player and is_skip_card:
-            # In 2-player, Skip makes us play again immediately
-            # Avoid setting up dangerous counts for ourselves (close to 99)
-            if 88 <= new_count <= 98:
-                return -5000
 
-        # In RS Games, prefer lower counts (safer)
-        # But still strategic - set up 97 as a trap (hard to avoid going over 99)
-        if is_two_player and new_count == 97:
-            return 7000
-
-    # Quentin C only: Avoid trap setups (23, 56, 89) if holding lots of +10 cards
-    if not is_rs_games and new_count in (23, 56, 89):
-        # Count how many +10 cards bot has
-        plus_ten_count = sum(
-            1 for c in player.hand if c.rank in (10, 11, 12, 13)
-        )
-
-        # If we have 2+ cards that can add +10, avoid setting up 23/56/89
-        if plus_ten_count >= 2:
-            return -3000
-
-    # Card management: HOARD special cards - only use in danger!
+def _score_setup_zones(is_rs_games: bool, new_count: int) -> int | None:
+    """Reward setup-zone positioning for Quentin C regardless of player count."""
     if is_rs_games:
-        # RS Games: Danger zone is when count is high (close to 99)
+        return None
+    if (29 <= new_count <= 32) or (62 <= new_count <= 65) or (95 <= new_count <= 98):
+        return 5000
+    return None
+
+
+def _score_quentin_trap_avoidance(
+    player: "NinetyNinePlayer", new_count: int
+) -> int | None:
+    """Avoid trap setups if holding multiple +10 cards."""
+    if new_count not in (23, 56, 89):
+        return None
+    plus_ten_count = sum(1 for c in player.hand if c.rank in (10, 11, 12, 13))
+    if plus_ten_count >= 2:
+        return -3000
+    return None
+
+
+def _score_special_card_usage(
+    is_rs_games: bool, current_count: int, rank: int
+) -> int:
+    """Score special card usage relative to danger zones."""
+    score = 0
+    if is_rs_games:
         in_danger_zone = current_count >= 85
-
         if not in_danger_zone:
-            # Hoard these cards! Heavy penalty for using them when not needed
-            # Order: Pass/Skip (most) > -10 > Reverse > Ninety Nine (least)
             if rank == RS_RANK_PASS:
-                # Pass: most valuable (keeps count same, very safe)
-                score = score - 400
+                score -= 400
             elif rank == RS_RANK_SKIP:
-                # Skip: also very valuable (skips opponent without changing count)
-                score = score - 400
+                score -= 400
             elif rank == RS_RANK_MINUS_10:
-                # -10: valuable for reducing high counts
-                score = score - 300
+                score -= 300
             elif rank == RS_RANK_REVERSE:
-                # Reverse: useful but less critical
-                score = score - 200
+                score -= 200
             elif rank == RS_RANK_NINETY_NINE:
-                # Ninety Nine: situational (sets to exactly 99)
-                score = score - 250
+                score -= 250
         else:
-            # In danger zone! Using special cards is smart
             if rank in (RS_RANK_PASS, RS_RANK_SKIP):
-                # Pass/Skip are great in danger (keep count safe)
-                score = score + 150
+                score += 150
             elif rank == RS_RANK_MINUS_10:
-                # -10 is excellent when count is high
-                score = score + 200
+                score += 200
+        return score
 
+    in_danger_zone = (
+        (28 <= current_count <= 32)
+        or (61 <= current_count <= 65)
+        or current_count >= 88
+    )
+    if not in_danger_zone:
+        if rank == 1:
+            score -= 350
+        elif rank == 9:
+            score -= 300
+        elif rank == 10:
+            score -= 200
+        elif rank == 2:
+            score -= 150
     else:
-        # Quentin C: Danger zones are near milestones
-        in_danger_zone = (
-            (28 <= current_count <= 32)
-            or (61 <= current_count <= 65)
-            or current_count >= 88
-        )
+        if rank == 1:
+            score += 100
+        elif rank == 9:
+            score += 50
+        elif rank == 10:
+            score += 0
+    return score
 
-        if not in_danger_zone:
-            # Hoard these cards! Heavy penalty for using them when not needed
-            # Order: Aces (most) > 9s > 10s > 2s (least)
-            if rank == 1:
-                # Aces are the most valuable (flexible +1/+11)
-                score = score - 350
-            elif rank == 9:
-                # 9s are second-most valuable (can pass through danger)
-                score = score - 300
-            elif rank == 10:
-                # 10s are third-most valuable (can +10 or -10)
-                score = score - 200
-            elif rank == 2:
-                # 2s are fourth-most valuable (multiply/divide is powerful but situational)
-                score = score - 150
-        else:
-            # In danger zone! Using special cards is smart, but prioritize usage
-            if rank == 1:
-                # Prefer using Aces first in danger (most flexible)
-                score = score + 100
-            elif rank == 9:
-                # Use 9s second (good for staying put)
-                score = score + 50
-            elif rank == 10:
-                # Use 10s last (save for worst emergencies)
-                score = score + 0
 
+def _score_count_ranges(
+    is_rs_games: bool, current_count: int, new_count: int
+) -> int:
+    """Score counts based on safety ranges."""
+    score = 0
     if is_rs_games:
-        # RS Games: Prefer keeping count low (simpler strategy)
-        # Penalize high counts heavily
         if 70 <= new_count <= 96:
-            # Penalize based on how close to 99 we are
-            danger_penalty = (new_count - 70) * -8
-            score = score + danger_penalty
-
-        # Bonus for safe low-to-mid range (20-60)
+            score += (new_count - 70) * -8
         if 20 <= new_count <= 60:
-            score = score + 150
-
-        # Small bonus for very low counts (safer)
+            score += 150
         if 0 <= new_count <= 30:
-            score = score + 50
+            score += 50
+        return score
 
-    else:
-        # Quentin C: Penalize high counts that aren't strategic (70-94 range)
-        # Too close to 99, but not in setup zone (95-98)
-        if 70 <= new_count <= 94:
-            # Penalize based on how close to 99 we are
-            danger_penalty = (new_count - 70) * -5
-            score = score + danger_penalty
-
-        # Fallback: Small bonus for safe middle range (40-60)
-        if 40 <= new_count <= 60:
-            score = score + 100
-
+    if 70 <= new_count <= 94:
+        score += (new_count - 70) * -5
+    if 40 <= new_count <= 60:
+        score += 100
     return score
 
 

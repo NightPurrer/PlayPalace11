@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import logging
 import threading
 import hashlib
 import os
@@ -17,6 +18,8 @@ from websockets.asyncio.client import connect
 
 from certificate_prompt import CertificatePromptDialog, CertificateInfo
 from packet_validator import validate_incoming, validate_outgoing
+
+LOG = logging.getLogger(__name__)
 
 
 class TLSUserDeclinedError(Exception):
@@ -185,8 +188,10 @@ class NetworkManager:
             if websocket:
                 try:
                     await websocket.close()
-                except Exception:
-                    pass
+                except (websockets.exceptions.ConnectionClosed, OSError, RuntimeError):
+                    import traceback
+
+                    traceback.print_exc()
             if not self.should_stop:
                 wx.CallAfter(self.main_window.on_connection_lost)
 
@@ -324,8 +329,8 @@ class NetworkManager:
             if websocket:
                 try:
                     await websocket.close()
-                except Exception:
-                    pass
+                except (OSError, RuntimeError, websockets.exceptions.ConnectionClosed) as exc:
+                    LOG.debug("Failed to close websocket during certificate fetch: %s", exc)
 
     def _prompt_trust_decision(self, cert_info: CertificateInfo) -> bool:
         """Show the trust dialog on the main thread."""
@@ -410,41 +415,14 @@ class NetworkManager:
         self, cert_dict, fingerprint_hex: str, pem: str, host: str
     ) -> CertificateInfo:
         """Convert Python's SSL cert dict into CertificateInfo."""
-        cert_dict = cert_dict or {}
-        # Enrich metadata with fields parsed from PEM if they were missing
-        if pem and (not cert_dict or "notBefore" not in cert_dict or "notAfter" not in cert_dict):
-            decoded = self._decode_certificate_dict(pem)
-            if decoded:
-                merged = dict(decoded)
-                # Preserve any values we already have, such as SAN entries that _test_decode_cert lacks
-                for key, value in cert_dict.items():
-                    if value:
-                        merged[key] = value
-                cert_dict = merged
-
-        subject = cert_dict.get("subject", [])
-        common_name = ""
-        for entry in subject:
-            for key, value in entry:
-                if key == "commonName":
-                    common_name = value
-        issuer = []
-        for entry in cert_dict.get("issuer", []):
-            issuer.append("=".join(entry_part[1] for entry_part in entry))
-        issuer_text = ", ".join(issuer) if issuer else "(unknown)"
+        cert_dict = self._merge_cert_metadata(cert_dict, pem)
+        common_name = self._extract_common_name(cert_dict)
+        issuer_text = self._format_issuer(cert_dict)
         sans = [
             value for kind, value in cert_dict.get("subjectAltName", []) if kind == "DNS"
         ]
-        matches = False
-        host_lower = (host or "").lower()
-        if host_lower:
-            if common_name.lower() == host_lower:
-                matches = True
-            elif any(san.lower() == host_lower for san in sans):
-                matches = True
-        display_fp = ":".join(
-            fingerprint_hex[i : i + 2] for i in range(0, len(fingerprint_hex), 2)
-        )
+        matches = self._certificate_matches_host(common_name, sans, host)
+        display_fp = self._format_fingerprint(fingerprint_hex)
         return CertificateInfo(
             host=host,
             common_name=common_name,
@@ -456,6 +434,49 @@ class NetworkManager:
             fingerprint_hex=fingerprint_hex,
             pem=pem,
             matches_host=matches,
+        )
+
+    def _merge_cert_metadata(self, cert_dict, pem: str | None) -> dict:
+        cert_dict = cert_dict or {}
+        if pem and (not cert_dict or "notBefore" not in cert_dict or "notAfter" not in cert_dict):
+            decoded = self._decode_certificate_dict(pem)
+            if decoded:
+                merged = dict(decoded)
+                for key, value in cert_dict.items():
+                    if value:
+                        merged[key] = value
+                cert_dict = merged
+        return cert_dict
+
+    @staticmethod
+    def _extract_common_name(cert_dict: dict) -> str:
+        subject = cert_dict.get("subject", [])
+        for entry in subject:
+            for key, value in entry:
+                if key == "commonName":
+                    return value
+        return ""
+
+    @staticmethod
+    def _format_issuer(cert_dict: dict) -> str:
+        issuer = []
+        for entry in cert_dict.get("issuer", []):
+            issuer.append("=".join(entry_part[1] for entry_part in entry))
+        return ", ".join(issuer) if issuer else "(unknown)"
+
+    @staticmethod
+    def _certificate_matches_host(common_name: str, sans: list[str], host: str) -> bool:
+        host_lower = (host or "").lower()
+        if not host_lower:
+            return False
+        if common_name.lower() == host_lower:
+            return True
+        return any(san.lower() == host_lower for san in sans)
+
+    @staticmethod
+    def _format_fingerprint(fingerprint_hex: str) -> str:
+        return ":".join(
+            fingerprint_hex[i : i + 2] for i in range(0, len(fingerprint_hex), 2)
         )
 
     def _get_server_host(self, server_url: str) -> str:
@@ -480,8 +501,8 @@ class NetworkManager:
             try:
                 # Schedule close in the async loop
                 asyncio.run_coroutine_threadsafe(self.ws.close(), self.loop)
-            except Exception:
-                pass  # Ignore errors during cleanup
+            except (OSError, RuntimeError) as exc:
+                LOG.debug("Failed to schedule websocket close: %s", exc)
 
         # Wait for thread to fully stop if requested
         if wait and self.thread and self.thread.is_alive():
@@ -526,72 +547,61 @@ class NetworkManager:
 
         packet_type = packet.get("type")
 
-        if packet_type == "authorize_success":
-            session_token = packet.get("session_token")
-            if session_token:
-                self.session_token = session_token
-            session_expires_at = packet.get("session_expires_at")
-            if session_expires_at:
-                self.session_expires_at = session_expires_at
-            refresh_token = packet.get("refresh_token")
-            if refresh_token:
-                self.refresh_token = refresh_token
-            refresh_expires_at = packet.get("refresh_expires_at")
-            if refresh_expires_at:
-                self.refresh_expires_at = refresh_expires_at
-            self.main_window.on_authorize_success(packet)
-        elif packet_type == "refresh_session_success":
-            self.session_token = packet.get("session_token")
-            self.session_expires_at = packet.get("session_expires_at")
-            self.refresh_token = packet.get("refresh_token")
-            self.refresh_expires_at = packet.get("refresh_expires_at")
-            self.main_window.on_authorize_success(packet)
-        elif packet_type == "refresh_session_failure":
-            self.session_token = None
-            self.session_expires_at = None
-            self.refresh_token = None
-            self.refresh_expires_at = None
-            message = packet.get("message", "Session expired. Please log in again.")
-            wx.CallAfter(self.main_window.add_history, message, "activity")
-        elif packet_type == "speak":
+        if packet_type in {"authorize_success", "refresh_session_success"}:
+            self._handle_authorize_success(packet, packet_type)
+            return
+        if packet_type == "refresh_session_failure":
+            self._handle_refresh_failure(packet)
+            return
+        if packet_type == "speak":
             self.main_window.on_server_speak(packet)
-        elif packet_type == "play_sound":
-            self.main_window.on_server_play_sound(packet)
-        elif packet_type == "play_music":
-            self.main_window.on_server_play_music(packet)
-        elif packet_type == "play_ambience":
-            self.main_window.on_server_play_ambience(packet)
-        elif packet_type == "stop_ambience":
-            self.main_window.on_server_stop_ambience(packet)
-        elif packet_type == "add_playlist":
-            self.main_window.on_server_add_playlist(packet)
-        elif packet_type == "start_playlist":
-            self.main_window.on_server_start_playlist(packet)
-        elif packet_type == "remove_playlist":
-            self.main_window.on_server_remove_playlist(packet)
-        elif packet_type == "get_playlist_duration":
-            self.main_window.on_server_get_playlist_duration(packet)
-        elif packet_type == "menu":
-            self.main_window.on_server_menu(packet)
-        elif packet_type == "request_input":
-            self.main_window.on_server_request_input(packet)
-        elif packet_type == "clear_ui":
-            self.main_window.on_server_clear_ui(packet)
-        elif packet_type == "game_list":
-            self.main_window.on_server_game_list(packet)
-        elif packet_type == "disconnect":
-            self.main_window.on_server_disconnect(packet)
-        elif packet_type == "update_options_lists":
-            self.main_window.on_update_options_lists(packet)
-        elif packet_type == "open_client_options":
-            self.main_window.on_open_client_options(packet)
-        elif packet_type == "open_server_options":
-            self.main_window.on_open_server_options(packet)
-        elif packet_type == "table_create":
-            self.main_window.on_table_create(packet)
-        elif packet_type == "pong":
-            self.main_window.on_server_pong(packet)
-        elif packet_type == "chat":
-            self.main_window.on_receive_chat(packet)
-        elif packet_type == "server_status":
-            self.main_window.on_server_status(packet)
+            return
+        if packet_type in _PACKET_DISPATCH:
+            _PACKET_DISPATCH[packet_type](self.main_window, packet)
+
+    def _handle_authorize_success(self, packet, packet_type: str) -> None:
+        session_token = packet.get("session_token")
+        if session_token:
+            self.session_token = session_token
+        session_expires_at = packet.get("session_expires_at")
+        if session_expires_at:
+            self.session_expires_at = session_expires_at
+        refresh_token = packet.get("refresh_token")
+        if refresh_token:
+            self.refresh_token = refresh_token
+        refresh_expires_at = packet.get("refresh_expires_at")
+        if refresh_expires_at:
+            self.refresh_expires_at = refresh_expires_at
+        self.main_window.on_authorize_success(packet)
+
+    def _handle_refresh_failure(self, packet) -> None:
+        self.session_token = None
+        self.session_expires_at = None
+        self.refresh_token = None
+        self.refresh_expires_at = None
+        message = packet.get("message", "Session expired. Please log in again.")
+        wx.CallAfter(self.main_window.add_history, message, "activity")
+
+
+_PACKET_DISPATCH = {
+    "play_sound": lambda window, pkt: window.on_server_play_sound(pkt),
+    "play_music": lambda window, pkt: window.on_server_play_music(pkt),
+    "play_ambience": lambda window, pkt: window.on_server_play_ambience(pkt),
+    "stop_ambience": lambda window, pkt: window.on_server_stop_ambience(pkt),
+    "add_playlist": lambda window, pkt: window.on_server_add_playlist(pkt),
+    "start_playlist": lambda window, pkt: window.on_server_start_playlist(pkt),
+    "remove_playlist": lambda window, pkt: window.on_server_remove_playlist(pkt),
+    "get_playlist_duration": lambda window, pkt: window.on_server_get_playlist_duration(pkt),
+    "menu": lambda window, pkt: window.on_server_menu(pkt),
+    "request_input": lambda window, pkt: window.on_server_request_input(pkt),
+    "clear_ui": lambda window, pkt: window.on_server_clear_ui(pkt),
+    "game_list": lambda window, pkt: window.on_server_game_list(pkt),
+    "disconnect": lambda window, pkt: window.on_server_disconnect(pkt),
+    "update_options_lists": lambda window, pkt: window.on_update_options_lists(pkt),
+    "open_client_options": lambda window, pkt: window.on_open_client_options(pkt),
+    "open_server_options": lambda window, pkt: window.on_open_server_options(pkt),
+    "table_create": lambda window, pkt: window.on_table_create(pkt),
+    "pong": lambda window, pkt: window.on_server_pong(pkt),
+    "chat": lambda window, pkt: window.on_receive_chat(pkt),
+    "server_status": lambda window, pkt: window.on_server_status(pkt),
+}

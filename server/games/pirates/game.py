@@ -505,7 +505,7 @@ class PiratesGame(Game):
 
         # Initialize player positions randomly
         for player in self.get_active_players():
-            player.position = random.randint(1, 40)
+            player.position = random.randint(1, 40)  # nosec B311
 
         # Initialize charted tiles
         self.charted_tiles = {i: False for i in range(1, 41)}
@@ -526,7 +526,7 @@ class PiratesGame(Game):
         self._start_round()
 
         # Jolt bots
-        BotHelper.jolt_bots(self, ticks=random.randint(10, 30))
+        BotHelper.jolt_bots(self, ticks=random.randint(10, 30))  # nosec B311
 
     def _start_round(self) -> None:
         """Start a new round."""
@@ -605,7 +605,7 @@ class PiratesGame(Game):
         self.rebuild_all_menus()
 
         # Jolt bots
-        BotHelper.jolt_bots(self, ticks=random.randint(80, 120))
+        BotHelper.jolt_bots(self, ticks=random.randint(80, 120))  # nosec B311
 
     def _check_gem_collection(self, player: PiratesPlayer) -> None:
         """Check if player is on a gem and collect it."""
@@ -617,7 +617,7 @@ class PiratesGame(Game):
         gem_name = gems.get_gem_name(gem_type)
 
         # Play collection sound
-        sound_num = random.randint(1, 3)
+        sound_num = random.randint(1, 3)  # nosec B311
         self.play_sound(f"game_pirates/grabgem{sound_num}.ogg", volume=70)
 
         # Add gem to player
@@ -635,7 +635,7 @@ class PiratesGame(Game):
         )
 
         # Give XP for finding gem
-        xp_gain = random.randint(150, 300)
+        xp_gain = random.randint(150, 300)  # nosec B311
         moon_mult = 3.0 if self.golden_moon_active else 1.0
         player.leveling.give_xp(
             self, player.name, xp_gain, moon_mult, self.options.find_gem_xp_multiplier
@@ -660,7 +660,7 @@ class PiratesGame(Game):
         winners = [p for p in active_players if p.score == highest_score]
 
         # If tie, pick random winner
-        winner = random.choice(winners)
+        winner = random.choice(winners)  # nosec B311
 
         self.play_sound("game_pig/win.ogg", volume=80)
         self.broadcast_l("pirates-winner", player=winner.name, score=winner.score)
@@ -755,13 +755,13 @@ class PiratesGame(Game):
         # Play movement sound
         abs_amount = abs(amount)
         if abs_amount == 1:
-            sound_num = random.randint(1, 3)
+            sound_num = random.randint(1, 3)  # nosec B311
             self.play_sound(f"game_pirates/move{sound_num}.ogg", volume=60)
         elif abs_amount == 2:
-            sound_num = random.randint(1, 3)
+            sound_num = random.randint(1, 3)  # nosec B311
             self.play_sound(f"game_pirates/boat{sound_num}.ogg", volume=60)
         elif abs_amount == 3:
-            sound_num = random.randint(1, 2)
+            sound_num = random.randint(1, 2)  # nosec B311
             self.play_sound(f"game_pirates/future{sound_num}.ogg", volume=60)
 
         direction = "right" if amount > 0 else "left"
@@ -970,7 +970,7 @@ class PiratesGame(Game):
             chosen_ocean = bot_ai.bot_select_portal_ocean(self, player, occupied_oceans)
         else:
             # For now, simplified to random selection
-            chosen_ocean = random.choice(occupied_oceans)[0]
+            chosen_ocean = random.choice(occupied_oceans)[0]  # nosec B311
 
         if chosen_ocean is None:
             return "continue"
@@ -978,12 +978,12 @@ class PiratesGame(Game):
         # Teleport to random position in chosen ocean
         ocean_start = chosen_ocean * 10 + 1
         ocean_end = (chosen_ocean + 1) * 10
-        new_pos = random.randint(ocean_start, ocean_end)
+        new_pos = random.randint(ocean_start, ocean_end)  # nosec B311
 
         player.position = new_pos
         skill.start_cooldown(player)
 
-        sound_num = random.randint(1, 2)
+        sound_num = random.randint(1, 2)  # nosec B311
         self.play_sound(f"game_pirates/portal{sound_num}.ogg", volume=60)
 
         ocean_name = self.selected_oceans[chosen_ocean] if chosen_ocean < len(self.selected_oceans) else "Unknown"

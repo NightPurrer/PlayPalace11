@@ -28,7 +28,7 @@ def bot_think(game: "HoldemGame", player: "HoldemPlayer") -> str | None:
     position = _position_index(game, player)
 
     can_raise_amount = _can_raise_amount(game, player, to_call)
-    variance = random.uniform(0.85, 1.2)
+    variance = random.uniform(0.85, 1.2)  # nosec B311
     if len(game.community) < 3:
         strength = _preflop_strength(player)
         return _decide_preflop(
@@ -90,26 +90,18 @@ def _decide_preflop(
     short_stack = stack_bb <= 12
     loose = variance > 1.05
     if to_call == 0:
-        if can_raise and can_raise_amount and (strength >= 2 or (strength >= 1 and loose)) and stack_bb >= 6:
-            return "raise"
-        if loose and can_raise and can_raise_amount and random.random() < 0.15:
-            return "raise"
-        return "call"
+        return _decide_preflop_when_free(
+            strength, can_raise, can_raise_amount, stack_bb, loose
+        )
     if strength >= 3:
-        if can_raise and can_raise_amount and stack_bb >= 8 and to_call <= stack_bb * 2:
-            return "raise"
-        return "call"
+        return _decide_preflop_strong(
+            to_call, can_raise, can_raise_amount, stack_bb
+        )
     if strength == 2:
-        if to_call <= stack_bb * (1.5 if late_position or loose else 1.0) or short_stack:
-            return "call"
-        return "fold"
+        return _decide_preflop_medium(to_call, stack_bb, late_position, loose, short_stack)
     if strength == 1:
-        if to_call <= max(1, stack_bb * (0.7 if late_position or loose else 0.4)):
-            return "call"
-        return "fold"
-    if to_call <= max(1, stack_bb * (0.3 if late_position or loose else 0.15)):
-        return "call"
-    return "fold"
+        return _decide_preflop_small(to_call, stack_bb, late_position, loose)
+    return _decide_preflop_weak(to_call, stack_bb, late_position, loose)
 
 
 def _decide_postflop(
@@ -124,21 +116,122 @@ def _decide_postflop(
     late_position = position >= 2
     loose = variance > 1.05
     if to_call == 0:
-        if score and score[0] >= 2 and can_raise and can_raise_amount and stack_bb >= 6:
-            return "raise"
-        if loose and can_raise and can_raise_amount and random.random() < 0.2:
-            return "raise"
-        return "call"
+        return _decide_postflop_when_free(
+            score, can_raise, can_raise_amount, stack_bb, loose
+        )
     if score and score[0] >= 4:
-        return "raise" if can_raise and can_raise_amount and stack_bb >= 6 else "call"
+        return _decide_postflop_strong(can_raise, can_raise_amount, stack_bb)
     if score and score[0] >= 2:
-        if to_call <= max(1, stack_bb * (2.5 if loose else 2)):
-            return "call"
-        return "fold"
+        return _decide_postflop_medium(to_call, stack_bb, loose)
     if score and score[0] >= 1:
-        if to_call <= max(1, stack_bb * (1.3 if late_position or loose else 1.0)):
-            return "call"
-        return "fold"
+        return _decide_postflop_weak(to_call, stack_bb, late_position, loose)
+    return _decide_postflop_air(to_call, stack_bb, late_position, loose)
+
+
+def _decide_preflop_when_free(
+    strength: int,
+    can_raise: bool,
+    can_raise_amount: bool,
+    stack_bb: float,
+    loose: bool,
+) -> str:
+    if can_raise and can_raise_amount and (strength >= 2 or (strength >= 1 and loose)) and stack_bb >= 6:
+        return "raise"
+    if loose and can_raise and can_raise_amount and random.random() < 0.15:  # nosec B311
+        return "raise"
+    return "call"
+
+
+def _decide_preflop_strong(
+    to_call: int,
+    can_raise: bool,
+    can_raise_amount: bool,
+    stack_bb: float,
+) -> str:
+    if can_raise and can_raise_amount and stack_bb >= 8 and to_call <= stack_bb * 2:
+        return "raise"
+    return "call"
+
+
+def _decide_preflop_medium(
+    to_call: int,
+    stack_bb: float,
+    late_position: bool,
+    loose: bool,
+    short_stack: bool,
+) -> str:
+    if to_call <= stack_bb * (1.5 if late_position or loose else 1.0) or short_stack:
+        return "call"
+    return "fold"
+
+
+def _decide_preflop_small(
+    to_call: int,
+    stack_bb: float,
+    late_position: bool,
+    loose: bool,
+) -> str:
+    if to_call <= max(1, stack_bb * (0.7 if late_position or loose else 0.4)):
+        return "call"
+    return "fold"
+
+
+def _decide_preflop_weak(
+    to_call: int,
+    stack_bb: float,
+    late_position: bool,
+    loose: bool,
+) -> str:
+    if to_call <= max(1, stack_bb * (0.3 if late_position or loose else 0.15)):
+        return "call"
+    return "fold"
+
+
+def _decide_postflop_when_free(
+    score: tuple[int, tuple[int, ...]] | None,
+    can_raise: bool,
+    can_raise_amount: bool,
+    stack_bb: float,
+    loose: bool,
+) -> str:
+    if score and score[0] >= 2 and can_raise and can_raise_amount and stack_bb >= 6:
+        return "raise"
+    if loose and can_raise and can_raise_amount and random.random() < 0.2:  # nosec B311
+        return "raise"
+    return "call"
+
+
+def _decide_postflop_strong(
+    can_raise: bool,
+    can_raise_amount: bool,
+    stack_bb: float,
+) -> str:
+    return "raise" if can_raise and can_raise_amount and stack_bb >= 6 else "call"
+
+
+def _decide_postflop_medium(to_call: int, stack_bb: float, loose: bool) -> str:
+    if to_call <= max(1, stack_bb * (2.5 if loose else 2)):
+        return "call"
+    return "fold"
+
+
+def _decide_postflop_weak(
+    to_call: int,
+    stack_bb: float,
+    late_position: bool,
+    loose: bool,
+) -> str:
+    if to_call <= max(1, stack_bb * (1.3 if late_position or loose else 1.0)):
+        return "call"
+    return "fold"
+
+
+def _decide_postflop_air(
+    to_call: int,
+    stack_bb: float,
+    late_position: bool,
+    loose: bool,
+) -> str:
     if to_call <= max(1, stack_bb * (0.7 if late_position or loose else 0.4)):
         return "call"
     return "fold"

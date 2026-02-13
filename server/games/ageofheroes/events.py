@@ -35,36 +35,7 @@ def process_player_events(game: AgeOfHeroesGame, player: AgeOfHeroesPlayer) -> N
     effects_active = game.current_day > 1 or game.phase == GamePhase.PLAY
 
     # Collect events to process (with their effects) before removing cards
-    events_to_process: list[tuple[int, Card, str]] = []  # (index, card, effect_type)
-
-    for i, card in enumerate(player.hand):
-        if not card.is_mandatory_event():
-            continue
-
-        if card.subtype == EventType.POPULATION_GROWTH:
-            events_to_process.append((i, card, "population_growth"))
-
-        elif card.subtype == EventType.EARTHQUAKE:
-            # In round 1, auto-discard. In round 2+, keep in hand to be played manually
-            if not effects_active:
-                events_to_process.append((i, card, "earthquake"))
-
-        elif card.subtype == EventType.ERUPTION:
-            # In round 1, auto-discard. In round 2+, keep in hand to be played manually
-            if not effects_active:
-                events_to_process.append((i, card, "eruption"))
-
-        elif card.subtype == EventType.HUNGER:
-            if effects_active:
-                events_to_process.append((i, card, "hunger_effect"))
-            else:
-                events_to_process.append((i, card, "hunger_discard"))
-
-        elif card.subtype == EventType.BARBARIANS:
-            if effects_active:
-                events_to_process.append((i, card, "barbarians_effect"))
-            else:
-                events_to_process.append((i, card, "barbarians_discard"))
+    events_to_process = _collect_player_events(player, effects_active)
 
     # Remove all event cards in reverse order
     for i, card, _ in reversed(events_to_process):
@@ -73,62 +44,85 @@ def process_player_events(game: AgeOfHeroesGame, player: AgeOfHeroesPlayer) -> N
 
     # Now apply effects (cards are already removed, so no index issues)
     for _, card, effect_type in events_to_process:
-        if effect_type == "population_growth":
-            # Build a free city (always applies)
-            if game.city_supply > 0:
-                player.tribe_state.cities += 1
-                game.city_supply -= 1
-                game.broadcast_personal_l(
-                    player,
-                    "ageofheroes-population-growth-you",
-                    "ageofheroes-population-growth",
-                )
-                game.play_sound("game_ageofheroes/build.ogg")
-
-        elif effect_type == "earthquake":
-            # Earthquake is targetable at other players in round 2+
-            # For now, just announce discard
-            user = game.get_user(player)
-            if user:
-                card_name = get_card_name(card, user.locale)
-                user.speak_l("ageofheroes-discard-card-you", card=card_name)
-            _broadcast_discard(game, player, card)
-
-        elif effect_type == "eruption":
-            # Eruption is targetable at other players in round 2+
-            # For now, just announce discard
-            user = game.get_user(player)
-            if user:
-                card_name = get_card_name(card, user.locale)
-                user.speak_l("ageofheroes-discard-card-you", card=card_name)
-            _broadcast_discard(game, player, card)
-
-        elif effect_type == "hunger_effect":
-            # ALL players lose 1 Grain (unless blocked by Fortune)
-            apply_hunger_effect(game, player)
-
-        elif effect_type == "hunger_discard":
-            # Round 1: just announce discard
-            user = game.get_user(player)
-            if user:
-                card_name = get_card_name(card, user.locale)
-                user.speak_l("ageofheroes-discard-card-you", card=card_name)
-            _broadcast_discard(game, player, card)
-
-        elif effect_type == "barbarians_effect":
-            # Playing player loses 2 conventional resources (unless blocked)
-            apply_barbarians_effect(game, player)
-
-        elif effect_type == "barbarians_discard":
-            # Round 1: just announce discard
-            user = game.get_user(player)
-            if user:
-                card_name = get_card_name(card, user.locale)
-                user.speak_l("ageofheroes-discard-card-you", card=card_name)
-            _broadcast_discard(game, player, card)
+        _apply_player_event_effect(game, player, card, effect_type)
 
     # Check for elimination
     game._check_elimination(player)
+
+
+def _collect_player_events(
+    player: AgeOfHeroesPlayer, effects_active: bool
+) -> list[tuple[int, Card, str]]:
+    """Collect mandatory events that should be processed."""
+    events_to_process: list[tuple[int, Card, str]] = []
+    for i, card in enumerate(player.hand):
+        if not card.is_mandatory_event():
+            continue
+        effect_type = _get_event_effect_type(card, effects_active)
+        if effect_type:
+            events_to_process.append((i, card, effect_type))
+    return events_to_process
+
+
+def _get_event_effect_type(card: Card, effects_active: bool) -> str | None:
+    """Determine which effect should be applied for a mandatory event card."""
+    if card.subtype == EventType.POPULATION_GROWTH:
+        return "population_growth"
+    if card.subtype == EventType.EARTHQUAKE:
+        return "earthquake" if not effects_active else None
+    if card.subtype == EventType.ERUPTION:
+        return "eruption" if not effects_active else None
+    if card.subtype == EventType.HUNGER:
+        return "hunger_effect" if effects_active else "hunger_discard"
+    if card.subtype == EventType.BARBARIANS:
+        return "barbarians_effect" if effects_active else "barbarians_discard"
+    return None
+
+
+def _apply_player_event_effect(
+    game: AgeOfHeroesGame,
+    player: AgeOfHeroesPlayer,
+    card: Card,
+    effect_type: str,
+) -> None:
+    """Apply the per-card event effect after discarding."""
+    if effect_type == "population_growth":
+        _apply_population_growth(game, player)
+        return
+    if effect_type in {"earthquake", "eruption", "hunger_discard", "barbarians_discard"}:
+        _announce_event_discard(game, player, card)
+        return
+    if effect_type == "hunger_effect":
+        apply_hunger_effect(game, player)
+        return
+    if effect_type == "barbarians_effect":
+        apply_barbarians_effect(game, player)
+        return
+
+
+def _apply_population_growth(game: AgeOfHeroesGame, player: AgeOfHeroesPlayer) -> None:
+    """Apply the population growth bonus."""
+    if game.city_supply <= 0 or not player.tribe_state:
+        return
+    player.tribe_state.cities += 1
+    game.city_supply -= 1
+    game.broadcast_personal_l(
+        player,
+        "ageofheroes-population-growth-you",
+        "ageofheroes-population-growth",
+    )
+    game.play_sound("game_ageofheroes/build.ogg")
+
+
+def _announce_event_discard(
+    game: AgeOfHeroesGame, player: AgeOfHeroesPlayer, card: Card
+) -> None:
+    """Announce discarding an event card."""
+    user = game.get_user(player)
+    if user:
+        card_name = get_card_name(card, user.locale)
+        user.speak_l("ageofheroes-discard-card-you", card=card_name)
+    _broadcast_discard(game, player, card)
 
 
 def player_has_card(game: AgeOfHeroesGame, player: AgeOfHeroesPlayer, event_type: str) -> bool:

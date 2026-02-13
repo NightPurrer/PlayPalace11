@@ -39,7 +39,7 @@ class PushYourLuckBotMixin:
 
     def _calculate_push_bot_target(self, player) -> int:
         low, high = self.push_target_range
-        base = random.randint(low, high)
+        base = random.randint(low, high)  # nosec B311
         return self._adjust_push_bot_target(player, base)
 
     def _adjust_push_bot_target(self, player, target: int) -> int:

@@ -1638,8 +1638,8 @@ class AgeOfHeroesGame(Game):
             return
 
         # Roll two dice
-        die1 = random.randint(1, 6)
-        die2 = random.randint(1, 6)
+        die1 = random.randint(1, 6)  # nosec B311
+        die2 = random.randint(1, 6)  # nosec B311
         total = die1 + die2
         player.dice_roll = total
         self.setup_rolls[player.id] = total
@@ -1700,7 +1700,7 @@ class AgeOfHeroesGame(Game):
             # Jolt bots to reroll
             for p in winners:
                 if p.is_bot:
-                    BotHelper.jolt_bot(p, ticks=random.randint(20, 30))
+                    BotHelper.jolt_bot(p, ticks=random.randint(20, 30))  # nosec B311
         else:
             # We have a winner - they go first
             first_player = winners[0]
@@ -1903,7 +1903,7 @@ class AgeOfHeroesGame(Game):
         # Jolt bots to roll dice
         for p in self.get_active_players():
             if p.is_bot:
-                BotHelper.jolt_bot(p, ticks=random.randint(20, 40))
+                BotHelper.jolt_bot(p, ticks=random.randint(20, 40))  # nosec B311
 
         self.rebuild_all_menus()
 
@@ -3093,7 +3093,7 @@ class AgeOfHeroesGame(Game):
             user.speak_l("ageofheroes-your-action")
 
         if player.is_bot:
-            BotHelper.jolt_bot(player, ticks=random.randint(30, 50))
+            BotHelper.jolt_bot(player, ticks=random.randint(30, 50))  # nosec B311
 
         self.rebuild_all_menus()
 
@@ -3347,74 +3347,83 @@ class AgeOfHeroesGame(Game):
         if not self.game_active:
             return
 
-        # During setup phase, all bots who haven't rolled need to act
         if self.phase == GamePhase.SETUP:
-            for player in self.get_active_players():
-                if not player.is_bot:
-                    continue
-                if player.id in self.setup_rolls:
-                    continue  # Already rolled
+            self._tick_setup_bots()
+            return
 
+        if self.phase == GamePhase.FAIR:
+            self._tick_fair_bots()
+            return
+
+        if self.phase == GamePhase.PLAY:
+            if self.sub_phase == PlaySubPhase.ROAD_PERMISSION:
+                self._tick_road_permission_bots()
+                return
+            if self.sub_phase == PlaySubPhase.WAR_BATTLE:
+                self._tick_war_battle_bots()
+                return
+
+        # Normal turn-based bot handling
+        BotHelper.on_tick(self)
+
+    def _tick_setup_bots(self) -> None:
+        """Handle bot actions during setup rolls."""
+        for player in self.get_active_players():
+            if not player.is_bot or player.id in self.setup_rolls:
+                continue
+            BotHelper.process_bot_action(
+                bot=player,
+                think_fn=lambda p=player: self.bot_think(p),
+                execute_fn=lambda action_id, p=player: self.execute_action(p, action_id),
+            )
+
+    def _tick_fair_bots(self) -> None:
+        """Handle bot trading during the fair phase."""
+        for player in self.get_active_players():
+            if not isinstance(player, AgeOfHeroesPlayer):
+                continue
+            if not player.is_bot or player.has_stopped_trading:
+                continue
+            if player.bot_think_ticks > 0:
+                player.bot_think_ticks -= 1
+                continue
+            bot_ai.bot_do_trading(self, player)
+
+    def _tick_road_permission_bots(self) -> None:
+        """Handle bot response to road permission requests."""
+        active_players = self.get_active_players()
+        if self.road_request_to >= len(active_players):
+            return
+        target = active_players[self.road_request_to]
+        if target.is_bot and not target.is_spectator:
+            BotHelper.process_bot_action(
+                bot=target,
+                think_fn=lambda: self.bot_think(target),
+                execute_fn=lambda action_id: self.execute_action(target, action_id),
+            )
+
+    def _tick_war_battle_bots(self) -> None:
+        """Handle bot rolls during war battles."""
+        active_players = self.get_active_players()
+        war = self.war_state
+
+        if war.attacker_index < len(active_players):
+            attacker = active_players[war.attacker_index]
+            if attacker.is_bot and not attacker.is_spectator and war.attacker_roll == 0:
                 BotHelper.process_bot_action(
-                    bot=player,
-                    think_fn=lambda p=player: self.bot_think(p),
-                    execute_fn=lambda action_id, p=player: self.execute_action(p, action_id),
+                    bot=attacker,
+                    think_fn=lambda: self.bot_think(attacker),
+                    execute_fn=lambda action_id: self.execute_action(attacker, action_id),
                 )
 
-        # During fair phase, bots trade and then stop
-        elif self.phase == GamePhase.FAIR:
-            for player in self.get_active_players():
-                if not isinstance(player, AgeOfHeroesPlayer):
-                    continue
-                if not player.is_bot:
-                    continue
-                if player.has_stopped_trading:
-                    continue
-
-                # Bots stop trading after a short delay
-                if player.bot_think_ticks > 0:
-                    player.bot_think_ticks -= 1
-                    continue
-
-                bot_ai.bot_do_trading(self, player)
-        # During road permission request, target bot needs to respond
-        elif self.phase == GamePhase.PLAY and self.sub_phase == PlaySubPhase.ROAD_PERMISSION:
-            active_players = self.get_active_players()
-            if self.road_request_to < len(active_players):
-                target = active_players[self.road_request_to]
-                if target.is_bot and not target.is_spectator:
-                    BotHelper.process_bot_action(
-                        bot=target,
-                        think_fn=lambda: self.bot_think(target),
-                        execute_fn=lambda action_id: self.execute_action(target, action_id),
-                    )
-        # During war battle, both attacker and defender need to roll
-        elif self.phase == GamePhase.PLAY and self.sub_phase == PlaySubPhase.WAR_BATTLE:
-            active_players = self.get_active_players()
-            war = self.war_state
-
-            # Process attacker bot (if still active)
-            if war.attacker_index < len(active_players):
-                attacker = active_players[war.attacker_index]
-                if attacker.is_bot and not attacker.is_spectator and war.attacker_roll == 0:
-                    BotHelper.process_bot_action(
-                        bot=attacker,
-                        think_fn=lambda: self.bot_think(attacker),
-                        execute_fn=lambda action_id: self.execute_action(attacker, action_id),
-                    )
-
-            # Process defender bot (if still active)
-            if war.defender_index < len(active_players):
-                defender = active_players[war.defender_index]
-                if defender.is_bot and not defender.is_spectator and war.defender_roll == 0:
-                    BotHelper.process_bot_action(
-                        bot=defender,
-                        think_fn=lambda: self.bot_think(defender),
-                        execute_fn=lambda action_id: self.execute_action(defender, action_id),
-                    )
-        else:
-            # Normal turn-based bot handling
-            BotHelper.on_tick(self)
+        if war.defender_index < len(active_players):
+            defender = active_players[war.defender_index]
+            if defender.is_bot and not defender.is_spectator and war.defender_roll == 0:
+                BotHelper.process_bot_action(
+                    bot=defender,
+                    think_fn=lambda: self.bot_think(defender),
+                    execute_fn=lambda action_id: self.execute_action(defender, action_id),
+                )
 
     def bot_think(self, player: Player) -> str | None:
         """Bot AI decision making."""

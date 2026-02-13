@@ -842,7 +842,7 @@ class TradeoffGame(Game):
             score = self._get_player_score(p.name)
             # Tiebreaker: sum of current hand (lower goes first)
             dice_sum = sum(p.hand) if p.hand else sum(p.rolled_dice) if p.rolled_dice else 0
-            return (score, dice_sum, random.random())  # Final random for complete ties
+            return (score, dice_sum, random.random())  # Final random for complete ties  # nosec B311
 
         sorted_players = sorted(active_players, key=sort_key)
         self.taking_order = [p.id for p in sorted_players if p.dice_traded_count > 0]
@@ -871,7 +871,7 @@ class TradeoffGame(Game):
 
             # Bot thinking time
             if player.is_bot:
-                BotHelper.jolt_bot(player, ticks=random.randint(10, 20))
+                BotHelper.jolt_bot(player, ticks=random.randint(10, 20))  # nosec B311
 
     def _advance_taker(self) -> None:
         """Advance to the next player in taking order (round-robin)."""
@@ -1025,7 +1025,7 @@ class TradeoffGame(Game):
         # Jolt bots
         for p in active_players:
             if p.is_bot:
-                BotHelper.jolt_bot(p, ticks=random.randint(15, 30))
+                BotHelper.jolt_bot(p, ticks=random.randint(15, 30))  # nosec B311
 
         self.rebuild_all_menus()
 

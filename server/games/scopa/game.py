@@ -508,7 +508,7 @@ class ScopaGame(Game):
         """Create and shuffle the deck."""
         self.deck, _ = DeckFactory.italian_deck(self.options.number_of_decks)
         # Play shuffle sound
-        shuffle_sound = random.choice(["shuffle1.ogg", "shuffle2.ogg", "shuffle3.ogg"])
+        shuffle_sound = random.choice(["shuffle1.ogg", "shuffle2.ogg", "shuffle3.ogg"])  # nosec B311
         self.play_sound(f"game_cards/{shuffle_sound}")
 
     def _start_round(self) -> None:
@@ -621,7 +621,7 @@ class ScopaGame(Game):
         self.announce_turn()
 
         if player.is_bot:
-            BotHelper.jolt_bot(player, ticks=random.randint(15, 25))
+            BotHelper.jolt_bot(player, ticks=random.randint(15, 25))  # nosec B311
 
         self._update_all_card_actions()
         self.rebuild_all_menus()
@@ -632,7 +632,7 @@ class ScopaGame(Game):
         player.hand = [c for c in player.hand if c.id != card.id]
 
         # Play sound
-        play_sound = random.choice(["play1.ogg", "play2.ogg", "play3.ogg", "play4.ogg"])
+        play_sound = random.choice(["play1.ogg", "play2.ogg", "play3.ogg", "play4.ogg"])  # nosec B311
         self.play_sound(f"game_cards/{play_sound}")
 
         # Find and execute capture
@@ -655,7 +655,7 @@ class ScopaGame(Game):
                 "scopa-player-puts-down", card=card, player=player.name, exclude=player
             )
 
-        BotHelper.jolt_bots(self, ticks=random.randint(8, 15))
+        BotHelper.jolt_bots(self, ticks=random.randint(8, 15))  # nosec B311
         self._end_turn()
 
     def _execute_capture(

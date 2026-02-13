@@ -1,6 +1,7 @@
 """Main window for Play Palace v9 client."""
 
 import wx
+import logging
 from .menu_list import MenuList
 from .login_dialog import LoginDialog
 import accessible_output2.outputs.auto as auto_output
@@ -18,6 +19,7 @@ from network_manager import NetworkManager
 from buffer_system import BufferSystem
 from config_manager import set_item_in_dict
 
+LOG = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class UiPlatformConfig:
@@ -552,149 +554,166 @@ class MainWindow(wx.Frame):
             # Also use accessible_output2 as backup
             try:
                 self.speaker.speak(text, interrupt=True)
-            except:
-                pass
+            except (AttributeError, RuntimeError) as exc:
+                LOG.debug("Failed to announce menu selection: %s", exc)
 
     def on_char_hook(self, event):
         """Handle character input for game keypresses."""
-
         key_code = event.GetKeyCode()
-        focused = wx.Window.FindFocus()
+        if self._handle_edit_mode_char(event, key_code):
+            return
+        if not self._should_handle_menu_key(event):
+            return
+        if self._handle_escape_behavior(event, key_code):
+            return
 
-        # Handle edit mode specially
-        if self.current_mode == "edit":
-            # Handle Escape key - dismiss edit field
-            if key_code == wx.WXK_ESCAPE:
-                if self.edit_mode_callback:
-                    self.edit_mode_callback("")
-                self.switch_to_list_mode()
-                return  # Event handled, don't skip
-
-            # Let the event continue to the text control
-            # Typing sounds are handled by on_edit_char and on_edit_multiline_char
+        key_name = self._map_keybind_name(event, key_code)
+        if not key_name:
             event.Skip()
             return
 
-        # Only process keybinds when menu list has focus
-        # All other controls (chat, history) get normal keyboard handling
+        if self._send_keybind_if_allowed(event, key_name):
+            return
+
+        event.Skip()
+
+    def _handle_edit_mode_char(self, event, key_code: int) -> bool:
+        """Handle key presses while in edit mode."""
+        if self.current_mode != "edit":
+            return False
+        if key_code == wx.WXK_ESCAPE:
+            if self.edit_mode_callback:
+                self.edit_mode_callback("")
+            self.switch_to_list_mode()
+            return True
+        event.Skip()
+        return True
+
+    def _should_handle_menu_key(self, event) -> bool:
+        """Return True if menu list has focus; otherwise allow default handling."""
+        focused = wx.Window.FindFocus()
         if focused != self.menu_list:
             event.Skip()
-            return
+            return False
+        return True
 
-        # Get modifiers
-        modifiers = event.GetModifiers()
+    def _handle_escape_behavior(self, event, key_code: int) -> bool:
+        """Handle escape/backspace behaviors that bypass normal keybind flow."""
+        if key_code not in (wx.WXK_ESCAPE, wx.WXK_BACK):
+            return False
+        if key_code == wx.WXK_BACK and self.current_menu_id == "main_menu":
+            event.Skip()
+            return True
+        if self.escape_behavior == "select_last_option":
+            if self.current_mode == "list" and self.connected:
+                item_count = self.menu_list.GetCount()
+                if item_count > 0:
+                    if self.sound_manager:
+                        self.sound_manager.play_menuenter()
+                    packet = {
+                        "type": "menu",
+                        "menu_id": self.current_menu_id,
+                        "selection": item_count,
+                    }
+                    last_index = item_count - 1
+                    if 0 <= last_index < len(self.current_menu_item_ids):
+                        item_id = self.current_menu_item_ids[last_index]
+                        if item_id is not None:
+                            packet["selection_id"] = item_id
+                    self.network.send_packet(packet)
+            return True
+        if self.escape_behavior == "escape_event":
+            if self.connected:
+                self.network.send_packet(
+                    {"type": "escape", "menu_id": self.current_menu_id}
+                )
+            return True
+        return False
 
-        # Map key codes to key names for the server
-        key_name = None
-
-        # Handle arrow keys - only send as keybinds if menu is empty
+    def _map_keybind_name(self, event, key_code: int) -> str | None:
+        """Map wx key codes to server keybind names."""
         menu_is_empty = self.menu_list.GetCount() == 0
-        if key_code == wx.WXK_UP:
-            if menu_is_empty:
-                key_name = "up"
-            else:
-                event.Skip()
-                return
-        elif key_code == wx.WXK_DOWN:
-            if menu_is_empty:
-                key_name = "down"
-            else:
-                event.Skip()
-                return
-        elif key_code == wx.WXK_LEFT:
-            if menu_is_empty:
-                key_name = "left"
-            else:
-                event.Skip()
-                return
-        elif key_code == wx.WXK_RIGHT:
-            if menu_is_empty:
-                key_name = "right"
-            else:
-                event.Skip()
-                return
-        # Handle function keys
-        elif key_code == wx.WXK_F1:
-            key_name = "f1"
-        elif key_code == wx.WXK_F2:
-            # F2 is handled by accelerator table for online list
-            # Don't send to server, let it bubble up to the accelerator
-            event.Skip()
-            return
-        elif key_code == wx.WXK_F3:
-            key_name = "f3"
-        elif key_code == wx.WXK_F4:
-            # F4 is handled by accelerator table for buffer mute
-            # Don't send to server, let it bubble up to the accelerator
-            event.Skip()
-            return
-        elif key_code == wx.WXK_F5:
-            key_name = "f5"
-        elif key_code == wx.WXK_ESCAPE or key_code == wx.WXK_BACK:
-            if key_code == wx.WXK_BACK and self.current_menu_id == "main_menu":
-                event.Skip()
-                return
-            # Handle escape based on current menu's escape_behavior
-            if self.escape_behavior == "select_last_option":
-                # Send selection for the last item without actually moving focus
-                if self.current_mode == "list" and self.connected:
-                    item_count = self.menu_list.GetCount()
-                    if item_count > 0:
-                        # Play menuenter sound like a normal activation
-                        if self.sound_manager:
-                            self.sound_manager.play_menuenter()
-                        # Build packet with selection (1-based index)
-                        packet = {
-                            "type": "menu",
-                            "menu_id": self.current_menu_id,
-                            "selection": item_count,
-                        }
-                        # Include selection_id for the last item if available
-                        last_index = item_count - 1  # 0-based for array access
-                        if 0 <= last_index < len(self.current_menu_item_ids):
-                            item_id = self.current_menu_item_ids[last_index]
-                            if item_id is not None:
-                                packet["selection_id"] = item_id
-                        self.network.send_packet(packet)
-                return
-            elif self.escape_behavior == "escape_event":
-                # Send explicit escape event to server
-                if self.connected:
-                    self.network.send_packet(
-                        {"type": "escape", "menu_id": self.current_menu_id}
-                    )
-                return
-            # else: "keybind" - fall through to send as normal keybind
-            key_name = "escape"
-        elif key_code == wx.WXK_SPACE:
-            key_name = "space"
-        elif key_code == wx.WXK_BACK:
-            key_name = "backspace"
-        elif key_code == wx.WXK_RETURN or key_code == wx.WXK_NUMPAD_ENTER:
-            # Only send Enter as keybind if modifiers are held
-            # Plain Enter should activate the menu (handled by MenuList)
-            if event.ControlDown() or event.ShiftDown() or event.AltDown():
-                key_name = "enter"
-        # Handle letter keys (case insensitive)
-        elif 65 <= key_code <= 90:  # A-Z
-            # Alt+P is handled by accelerator table for ping
-            if key_code == ord("P") and event.AltDown():
-                event.Skip()
-                return
-            key_name = chr(key_code).lower()
-        # Handle number keys
-        elif 48 <= key_code <= 57:  # 0-9
-            key_name = chr(key_code)
+        direction_key = self._map_direction_key(event, key_code, menu_is_empty)
+        if direction_key is not None:
+            return direction_key
 
-        # Extract modifier flags
+        function_key = self._map_function_key(event, key_code)
+        if function_key is not None:
+            return function_key
+
+        if key_code in (wx.WXK_ESCAPE, wx.WXK_BACK):
+            return "escape"
+        if key_code == wx.WXK_SPACE:
+            return "space"
+
+        enter_key = self._map_enter_key(event, key_code)
+        if enter_key is not None:
+            return enter_key
+
+        letter_key = self._map_letter_key(event, key_code)
+        if letter_key is not None:
+            return letter_key
+
+        number_key = self._map_number_key(key_code)
+        if number_key is not None:
+            return number_key
+
+        return None
+
+    def _map_direction_key(
+        self, event, key_code: int, menu_is_empty: bool
+    ) -> str | None:
+        key_map = {
+            wx.WXK_UP: "up",
+            wx.WXK_DOWN: "down",
+            wx.WXK_LEFT: "left",
+            wx.WXK_RIGHT: "right",
+        }
+        if key_code not in key_map:
+            return None
+        if menu_is_empty:
+            return key_map[key_code]
+        event.Skip()
+        return None
+
+    def _map_function_key(self, event, key_code: int) -> str | None:
+        key_map = {
+            wx.WXK_F1: "f1",
+            wx.WXK_F3: "f3",
+            wx.WXK_F5: "f5",
+        }
+        if key_code in (wx.WXK_F2, wx.WXK_F4):
+            event.Skip()
+            return None
+        return key_map.get(key_code)
+
+    def _map_enter_key(self, event, key_code: int) -> str | None:
+        if key_code not in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER):
+            return None
+        if event.ControlDown() or event.ShiftDown() or event.AltDown():
+            return "enter"
+        return None
+
+    def _map_letter_key(self, event, key_code: int) -> str | None:
+        if key_code < 65 or key_code > 90:
+            return None
+        if key_code == ord("P") and event.AltDown():
+            event.Skip()
+            return None
+        return chr(key_code).lower()
+
+    def _map_number_key(self, key_code: int) -> str | None:
+        if 48 <= key_code <= 57:
+            return chr(key_code)
+        return None
+
+    def _send_keybind_if_allowed(self, event, key_name: str) -> bool:
+        """Send a keybind packet when policy allows it."""
+        modifiers = event.GetModifiers()
         has_control = (modifiers & wx.MOD_CONTROL) != 0
         has_alt = (modifiers & wx.MOD_ALT) != 0
         has_shift = (modifiers & wx.MOD_SHIFT) != 0
 
-        # Send keybind event to server if we mapped it
-        # Don't send letter/number keys when multiletter nav is on (they do navigation)
-        # But DO send function keys, escape, space, backspace, and arrow keys (when menu is empty) always
-        # Note: F4 is excluded as it's handled by accelerator table for buffer mute
         is_function_key = key_name in [
             "f1",
             "f2",
@@ -710,7 +729,6 @@ class MainWindow(wx.Frame):
             "right",
         ]
 
-        # Send if: connected AND (is function key OR multiletter nav is off OR has modifiers)
         should_send = (
             key_name
             and self.connected
@@ -722,38 +740,33 @@ class MainWindow(wx.Frame):
                 or has_shift
             )
         )
+        if not should_send:
+            return False
 
-        if should_send:
-            # Get current menu context
-            menu_selection = self.menu_list.GetSelection()
-            if menu_selection == wx.NOT_FOUND:
-                menu_index = None
-                menu_item_id = None
+        menu_selection = self.menu_list.GetSelection()
+        if menu_selection == wx.NOT_FOUND:
+            menu_index = None
+            menu_item_id = None
+        else:
+            menu_index = menu_selection + 1
+            if 0 <= menu_selection < len(self.current_menu_item_ids):
+                menu_item_id = self.current_menu_item_ids[menu_selection]
             else:
-                menu_index = menu_selection + 1  # Convert to 1-based index for server
-                # Get item ID if available
-                if 0 <= menu_selection < len(self.current_menu_item_ids):
-                    menu_item_id = self.current_menu_item_ids[menu_selection]
-                else:
-                    menu_item_id = None
+                menu_item_id = None
 
-            self.network.send_packet(
-                {
-                    "type": "keybind",
-                    "key": key_name,
-                    "control": has_control,
-                    "alt": has_alt,
-                    "shift": has_shift,
-                    "menu_id": self.current_menu_id,
-                    "menu_index": menu_index,  # 1-based index, or None if nothing selected
-                    "menu_item_id": menu_item_id,  # Item ID, or None if not available
-                }
-            )
-            # Don't skip - we handled it
-            return
-
-        # Let other keys be processed normally (including Enter on menu)
-        event.Skip()
+        self.network.send_packet(
+            {
+                "type": "keybind",
+                "key": key_name,
+                "control": has_control,
+                "alt": has_alt,
+                "shift": has_shift,
+                "menu_id": self.current_menu_id,
+                "menu_index": menu_index,
+                "menu_item_id": menu_item_id,
+            }
+        )
+        return True
 
     def on_menu_activate(self, event):
         """Handle menu item activation (Enter/Space/Double-click)."""
@@ -897,8 +910,8 @@ class MainWindow(wx.Frame):
                 # Use interrupt=False to queue messages without interrupting
                 try:
                     self.speaker.speak(text, interrupt=False)
-                except Exception:
-                    pass
+                except (AttributeError, RuntimeError) as exc:
+                    LOG.debug("Failed to speak history text: %s", exc)
 
     # List/Edit mode switching methods
 
@@ -1028,9 +1041,9 @@ class MainWindow(wx.Frame):
             should_play = not self.current_edit_read_only and self.client_options.get(
                 "interface", {}
             ).get("play_typing_sounds", True)
-            if should_play:
+            if should_play:  # nosec B311
                 # Randomly pick typing1.ogg through typing4.ogg
-                sound_num = random.randint(1, 4)
+                sound_num = random.randint(1, 4)  # nosec B311
                 sound_name = f"typing{sound_num}.ogg"
                 self.sound_manager.play(sound_name, volume=0.5)
 
@@ -1043,18 +1056,51 @@ class MainWindow(wx.Frame):
 
         key_code = event.GetKeyCode()
 
-        # Handle Escape key - send empty value
-        if key_code == wx.WXK_ESCAPE:
-            if self.edit_mode_callback:
-                self.edit_mode_callback("")
-            self.switch_to_list_mode()
-            return  # Don't process the Escape key
-
-        if key_code in self._NAVIGATION_KEYS or event.ShiftDown() or event.ControlDown() or event.AltDown() or event.MetaDown():
-            self._pending_multiline_clear = False
-            event.Skip()
+        if self._handle_multiline_escape(key_code):
+            return
+        if self._should_defer_multiline_to_default(event, key_code):
+            return
+        self._clear_multiline_pending_if_needed(event, key_code)
+        if self._handle_multiline_enter(event, key_code):
             return
 
+        # Play typing sounds for printable characters (not Enter, Backspace, etc.)
+        # Don't play if read-only or if user has disabled typing sounds
+        if 32 <= key_code <= 126:  # Printable ASCII range
+            should_play = not self.current_edit_read_only and self.client_options.get(
+                "interface", {}
+            ).get("play_typing_sounds", True)
+            if should_play:  # nosec B311
+                # Randomly pick typing1.ogg through typing4.ogg
+                sound_num = random.randint(1, 4)  # nosec B311
+                sound_name = f"typing{sound_num}.ogg"
+                self.sound_manager.play(sound_name, volume=0.5)
+
+        # Allow all other keys (including plain Enter for newlines in editable mode)
+        event.Skip()
+
+    def _handle_multiline_escape(self, key_code: int) -> bool:
+        if key_code != wx.WXK_ESCAPE:
+            return False
+        if self.edit_mode_callback:
+            self.edit_mode_callback("")
+        self.switch_to_list_mode()
+        return True
+
+    def _should_defer_multiline_to_default(self, event, key_code: int) -> bool:
+        if (
+            key_code in self._NAVIGATION_KEYS
+            or event.ShiftDown()
+            or event.ControlDown()
+            or event.AltDown()
+            or event.MetaDown()
+        ):
+            self._pending_multiline_clear = False
+            event.Skip()
+            return True
+        return False
+
+    def _clear_multiline_pending_if_needed(self, event, key_code: int) -> None:
         if (
             self._pending_multiline_clear
             and self._should_clear_on_char_event(event, key_code)
@@ -1063,55 +1109,33 @@ class MainWindow(wx.Frame):
             self.edit_input_multiline.Clear()
             self._pending_multiline_clear = False
 
-        # Check for Enter key
-        if key_code == wx.WXK_RETURN:
-            # For read-only editboxes, plain Enter closes them
-            if self.current_edit_read_only:
+    def _handle_multiline_enter(self, event, key_code: int) -> bool:
+        if key_code != wx.WXK_RETURN:
+            return False
+        if self.current_edit_read_only:
+            text = self.edit_input_multiline.GetValue()
+            if self.edit_mode_callback:
+                self.edit_mode_callback(text)
+            self.switch_to_list_mode()
+            return True
+        invert = self.client_options.get("interface", {}).get(
+            "invert_multiline_enter_behavior", False
+        )
+        if not invert:
+            if not event.ShiftDown() and not event.ControlDown():
                 text = self.edit_input_multiline.GetValue()
                 if self.edit_mode_callback:
                     self.edit_mode_callback(text)
                 self.switch_to_list_mode()
-                return  # Don't process the Enter key
-
-            # For editable editboxes, behavior depends on invert_multiline_enter_behavior
-            if not self.client_options.get("interface", {}).get(
-                "invert_multiline_enter_behavior", False
-            ):
-                # Default behavior: Enter submits, Shift/Ctrl+Enter adds newline
-                if not event.ShiftDown() and not event.ControlDown():
-                    # Plain Enter submits
-                    text = self.edit_input_multiline.GetValue()
-                    if self.edit_mode_callback:
-                        self.edit_mode_callback(text)
-                    self.switch_to_list_mode()
-                    return  # Don't process the Enter key
-                # Shift/Ctrl+Enter adds newline (falls through to Skip())
-            else:
-                # Swapped behavior: Enter adds newline, Shift/Ctrl+Enter submits
-                if event.ShiftDown() or event.ControlDown():
-                    # Shift/Ctrl+Enter submits
-                    text = self.edit_input_multiline.GetValue()
-                    if self.edit_mode_callback:
-                        self.edit_mode_callback(text)
-                    self.switch_to_list_mode()
-                    return  # Don't process the Enter key
-                # Plain Enter adds newline (falls through to Skip())
-
-        # Play typing sounds for printable characters (not Enter, Backspace, etc.)
-        # Don't play if read-only or if user has disabled typing sounds
-        if 32 <= key_code <= 126:  # Printable ASCII range
-            should_play = not self.current_edit_read_only and self.client_options.get(
-                "interface", {}
-            ).get("play_typing_sounds", True)
-            if should_play:
-                # Randomly pick typing1.ogg through typing4.ogg
-                sound_num = random.randint(1, 4)
-                sound_name = f"typing{sound_num}.ogg"
-                self.sound_manager.play(sound_name, volume=0.5)
-
-        # Allow all other keys (including plain Enter for newlines in editable mode)
-        event.Skip()
-
+                return True
+        else:
+            if event.ShiftDown() or event.ControlDown():
+                text = self.edit_input_multiline.GetValue()
+                if self.edit_mode_callback:
+                    self.edit_mode_callback(text)
+                self.switch_to_list_mode()
+                return True
+        return False
     def _schedule_pending_clear(self, ctrl, multiline: bool, default_value: str, read_only: bool) -> None:
         should_select = bool(default_value) and not read_only and ctrl.IsEnabled()
         if multiline:
@@ -1289,8 +1313,8 @@ class MainWindow(wx.Frame):
             self.add_history(message, buffer_name="activity")
         try:
             self.speaker.speak(message, interrupt=False)
-        except Exception:
-            pass
+        except (AttributeError, RuntimeError) as exc:
+            LOG.debug("Failed to speak status message: %s", exc)
 
     def _schedule_reconnect_after(self, delay_seconds: int, announce_text: str):
         """Schedule a reconnect attempt after a delay."""
@@ -1865,29 +1889,46 @@ class MainWindow(wx.Frame):
         - If lists are same length, generate update operations for changed items
         - Otherwise use LCS-based diff for structural changes
         """
-        # Check if we can use ID-based diffing (all items have IDs)
-        if (old_ids is not None and new_ids is not None and
-            len(old_ids) == len(old_items) and len(new_ids) == len(new_items) and
-            all(item_id is not None for item_id in old_ids) and
-            all(item_id is not None for item_id in new_ids)):
-            # Use simpler ID-based algorithm
+        if self._can_use_id_diff(old_items, new_items, old_ids, new_ids):
             return self.compute_menu_diff_by_id(old_items, new_items, old_ids, new_ids)
 
         # Fall back to text-based LCS algorithm
         operations = []
 
-        # Simple case: same length, just update changed items
-        if len(old_items) == len(new_items):
-            for i in range(len(old_items)):
-                if old_items[i] != new_items[i]:
-                    operations.append(("update", i, new_items[i]))
-            return operations
+        same_length_ops = self._diff_same_length(old_items, new_items)
+        if same_length_ops is not None:
+            return same_length_ops
 
-        # Different lengths: use LCS algorithm for structural changes
+        operations = self._diff_with_lcs(old_items, new_items)
+
+        return operations
+
+    @staticmethod
+    def _can_use_id_diff(old_items, new_items, old_ids, new_ids) -> bool:
+        return (
+            old_ids is not None
+            and new_ids is not None
+            and len(old_ids) == len(old_items)
+            and len(new_ids) == len(new_items)
+            and all(item_id is not None for item_id in old_ids)
+            and all(item_id is not None for item_id in new_ids)
+        )
+
+    @staticmethod
+    def _diff_same_length(old_items, new_items):
+        if len(old_items) != len(new_items):
+            return None
+        operations = []
+        for i in range(len(old_items)):
+            if old_items[i] != new_items[i]:
+                operations.append(("update", i, new_items[i]))
+        return operations
+
+    @staticmethod
+    def _diff_with_lcs(old_items, new_items):
         m, n = len(old_items), len(new_items)
         lcs = [[0] * (n + 1) for _ in range(m + 1)]
 
-        # Fill LCS table
         for i in range(1, m + 1):
             for j in range(1, n + 1):
                 if old_items[i - 1] == new_items[j - 1]:
@@ -1895,22 +1936,18 @@ class MainWindow(wx.Frame):
                 else:
                     lcs[i][j] = max(lcs[i - 1][j], lcs[i][j - 1])
 
-        # Backtrack to generate operations
+        operations = []
         i, j = m, n
         while i > 0 or j > 0:
             if i > 0 and j > 0 and old_items[i - 1] == new_items[j - 1]:
-                # Items match - no operation needed
                 i -= 1
                 j -= 1
             elif j > 0 and (i == 0 or lcs[i][j - 1] >= lcs[i - 1][j]):
-                # Insert new item
                 operations.insert(0, ("insert", j - 1, new_items[j - 1]))
                 j -= 1
             else:
-                # Delete old item
                 operations.insert(0, ("delete", i - 1))
                 i -= 1
-
         return operations
 
     def apply_menu_diff(self, operations, old_selection):
@@ -1959,16 +1996,43 @@ class MainWindow(wx.Frame):
 
     def on_server_menu(self, packet):
         """Handle menu packet from server."""
+        menu_data = self._parse_menu_packet(packet)
+        items = menu_data["items"]
+        item_ids = menu_data["item_ids"]
+        item_sounds = menu_data["item_sounds"]
+        menu_id = menu_data["menu_id"]
+        position = menu_data["position"]
+
+        if self._menu_state_is_unchanged(menu_data):
+            self._apply_menu_position(items, position)
+            return
+
+        self._apply_menu_settings(menu_data)
+        is_same_menu_id = self.current_menu_id == menu_id
+        self._prepare_menu_mode(menu_id)
+        old_item_ids = getattr(self, "current_menu_item_ids", [])
+        self.current_menu_item_ids = item_ids
+
+        if not is_same_menu_id:
+            self._rebuild_menu(items, position)
+        elif self.menu_list.GetCount() > 0:
+            self._apply_menu_diff_update(items, item_ids, old_item_ids, position)
+        else:
+            self._rebuild_menu(items, position)
+
+        self._update_menu_sounds(item_sounds)
+
+    def _parse_menu_packet(self, packet: dict) -> dict:
+        """Parse menu packet into structured data."""
         items_raw = packet.get("items", [])
         menu_id = packet.get("menu_id", None)
         multiletter_enabled = packet.get("multiletter_enabled", True)
         escape_behavior = packet.get("escape_behavior", "keybind")
-        position = packet.get("position", None)  # Optional position to move to
-        selection_id = packet.get("selection_id", None)  # Optional item ID to focus
+        position = packet.get("position", None)
+        selection_id = packet.get("selection_id", None)
         grid_enabled = packet.get("grid_enabled", False)
         grid_width = packet.get("grid_width", 1)
 
-        # Parse items - can be strings or objects with {text, id}
         items = []
         item_ids = []
         item_sounds = []
@@ -1982,135 +2046,96 @@ class MainWindow(wx.Frame):
                 item_ids.append(None)
                 item_sounds.append(None)
 
-        # Save old item IDs before updating (for diff algorithm)
-        old_item_ids = getattr(self, 'current_menu_item_ids', [])
-
-        # Store item IDs for later use
-        self.current_menu_item_ids = item_ids
-
-        # Convert selection_id to position if provided
         if selection_id is not None and position is None:
             try:
                 position = item_ids.index(selection_id)
             except ValueError:
-                pass  # ID not found, ignore
+                pass
 
-        # Handle menus even if empty (items could be [])
-        # Check if this menu is identical to the previous one
-        new_menu_state = {
-            "menu_id": menu_id,
+        return {
             "items": items,
+            "item_ids": item_ids,
             "item_sounds": item_sounds,
+            "menu_id": menu_id,
             "multiletter_enabled": multiletter_enabled,
             "escape_behavior": escape_behavior,
             "grid_enabled": grid_enabled,
             "grid_width": grid_width,
+            "position": position,
         }
 
+    def _menu_state_is_unchanged(self, menu_data: dict) -> bool:
+        new_menu_state = {
+            "menu_id": menu_data["menu_id"],
+            "items": menu_data["items"],
+            "item_sounds": menu_data["item_sounds"],
+            "multiletter_enabled": menu_data["multiletter_enabled"],
+            "escape_behavior": menu_data["escape_behavior"],
+            "grid_enabled": menu_data["grid_enabled"],
+            "grid_width": menu_data["grid_width"],
+        }
         if self.current_menu_state == new_menu_state:
-            # Menu is identical - skip wx update to avoid confusing screen readers
-            # However, if position is specified, we should still move to it
-            if position is not None and len(items) > 0:
-                if 0 <= position < len(items):
-                    self.menu_list.SetSelection(position)
-            return
-
-        # Store new menu state for future comparisons
+            return True
         self.current_menu_state = new_menu_state
+        return False
 
-        # Set multiletter navigation for this menu
-        self.set_multiletter_navigation(multiletter_enabled)
+    def _apply_menu_settings(self, menu_data: dict) -> None:
+        self.set_multiletter_navigation(menu_data["multiletter_enabled"])
+        self.set_grid_mode(menu_data["grid_enabled"], menu_data["grid_width"])
+        self.escape_behavior = menu_data["escape_behavior"]
 
-        # Set grid mode for this menu
-        self.set_grid_mode(grid_enabled, grid_width)
-
-        # Set escape behavior for this menu
-        self.escape_behavior = escape_behavior
-
-        # Make sure we're in list mode
+    def _prepare_menu_mode(self, menu_id) -> None:
         if self.current_mode == "edit":
             self.switch_to_list_mode()
-
-        # Check if this is the same menu or a different one
-        is_same_menu_id = self.current_menu_id == menu_id
-
-        # Store the menu_id so we can send it back with selections
         self.current_menu_id = menu_id
 
-        # Different menu ID → always clear and rebuild (don't bother with diff)
-        if not is_same_menu_id:
-            self.menu_list.Clear()
-            for item in items:
-                self.menu_list.Append(item)
+    def _apply_menu_position(self, items: list[str], position: int | None) -> None:
+        if position is not None and len(items) > 0 and 0 <= position < len(items):
+            self.menu_list.SetSelection(position)
 
-            # Set focus first to make sure list is active
-            focused = wx.Window.FindFocus()
-            if focused != self.chat_input and focused != self.history_text:
-                self.menu_list.SetFocus()
+    def _set_menu_focus(self) -> None:
+        focused = wx.Window.FindFocus()
+        if focused != self.chat_input and focused != self.history_text:
+            self.menu_list.SetFocus()
 
-            # Set initial selection (use position if provided, otherwise 0)
-            if len(items) > 0:
-                if position is not None and 0 <= position < len(items):
-                    self.menu_list.SetSelection(position)
-                else:
-                    self.menu_list.SetSelection(0)
+    def _rebuild_menu(self, items: list[str], position: int | None) -> None:
+        self.menu_list.Clear()
+        for item in items:
+            self.menu_list.Append(item)
+        self._set_menu_focus()
+        if len(items) > 0:
+            if position is not None and 0 <= position < len(items):
+                self.menu_list.SetSelection(position)
+            else:
+                self.menu_list.SetSelection(0)
 
-        # Update client data (sounds)
-        # Moved to end of function to ensure menu items exist
+    def _apply_menu_diff_update(
+        self,
+        items: list[str],
+        item_ids: list[str | None],
+        old_item_ids: list[str | None],
+        position: int | None,
+    ) -> None:
+        old_items = [
+            self.menu_list.GetString(i) for i in range(self.menu_list.GetCount())
+        ]
+        old_selection = self.menu_list.GetSelection()
+        operations = self.compute_menu_diff(old_items, items, old_item_ids, item_ids)
+        new_selection = self.apply_menu_diff(operations, old_selection)
 
-        # Same menu ID → use diff algorithm to minimize screen reader disruption
-        elif self.menu_list.GetCount() > 0:
-            # Get current menu items
-            old_items = [
-                self.menu_list.GetString(i) for i in range(self.menu_list.GetCount())
-            ]
-
-            # Preserve current selection
-            old_selection = self.menu_list.GetSelection()
-
-            # Compute minimal diff (pass IDs if available for simpler algorithm)
-            operations = self.compute_menu_diff(old_items, items, old_item_ids, item_ids)
-
-            # Apply diff operations (screen reader friendly)
-            new_selection = self.apply_menu_diff(operations, old_selection)
-
-            # Override selection if position is explicitly provided
-            if position is not None and len(items) > 0:
-                if 0 <= position < len(items):
-                    new_selection = position
-                    # Force selection update when position is explicitly provided
+        if position is not None and len(items) > 0 and 0 <= position < len(items):
+            new_selection = position
+            self.menu_list.SetSelection(new_selection)
+        elif len(items) > 0:
+            current_selection = self.menu_list.GetSelection()
+            if new_selection != wx.NOT_FOUND:
+                if current_selection != new_selection:
                     self.menu_list.SetSelection(new_selection)
-            # Set selection after diff operations
-            elif len(items) > 0:
-                # Check if an item is actually selected and if it matches our target
-                current_selection = self.menu_list.GetSelection()
-                if new_selection != wx.NOT_FOUND:
-                    # Only call SetSelection if nothing is selected or wrong item is selected
-                    if current_selection != new_selection:
-                        self.menu_list.SetSelection(new_selection)
-                else:
-                    # No valid selection computed, default to 0 if nothing selected
-                    if current_selection == wx.NOT_FOUND:
-                        self.menu_list.SetSelection(0)
-        else:
-            # Same menu ID but list is empty - full rebuild
-            self.menu_list.Clear()
-            for item in items:
-                self.menu_list.Append(item)
-
-            # Set focus first to make sure list is active
-            focused = wx.Window.FindFocus()
-            if focused != self.chat_input and focused != self.history_text:
-                self.menu_list.SetFocus()
-
-            # Set initial selection (use position if provided, otherwise 0)
-            if len(items) > 0:
-                if position is not None and 0 <= position < len(items):
-                    self.menu_list.SetSelection(position)
-                else:
+            else:
+                if current_selection == wx.NOT_FOUND:
                     self.menu_list.SetSelection(0)
 
-        # Update client data (sounds) - ensure we update ALL items after any changes
+    def _update_menu_sounds(self, item_sounds: list[str | None]) -> None:
         for i, sound in enumerate(item_sounds):
             if i < self.menu_list.GetCount():
                 if sound:
@@ -2198,6 +2223,5 @@ class MainWindow(wx.Frame):
         try:
             with open(preferences_file, "w") as f:
                 json.dump(preferences, f, indent=2)
-        except Exception:
-            # Silently fail if we can't save preferences
-            pass
+        except (OSError, TypeError, ValueError) as exc:
+            LOG.debug("Failed to save preferences: %s", exc)

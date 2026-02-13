@@ -48,66 +48,10 @@ def score_round(game: "ScopaGame") -> None:
             cards = get_team_captured_cards(game.players, team)
         team_data.append((team, cards))
 
-    # Most cards
-    card_counts = [(team, len(cards)) for team, cards in team_data]
-    max_cards = max(count for _, count in card_counts)
-    winners = [team for team, count in card_counts if count == max_cards]
-    if len(winners) == 1:
-        game.team_manager.add_to_team_round_score(winners[0].members[0], 1)
-        name = game.team_manager.get_team_name(winners[0])
-        game.broadcast_l("scopa-most-cards", player=name, count=max_cards)
-    else:
-        game.broadcast_l("scopa-most-cards-tie")
-
-    # Most diamonds (suit 1)
-    diamond_counts = [
-        (team, sum(1 for c in cards if c.suit == 1)) for team, cards in team_data
-    ]
-    max_diamonds = max(count for _, count in diamond_counts)
-    if max_diamonds > 0:
-        winners = [team for team, count in diamond_counts if count == max_diamonds]
-        if len(winners) == 1:
-            game.team_manager.add_to_team_round_score(winners[0].members[0], 1)
-            name = game.team_manager.get_team_name(winners[0])
-            game.broadcast_l("scopa-most-diamonds", player=name, count=max_diamonds)
-        else:
-            game.broadcast_l("scopa-most-diamonds-tie")
-
-    # 7 of diamonds
-    seven_diamond_counts = [
-        (team, sum(1 for c in cards if c.rank == 7 and c.suit == 1))
-        for team, cards in team_data
-    ]
-    max_seven_diamonds = max(count for _, count in seven_diamond_counts)
-    if max_seven_diamonds > 0:
-        winners = [
-            team for team, count in seven_diamond_counts if count == max_seven_diamonds
-        ]
-        if len(winners) == 1:
-            game.team_manager.add_to_team_round_score(winners[0].members[0], 1)
-            name = game.team_manager.get_team_name(winners[0])
-            if max_seven_diamonds == 1:
-                game.broadcast_l("scopa-seven-diamonds", player=name)
-            else:
-                game.broadcast_l(
-                    "scopa-seven-diamonds-multi", player=name, count=max_seven_diamonds
-                )
-        else:
-            game.broadcast_l("scopa-seven-diamonds-tie")
-
-    # Most sevens
-    seven_counts = [
-        (team, sum(1 for c in cards if c.rank == 7)) for team, cards in team_data
-    ]
-    max_sevens = max(count for _, count in seven_counts)
-    if max_sevens > 0:
-        winners = [team for team, count in seven_counts if count == max_sevens]
-        if len(winners) == 1:
-            game.team_manager.add_to_team_round_score(winners[0].members[0], 1)
-            name = game.team_manager.get_team_name(winners[0])
-            game.broadcast_l("scopa-most-sevens", player=name, count=max_sevens)
-        else:
-            game.broadcast_l("scopa-most-sevens-tie")
+    _award_most_cards(game, team_data)
+    _award_most_diamonds(game, team_data)
+    _award_seven_of_diamonds(game, team_data)
+    _award_most_sevens(game, team_data)
 
     # Announce round scores
     game.broadcast_l("scopa-round-scores")
@@ -122,6 +66,85 @@ def score_round(game: "ScopaGame") -> None:
 
     # Play round end sound
     game.play_sound("game_pig/win.ogg")
+
+
+def _award_most_cards(game: "ScopaGame", team_data: list[tuple[Team, list[Card]]]) -> None:
+    card_counts = [(team, len(cards)) for team, cards in team_data]
+    max_cards = max(count for _, count in card_counts)
+    winners = [team for team, count in card_counts if count == max_cards]
+    if len(winners) == 1:
+        _award_round_point(game, winners[0], "scopa-most-cards", count=max_cards)
+    else:
+        game.broadcast_l("scopa-most-cards-tie")
+
+
+def _award_most_diamonds(game: "ScopaGame", team_data: list[tuple[Team, list[Card]]]) -> None:
+    diamond_counts = [
+        (team, sum(1 for c in cards if c.suit == 1)) for team, cards in team_data
+    ]
+    max_diamonds = max(count for _, count in diamond_counts)
+    if max_diamonds <= 0:
+        return
+    winners = [team for team, count in diamond_counts if count == max_diamonds]
+    if len(winners) == 1:
+        _award_round_point(game, winners[0], "scopa-most-diamonds", count=max_diamonds)
+    else:
+        game.broadcast_l("scopa-most-diamonds-tie")
+
+
+def _award_seven_of_diamonds(game: "ScopaGame", team_data: list[tuple[Team, list[Card]]]) -> None:
+    seven_diamond_counts = [
+        (team, sum(1 for c in cards if c.rank == 7 and c.suit == 1))
+        for team, cards in team_data
+    ]
+    max_seven_diamonds = max(count for _, count in seven_diamond_counts)
+    if max_seven_diamonds <= 0:
+        return
+    winners = [
+        team for team, count in seven_diamond_counts if count == max_seven_diamonds
+    ]
+    if len(winners) == 1:
+        _award_round_point(
+            game,
+            winners[0],
+            "scopa-seven-diamonds",
+            count=max_seven_diamonds,
+            plural_key="scopa-seven-diamonds-multi",
+        )
+    else:
+        game.broadcast_l("scopa-seven-diamonds-tie")
+
+
+def _award_most_sevens(game: "ScopaGame", team_data: list[tuple[Team, list[Card]]]) -> None:
+    seven_counts = [
+        (team, sum(1 for c in cards if c.rank == 7)) for team, cards in team_data
+    ]
+    max_sevens = max(count for _, count in seven_counts)
+    if max_sevens <= 0:
+        return
+    winners = [team for team, count in seven_counts if count == max_sevens]
+    if len(winners) == 1:
+        _award_round_point(game, winners[0], "scopa-most-sevens", count=max_sevens)
+    else:
+        game.broadcast_l("scopa-most-sevens-tie")
+
+
+def _award_round_point(
+    game: "ScopaGame",
+    team: Team,
+    message_key: str,
+    *,
+    count: int | None = None,
+    plural_key: str | None = None,
+) -> None:
+    game.team_manager.add_to_team_round_score(team.members[0], 1)
+    name = game.team_manager.get_team_name(team)
+    if plural_key and count is not None and count > 1:
+        game.broadcast_l(plural_key, player=name, count=count)
+    elif count is not None:
+        game.broadcast_l(message_key, player=name, count=count)
+    else:
+        game.broadcast_l(message_key, player=name)
 
 
 def check_winner(game: "ScopaGame") -> Team | None:

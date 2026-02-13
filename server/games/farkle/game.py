@@ -603,11 +603,11 @@ class FarkleGame(ActionGuardMixin, Game):
         self.play_sound("game_pig/roll.ogg")
 
         # Jolt bot to pause before next action
-        BotHelper.jolt_bot(player, ticks=random.randint(10, 20))
+        BotHelper.jolt_bot(player, ticks=random.randint(10, 20))  # nosec B311
 
         # Roll the dice
         farkle_player.current_roll = sorted(
-            [random.randint(1, 6) for _ in range(num_dice)]
+            [random.randint(1, 6) for _ in range(num_dice)]  # nosec B311
         )
 
         # Announce the roll
@@ -651,7 +651,7 @@ class FarkleGame(ActionGuardMixin, Game):
         farkle_player: FarklePlayer = player  # type: ignore
 
         # Jolt bot to pause before next action
-        BotHelper.jolt_bot(player, ticks=random.randint(8, 12))
+        BotHelper.jolt_bot(player, ticks=random.randint(8, 12))  # nosec B311
 
         # Parse combo type and number from action_id (e.g., "score_three_of_kind_4")
         parts = action_id.split("_", 1)[1]  # Remove "score_" prefix
@@ -815,7 +815,7 @@ class FarkleGame(ActionGuardMixin, Game):
         # Sync to TeamManager for score actions
         self._team_manager.add_to_team_score(player.name, farkle_player.turn_score)
 
-        self.play_sound(f"game_farkle/bank{random.randint(1, 3)}.ogg")
+        self.play_sound(f"game_farkle/bank{random.randint(1, 3)}.ogg")  # nosec B311
 
         self.broadcast_personal_l(
             player,
@@ -978,7 +978,7 @@ class FarkleGame(ActionGuardMixin, Game):
                 }
                 bank_prob = bank_probabilities.get(dice_remaining, 0.50)
 
-                if random.random() < bank_prob:
+                if random.random() < bank_prob:  # nosec B311
                     if bank_enabled:
                         return "bank"
 
@@ -1103,5 +1103,5 @@ class FarkleGame(ActionGuardMixin, Game):
 
     def end_turn(self, jolt_min: int = 20, jolt_max: int = 30) -> None:
         """End the current player's turn."""
-        BotHelper.jolt_bots(self, ticks=random.randint(jolt_min, jolt_max))
+        BotHelper.jolt_bots(self, ticks=random.randint(jolt_min, jolt_max))  # nosec B311
         self._on_turn_end()

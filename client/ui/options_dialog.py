@@ -581,91 +581,14 @@ class ClientOptionsDialog(wx.Dialog, audio_events.SoundBindingsMixin):
         )
 
         if result == wx.YES:
-            # Update defaults based on current tab
             if current_page == 0:  # Audio tab
-                music_volume = self.music_spin.GetValue()
-                ambience_volume = self.ambience_spin.GetValue()
-
-                if "audio" in self.defaults:
-                    if "music_volume" in self.defaults["audio"]:
-                        self.defaults["audio"]["music_volume"] = music_volume
-                    if "ambience_volume" in self.defaults["audio"]:
-                        self.defaults["audio"]["ambience_volume"] = ambience_volume
-
+                self._apply_audio_defaults()
             elif current_page == 1:  # Social tab
-                mute_global = self.mute_global_check.GetValue()
-                mute_table = self.mute_table_check.GetValue()
-                include_lang_filters_table = (
-                    self.include_lang_filters_table_check.GetValue()
-                )
-                input_lang = self.language_choice.GetStringSelection()
-
-                # Get language subscriptions
-                lang_subs = {}
-                for i, lang in enumerate(self.displayed_languages):
-                    lang_subs[lang] = self.lang_subscriptions_list.IsChecked(i)
-
-                if "social" in self.defaults:
-                    if "mute_global_chat" in self.defaults["social"]:
-                        self.defaults["social"]["mute_global_chat"] = mute_global
-                    if "mute_table_chat" in self.defaults["social"]:
-                        self.defaults["social"]["mute_table_chat"] = mute_table
-                    if (
-                        "include_language_filters_for_table_chat"
-                        in self.defaults["social"]
-                    ):
-                        self.defaults["social"][
-                            "include_language_filters_for_table_chat"
-                        ] = include_lang_filters_table
-                    if "chat_input_language" in self.defaults["social"]:
-                        self.defaults["social"]["chat_input_language"] = input_lang
-                    if "language_subscriptions" in self.defaults["social"]:
-                        # Only update languages that exist in defaults
-                        for lang_key in self.defaults["social"][
-                            "language_subscriptions"
-                        ]:
-                            if lang_key in lang_subs:
-                                self.defaults["social"]["language_subscriptions"][
-                                    lang_key
-                                ] = lang_subs[lang_key]
-
+                self._apply_social_defaults()
             elif current_page == 2:  # Interface tab
-                invert_multiline_enter = self.invert_multiline_enter_check.GetValue()
-                play_typing_sounds = self.play_typing_sounds_check.GetValue()
-
-                if "interface" in self.defaults:
-                    if "invert_multiline_enter_behavior" in self.defaults["interface"]:
-                        self.defaults["interface"][
-                            "invert_multiline_enter_behavior"
-                        ] = invert_multiline_enter
-                    if "play_typing_sounds" in self.defaults["interface"]:
-                        self.defaults["interface"]["play_typing_sounds"] = (
-                            play_typing_sounds
-                        )
-
+                self._apply_interface_defaults()
             elif current_page == 3:  # Local Table tab
-                # Get Local Table settings
-                public_visibility = self.public_visibility_choice.GetStringSelection()
-                password_prompt = self.password_prompt_choice.GetStringSelection()
-                default_password = self.default_password_input.GetValue()
-
-                creation_notifications = {}
-                for i, game_info in enumerate(self.games_list):
-                    game_type = game_info["type"]
-                    creation_notifications[game_type] = self.creation_subscription_list.IsChecked(
-                        i
-                    )
-
-                if "local_table" in self.defaults:
-                    self.defaults["local_table"]["start_as_visible"] = public_visibility
-                    self.defaults["local_table"]["start_with_password"] = password_prompt
-                    self.defaults["local_table"]["default_password_text"] = default_password
-
-                    # For creation_notifications, add/update all games since they come from the server's game registry
-                    # (not server-specific settings)
-                    default_creation_notifications = self.defaults["local_table"].setdefault("creation_notifications", {})
-                    for game_type, enabled in creation_notifications.items():
-                        default_creation_notifications[game_type] = enabled
+                self._apply_local_table_defaults()
 
             # Save the updated defaults
             self.config_manager.save_profiles()
@@ -775,11 +698,7 @@ class ClientOptionsDialog(wx.Dialog, audio_events.SoundBindingsMixin):
         else:
             # Save default profile settings
             # Update defaults - only overwrite existing keys
-            if "audio" in self.defaults:
-                if "music_volume" in self.defaults["audio"]:
-                    self.defaults["audio"]["music_volume"] = music_volume
-                if "ambience_volume" in self.defaults["audio"]:
-                    self.defaults["audio"]["ambience_volume"] = ambience_volume
+            self._apply_audio_defaults(music_volume, ambience_volume)
 
             # Save social settings
             mute_global = self.mute_global_check.GetValue()
@@ -794,57 +713,31 @@ class ClientOptionsDialog(wx.Dialog, audio_events.SoundBindingsMixin):
             for i, lang in enumerate(self.displayed_languages):
                 lang_subs[lang] = self.lang_subscriptions_list.IsChecked(i)
 
-            if "social" in self.defaults:
-                if "mute_global_chat" in self.defaults["social"]:
-                    self.defaults["social"]["mute_global_chat"] = mute_global
-                if "mute_table_chat" in self.defaults["social"]:
-                    self.defaults["social"]["mute_table_chat"] = mute_table
-                if "include_language_filters_for_table_chat" in self.defaults["social"]:
-                    self.defaults["social"][
-                        "include_language_filters_for_table_chat"
-                    ] = include_lang_filters_table
-                if "chat_input_language" in self.defaults["social"]:
-                    self.defaults["social"]["chat_input_language"] = input_lang
-                if "language_subscriptions" in self.defaults["social"]:
-                    # Only update languages that exist in defaults
-                    for lang_key in self.defaults["social"]["language_subscriptions"]:
-                        if lang_key in lang_subs:
-                            self.defaults["social"]["language_subscriptions"][
-                                lang_key
-                            ] = lang_subs[lang_key]
+            self._apply_social_defaults(
+                mute_global,
+                mute_table,
+                include_lang_filters_table,
+                input_lang,
+                lang_subs,
+            )
 
             # Save interface settings
             invert_multiline_enter = self.invert_multiline_enter_check.GetValue()
             play_typing_sounds = self.play_typing_sounds_check.GetValue()
-            if "interface" in self.defaults:
-                if "invert_multiline_enter_behavior" in self.defaults["interface"]:
-                    self.defaults["interface"]["invert_multiline_enter_behavior"] = (
-                        invert_multiline_enter
-                    )
-                if "play_typing_sounds" in self.defaults["interface"]:
-                    self.defaults["interface"]["play_typing_sounds"] = (
-                        play_typing_sounds
-                    )
+            self._apply_interface_defaults(invert_multiline_enter, play_typing_sounds)
 
             # Save Local Table
             public_visibility = self.public_visibility_choice.GetStringSelection()
             password_prompt = self.password_prompt_choice.GetStringSelection()
             default_password = self.default_password_input.GetValue()
 
-            creation_notifications = {}
-            for i, game_info in enumerate(self.games_list):
-                game_type = game_info["type"]
-                creation_notifications[game_type] = self.creation_subscription_list.IsChecked(i)
-
-            if "local_table" in self.defaults:
-                self.defaults["local_table"]["start_as_visible"] = public_visibility
-                self.defaults["local_table"]["start_with_password"] = password_prompt
-                self.defaults["local_table"]["default_password"] = default_password
-
-                # For creation_notifications, add/update all games since they come from the server's game registry
-                default_creation_notifications = self.defaults["local_table"].setdefault("creation_notifications", {})
-                for game_type, enabled in creation_notifications.items():
-                    default_creation_notifications[game_type] = enabled
+            creation_notifications = self._collect_creation_notifications()
+            self._apply_local_table_defaults(
+                public_visibility,
+                password_prompt,
+                default_password,
+                creation_notifications,
+            )
 
             # Save the updated defaults
             self.config_manager.save_profiles()
@@ -858,6 +751,103 @@ class ClientOptionsDialog(wx.Dialog, audio_events.SoundBindingsMixin):
             "Success",
             wx.OK | wx.ICON_INFORMATION,
         )
+
+    def _apply_audio_defaults(self, music_volume: int | None = None, ambience_volume: int | None = None) -> None:
+        if music_volume is None:
+            music_volume = self.music_spin.GetValue()
+        if ambience_volume is None:
+            ambience_volume = self.ambience_spin.GetValue()
+        if "audio" in self.defaults:
+            if "music_volume" in self.defaults["audio"]:
+                self.defaults["audio"]["music_volume"] = music_volume
+            if "ambience_volume" in self.defaults["audio"]:
+                self.defaults["audio"]["ambience_volume"] = ambience_volume
+
+    def _apply_social_defaults(
+        self,
+        mute_global: bool | None = None,
+        mute_table: bool | None = None,
+        include_lang_filters_table: bool | None = None,
+        input_lang: str | None = None,
+        lang_subs: dict | None = None,
+    ) -> None:
+        if mute_global is None:
+            mute_global = self.mute_global_check.GetValue()
+        if mute_table is None:
+            mute_table = self.mute_table_check.GetValue()
+        if include_lang_filters_table is None:
+            include_lang_filters_table = self.include_lang_filters_table_check.GetValue()
+        if input_lang is None:
+            input_lang = self.language_choice.GetStringSelection()
+        if lang_subs is None:
+            lang_subs = {}
+            for i, lang in enumerate(self.displayed_languages):
+                lang_subs[lang] = self.lang_subscriptions_list.IsChecked(i)
+
+        if "social" in self.defaults:
+            if "mute_global_chat" in self.defaults["social"]:
+                self.defaults["social"]["mute_global_chat"] = mute_global
+            if "mute_table_chat" in self.defaults["social"]:
+                self.defaults["social"]["mute_table_chat"] = mute_table
+            if "include_language_filters_for_table_chat" in self.defaults["social"]:
+                self.defaults["social"]["include_language_filters_for_table_chat"] = include_lang_filters_table
+            if "chat_input_language" in self.defaults["social"]:
+                self.defaults["social"]["chat_input_language"] = input_lang
+            if "language_subscriptions" in self.defaults["social"]:
+                for lang_key in self.defaults["social"]["language_subscriptions"]:
+                    if lang_key in lang_subs:
+                        self.defaults["social"]["language_subscriptions"][lang_key] = lang_subs[lang_key]
+
+    def _apply_interface_defaults(
+        self,
+        invert_multiline_enter: bool | None = None,
+        play_typing_sounds: bool | None = None,
+    ) -> None:
+        if invert_multiline_enter is None:
+            invert_multiline_enter = self.invert_multiline_enter_check.GetValue()
+        if play_typing_sounds is None:
+            play_typing_sounds = self.play_typing_sounds_check.GetValue()
+        if "interface" in self.defaults:
+            if "invert_multiline_enter_behavior" in self.defaults["interface"]:
+                self.defaults["interface"]["invert_multiline_enter_behavior"] = invert_multiline_enter
+            if "play_typing_sounds" in self.defaults["interface"]:
+                self.defaults["interface"]["play_typing_sounds"] = play_typing_sounds
+
+    def _collect_creation_notifications(self) -> dict:
+        creation_notifications = {}
+        for i, game_info in enumerate(self.games_list):
+            game_type = game_info["type"]
+            creation_notifications[game_type] = self.creation_subscription_list.IsChecked(i)
+        return creation_notifications
+
+    def _apply_local_table_defaults(
+        self,
+        public_visibility: str | None = None,
+        password_prompt: str | None = None,
+        default_password: str | None = None,
+        creation_notifications: dict | None = None,
+    ) -> None:
+        if public_visibility is None:
+            public_visibility = self.public_visibility_choice.GetStringSelection()
+        if password_prompt is None:
+            password_prompt = self.password_prompt_choice.GetStringSelection()
+        if default_password is None:
+            default_password = self.default_password_input.GetValue()
+        if creation_notifications is None:
+            creation_notifications = self._collect_creation_notifications()
+        if "local_table" in self.defaults:
+            self.defaults["local_table"]["start_as_visible"] = public_visibility
+            self.defaults["local_table"]["start_with_password"] = password_prompt
+            if "default_password_text" in self.defaults["local_table"]:
+                self.defaults["local_table"]["default_password_text"] = default_password
+            else:
+                self.defaults["local_table"]["default_password"] = default_password
+
+            default_creation_notifications = self.defaults["local_table"].setdefault(
+                "creation_notifications", {}
+            )
+            for game_type, enabled in creation_notifications.items():
+                default_creation_notifications[game_type] = enabled
 
     def on_done(self, event):
         """Close dialog and restore server profile volumes."""

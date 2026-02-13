@@ -90,7 +90,7 @@ class DiceSet(DataClassJSONMixin):
         """
         if not self.has_rolled:
             # First roll - roll all dice
-            self.values = [random.randint(1, self.sides) for _ in range(self.num_dice)]
+            self.values = [random.randint(1, self.sides) for _ in range(self.num_dice)]  # nosec B311
         else:
             if lock_kept:
                 # Lock the kept dice
@@ -101,7 +101,7 @@ class DiceSet(DataClassJSONMixin):
             # Roll only dice that are neither locked nor kept
             for i in range(self.num_dice):
                 if i not in self.locked and i not in self.kept:
-                    self.values[i] = random.randint(1, self.sides)
+                    self.values[i] = random.randint(1, self.sides)  # nosec B311
 
             if clear_kept:
                 # Reset kept to just locked dice
@@ -244,12 +244,12 @@ class DiceSet(DataClassJSONMixin):
 
 def roll_dice(num_dice: int = 1, sides: int = 6) -> list[int]:
     """Roll multiple dice and return their values."""
-    return [random.randint(1, sides) for _ in range(num_dice)]
+    return [random.randint(1, sides) for _ in range(num_dice)]  # nosec B311
 
 
 def roll_die(sides: int = 6) -> int:
     """Roll a single die and return its value."""
-    return random.randint(1, sides)
+    return random.randint(1, sides)  # nosec B311
 
 
 def count_dice(dice: Iterable[int], *, sides: int = 6) -> dict[int, int]:

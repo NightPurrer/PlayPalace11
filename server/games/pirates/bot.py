@@ -73,96 +73,168 @@ def _analyze_and_decide(game: "PiratesGame", player: "PiratesPlayer") -> BotDeci
     4. If no gems nearby but player is near one, consider portal
     5. Default to moving toward nearest gem or random movement
     """
-    # Gather intel
     targets = combat.get_targets_in_range(game, player)
     closest_gem = _find_closest_gem(game, player)
     gem_distance = abs(player.position - closest_gem) if closest_gem != -1 else 999
-
-    # Check if any target has valuable gems worth attacking for
     valuable_target = _find_valuable_target(game, player, targets)
-
-    # Check our buff status using skill singletons
     has_attack_buff = (
-        SWORD_FIGHTER.is_active(player) or
-        SKILLED_CAPTAIN.is_active(player)
+        SWORD_FIGHTER.is_active(player) or SKILLED_CAPTAIN.is_active(player)
     )
 
-    # Decision logic
-    decision = None
+    decision = _maybe_attack_target(
+        game,
+        player,
+        targets,
+        valuable_target,
+        has_attack_buff,
+        gem_distance,
+    )
+    if decision:
+        return decision
 
-    # Priority 1: If we want to attack a valuable target
-    if valuable_target and targets:
-        # Check if target has strong defense buffs
-        target_has_defense = (
-            PUSH.is_active(valuable_target) or
-            SKILLED_CAPTAIN.is_active(valuable_target)
-        )
+    decision = _maybe_move_toward_close_gem(game, player, closest_gem, gem_distance)
+    if decision:
+        return decision
 
-        # If target has defense and we don't have attack buff, consider buffing first
-        if target_has_defense and not has_attack_buff:
-            # Try to activate sword fighter or skilled captain first
-            if SWORD_FIGHTER.is_unlocked(player):
-                can_use, _ = SWORD_FIGHTER.can_perform(game, player)
-                if can_use and random.random() < 0.8:  # 80% chance to buff first
-                    return BotDecision(action_id="use_skill", skill_name="sword_fighter")
+    decision = _maybe_use_portal(game, player, gem_distance)
+    if decision:
+        return decision
 
-            if SKILLED_CAPTAIN.is_unlocked(player):
-                can_use, _ = SKILLED_CAPTAIN.can_perform(game, player)
-                if can_use and random.random() < 0.8:
-                    return BotDecision(action_id="use_skill", skill_name="skilled_captain")
+    decision = _maybe_use_gem_seeker(game, player, gem_distance)
+    if decision:
+        return decision
 
-        # Decide whether to attack
-        attack_chance = _calculate_attack_chance(
-            game, player, valuable_target,
-            has_attack_buff, target_has_defense, gem_distance
-        )
+    decision = _maybe_use_double_devastation(game, player)
+    if decision:
+        return decision
 
-        if random.random() < attack_chance:
-            # Use battleship if available and multiple targets or valuable target
-            if BATTLESHIP.is_unlocked(player):
-                can_use, _ = BATTLESHIP.can_perform(game, player)
-                if can_use and (len(targets) >= 2 or valuable_target.score >= 3):
-                    return BotDecision(
-                        action_id="use_skill",
-                        skill_name="battleship",
-                        target=valuable_target
-                    )
+    return _decide_movement(game, player)
 
-            # Regular cannonball attack
-            return BotDecision(action_id="cannonball", target=valuable_target)
 
-    # Priority 2: Move toward nearby gem
+def _maybe_attack_target(
+    game: "PiratesGame",
+    player: "PiratesPlayer",
+    targets: list["PiratesPlayer"],
+    valuable_target: "PiratesPlayer | None",
+    has_attack_buff: bool,
+    gem_distance: int,
+) -> BotDecision | None:
+    if not valuable_target or not targets:
+        return None
+
+    target_has_defense = _target_has_defense(valuable_target)
+    decision = _maybe_activate_attack_buff(
+        game,
+        player,
+        has_attack_buff,
+        target_has_defense,
+    )
+    if decision:
+        return decision
+
+    attack_chance = _calculate_attack_chance(
+        game,
+        player,
+        valuable_target,
+        has_attack_buff,
+        target_has_defense,
+        gem_distance,
+    )
+
+    if random.random() < attack_chance:  # nosec B311
+        if BATTLESHIP.is_unlocked(player):
+            can_use, _ = BATTLESHIP.can_perform(game, player)
+            if can_use and (len(targets) >= 2 or valuable_target.score >= 3):
+                return BotDecision(
+                    action_id="use_skill",
+                    skill_name="battleship",
+                    target=valuable_target,
+                )
+
+        return BotDecision(action_id="cannonball", target=valuable_target)
+
+    return None
+
+
+def _target_has_defense(target: "PiratesPlayer") -> bool:
+    return PUSH.is_active(target) or SKILLED_CAPTAIN.is_active(target)
+
+
+def _maybe_activate_attack_buff(
+    game: "PiratesGame",
+    player: "PiratesPlayer",
+    has_attack_buff: bool,
+    target_has_defense: bool,
+) -> BotDecision | None:
+    if has_attack_buff or not target_has_defense:
+        return None
+
+    if SWORD_FIGHTER.is_unlocked(player):
+        can_use, _ = SWORD_FIGHTER.can_perform(game, player)
+        if can_use and random.random() < 0.8:  # nosec B311
+            return BotDecision(action_id="use_skill", skill_name="sword_fighter")
+
+    if SKILLED_CAPTAIN.is_unlocked(player):
+        can_use, _ = SKILLED_CAPTAIN.can_perform(game, player)
+        if can_use and random.random() < 0.8:  # nosec B311
+            return BotDecision(action_id="use_skill", skill_name="skilled_captain")
+
+    return None
+
+
+def _maybe_move_toward_close_gem(
+    game: "PiratesGame",
+    player: "PiratesPlayer",
+    closest_gem: int,
+    gem_distance: int,
+) -> BotDecision | None:
     if closest_gem != -1 and gem_distance <= 5:
         return _decide_movement_toward(game, player, closest_gem)
+    return None
 
-    # Priority 3: Consider portal if gems are far but another player is near one
-    if gem_distance > 10 and PORTAL.is_unlocked(player):
-        can_use, _ = PORTAL.can_perform(game, player)
-        if can_use:
-            # Check if another player is closer to a gem
-            other_near_gem = _is_other_player_near_gem(game, player)
-            if other_near_gem and random.random() < 0.6:  # 60% chance to portal
-                return BotDecision(action_id="use_skill", skill_name="portal")
 
-    # Priority 4: Use gem seeker if we have uses and can't find gems
-    if gem_distance > 15:
-        if GEM_SEEKER.is_unlocked(player):
-            can_use, _ = GEM_SEEKER.can_perform(game, player)
-            if can_use and random.random() < 0.3:  # 30% chance
-                return BotDecision(action_id="use_skill", skill_name="gem_seeker")
+def _maybe_use_portal(
+    game: "PiratesGame",
+    player: "PiratesPlayer",
+    gem_distance: int,
+) -> BotDecision | None:
+    if gem_distance <= 10 or not PORTAL.is_unlocked(player):
+        return None
+    can_use, _ = PORTAL.can_perform(game, player)
+    if not can_use:
+        return None
+    if _is_other_player_near_gem(game, player) and random.random() < 0.6:  # nosec B311
+        return BotDecision(action_id="use_skill", skill_name="portal")
+    return None
 
-    # Priority 5: Activate double devastation if targets are just out of range
-    if DOUBLE_DEVASTATION.is_unlocked(player):
-        can_use, _ = DOUBLE_DEVASTATION.can_perform(game, player)
-        if can_use:
-            # Check if there are targets in extended range but not current range
-            extended_targets = combat.get_targets_in_range(game, player, max_range=10)
-            current_targets = combat.get_targets_in_range(game, player, max_range=5)
-            if len(extended_targets) > len(current_targets) and random.random() < 0.5:
-                return BotDecision(action_id="use_skill", skill_name="double_devastation")
 
-    # Default: Move toward closest gem or random
-    return _decide_movement(game, player)
+def _maybe_use_gem_seeker(
+    game: "PiratesGame",
+    player: "PiratesPlayer",
+    gem_distance: int,
+) -> BotDecision | None:
+    if gem_distance <= 15 or not GEM_SEEKER.is_unlocked(player):
+        return None
+    can_use, _ = GEM_SEEKER.can_perform(game, player)
+    if can_use and random.random() < 0.3:  # nosec B311
+        return BotDecision(action_id="use_skill", skill_name="gem_seeker")
+    return None
+
+
+def _maybe_use_double_devastation(
+    game: "PiratesGame",
+    player: "PiratesPlayer",
+) -> BotDecision | None:
+    if not DOUBLE_DEVASTATION.is_unlocked(player):
+        return None
+    can_use, _ = DOUBLE_DEVASTATION.can_perform(game, player)
+    if not can_use:
+        return None
+    extended_targets = combat.get_targets_in_range(game, player, max_range=10)
+    current_targets = combat.get_targets_in_range(game, player, max_range=5)
+    if len(extended_targets) > len(current_targets) and random.random() < 0.5:  # nosec B311
+        return BotDecision(action_id="use_skill", skill_name="double_devastation")
+    return None
 
 
 def _find_closest_gem(game: "PiratesGame", player: "PiratesPlayer") -> int:
@@ -220,8 +292,8 @@ def _find_valuable_target(
         return scored_targets[0][0]
 
     # If no target has gems, still return one for XP (50% chance)
-    if targets and random.random() < 0.5:
-        return random.choice(targets)
+    if targets and random.random() < 0.5:  # nosec B311
+        return random.choice(targets)  # nosec B311
 
     return None
 
@@ -296,7 +368,7 @@ def _decide_movement(game: "PiratesGame", player: "PiratesPlayer") -> BotDecisio
         return _decide_movement_toward(game, player, closest_gem)
 
     # No gems left, random movement
-    direction = random.choice(["left", "right"])
+    direction = random.choice(["left", "right"])  # nosec B311
     return _get_best_move_action(game, player, direction)
 
 
@@ -312,7 +384,7 @@ def _decide_movement_toward(
         direction = "left"
     else:
         # Already at position, move randomly
-        direction = random.choice(["left", "right"])
+        direction = random.choice(["left", "right"])  # nosec B311
         return _get_best_move_action(game, player, direction)
 
     return _get_best_move_action(game, player, direction, target_pos)
@@ -373,7 +445,7 @@ def bot_select_target(
         return decision.target
 
     # Fall back to finding valuable target
-    return _find_valuable_target(game, player, targets) or random.choice(targets)
+    return _find_valuable_target(game, player, targets) or random.choice(targets)  # nosec B311
 
 
 def bot_select_boarding_action(
@@ -390,7 +462,7 @@ def bot_select_boarding_action(
     - Our attack bonuses vs their defense bonuses
     """
     if not can_steal or not defender.has_gems():
-        return random.choice(["left", "right"])
+        return random.choice(["left", "right"])  # nosec B311
 
     # Calculate steal success probability
     attack_bonus = skills.get_attack_bonus(player)
@@ -411,10 +483,10 @@ def bot_select_boarding_action(
     # More gems = more tempting to steal
     steal_chance += min(0.2, len(defender.gems) * 0.05)
 
-    if random.random() < steal_chance:
+    if random.random() < steal_chance:  # nosec B311
         return "steal"
 
-    return random.choice(["left", "right"])
+    return random.choice(["left", "right"])  # nosec B311
 
 
 def bot_select_portal_ocean(
@@ -460,10 +532,10 @@ def bot_select_portal_ocean(
 
     # Pick the best ocean, with some randomness
     if scored_oceans:
-        if random.random() < 0.8:  # 80% chance to pick best
+        if random.random() < 0.8:  # 80% chance to pick best  # nosec B311
             return scored_oceans[0][0]
         else:
-            return random.choice([o[0] for o in scored_oceans])
+            return random.choice([o[0] for o in scored_oceans])  # nosec B311
 
     return ocean_options[0][0]
 

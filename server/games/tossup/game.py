@@ -223,7 +223,7 @@ class TossUpGame(PushYourLuckBotMixin, ActionGuardMixin, Game):
         self.play_sound("game_pig/roll.ogg")
 
         # Jolt the rolling player to pause before next action
-        BotHelper.jolt_bot(player, ticks=random.randint(10, 20))
+        BotHelper.jolt_bot(player, ticks=random.randint(10, 20))  # nosec B311
 
         # Roll the dice
         green = 0
@@ -235,7 +235,7 @@ class TossUpGame(PushYourLuckBotMixin, ActionGuardMixin, Game):
         for _ in range(tossup_player.dice_count):
             if is_standard:
                 # Standard: 3 green, 2 yellow, 1 red (6-sided die)
-                roll = random.randint(1, 6)
+                roll = random.randint(1, 6)  # nosec B311
                 if roll <= 3:
                     green += 1
                 elif roll <= 5:
@@ -244,7 +244,7 @@ class TossUpGame(PushYourLuckBotMixin, ActionGuardMixin, Game):
                     red += 1
             else:
                 # PlayPalace: Equal distribution (3-sided die)
-                roll = random.randint(1, 3)
+                roll = random.randint(1, 3)  # nosec B311
                 if roll == 1:
                     green += 1
                 elif roll == 2:
@@ -480,7 +480,7 @@ class TossUpGame(PushYourLuckBotMixin, ActionGuardMixin, Game):
             else:
                 bank_chance = 0.02
 
-            if random.random() < bank_chance:
+            if random.random() < bank_chance:  # nosec B311
                 return "bank"
             else:
                 return "roll"
@@ -579,5 +579,5 @@ class TossUpGame(PushYourLuckBotMixin, ActionGuardMixin, Game):
 
     def end_turn(self, jolt_min: int = 20, jolt_max: int = 30) -> None:
         """Override to use TossUp's turn advancement logic."""
-        BotHelper.jolt_bots(self, ticks=random.randint(jolt_min, jolt_max))
+        BotHelper.jolt_bots(self, ticks=random.randint(jolt_min, jolt_max))  # nosec B311
         self._on_turn_end()

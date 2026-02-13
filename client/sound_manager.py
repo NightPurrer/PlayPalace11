@@ -1,9 +1,12 @@
 """Sound and music manager for Play Palace v9 client."""
 
+import logging
 import os
 import threading
 import time
 from sound_cacher import SoundCacher
+
+LOG = logging.getLogger(__name__)
 
 
 class AudioPlaylist:
@@ -83,8 +86,8 @@ class AudioPlaylist:
                 from sound_lib.external.pybass import BASS_ChannelRemoveSync
 
                 BASS_ChannelRemoveSync(self.current_stream.handle, self.sync_handle)
-            except Exception:
-                pass
+            except (AttributeError, OSError, RuntimeError) as exc:
+                LOG.debug("Failed to remove audio sync: %s", exc)
             self.sync_handle = None
 
         # Get the next track
@@ -160,8 +163,8 @@ class AudioPlaylist:
                 from sound_lib.external.pybass import BASS_ChannelRemoveSync
 
                 BASS_ChannelRemoveSync(self.current_stream.handle, self.sync_handle)
-            except Exception:
-                pass
+            except (AttributeError, OSError, RuntimeError) as exc:
+                LOG.debug("Failed to remove audio sync: %s", exc)
             self.sync_handle = None
             self.callback = None
 
@@ -256,8 +259,8 @@ class AudioPlaylist:
             if self.current_stream and hasattr(self.current_stream, "position"):
                 try:
                     elapsed_seconds += self.current_stream.position
-                except Exception:
-                    pass
+                except (AttributeError, OSError, RuntimeError) as exc:
+                    LOG.debug("Failed to read current stream position: %s", exc)
 
             return int(elapsed_seconds * 1000)
         except Exception:
@@ -301,8 +304,8 @@ class AudioPlaylist:
                         0, current_track_duration - current_position
                     )
                     remaining_seconds += remaining_in_current
-                except Exception:
-                    pass
+                except (AttributeError, OSError, RuntimeError) as exc:
+                    LOG.debug("Failed to compute remaining duration: %s", exc)
 
             # Add duration of all remaining tracks
             for i in range(current_playing_index + 1, len(self.tracks)):
@@ -385,8 +388,8 @@ class SoundManager:
         if self.current_music:
             try:
                 self.current_music.stop()
-            except Exception:
-                pass
+            except (AttributeError, OSError, RuntimeError) as exc:
+                LOG.debug("Failed to stop current music: %s", exc)
 
         # Start new music
         music_path = os.path.join(self.sounds_folder, music_name)
@@ -415,8 +418,8 @@ class SoundManager:
                     old_music.volume = start_volume * (i / steps)
                     time.sleep(0.05)
                 old_music.stop()
-            except Exception:
-                pass
+            except (AttributeError, OSError, RuntimeError) as exc:
+                LOG.debug("Failed to fade old music: %s", exc)
 
         # Start fade in background thread
         fade_thread = threading.Thread(target=fade, daemon=True)
@@ -436,8 +439,8 @@ class SoundManager:
                 old_music.volume = start_volume * (i / steps)
                 time.sleep(0.05)
             old_music.stop()
-        except Exception:
-            pass
+        except (AttributeError, OSError, RuntimeError) as exc:
+            LOG.debug("Failed to fade old music: %s", exc)
 
     def _fade_out_music(self):
         """Fade out the current music in a background thread."""
@@ -454,8 +457,8 @@ class SoundManager:
                     old_music.volume = start_volume * (i / steps)
                     time.sleep(0.05)
                 old_music.stop()
-            except Exception:
-                pass
+            except (AttributeError, OSError, RuntimeError) as exc:
+                LOG.debug("Failed to fade old music: %s", exc)
 
         # Start fade in background thread
         fade_thread = threading.Thread(target=fade, daemon=True)
@@ -474,8 +477,8 @@ class SoundManager:
             else:
                 try:
                     self.current_music.stop()
-                except Exception:
-                    pass
+                except (AttributeError, OSError, RuntimeError) as exc:
+                    LOG.debug("Failed to stop music: %s", exc)
             self.current_music = None
             self.current_music_name = None
 
@@ -490,8 +493,8 @@ class SoundManager:
         if self.current_music:
             try:
                 self.current_music.volume = self.music_volume
-            except Exception:
-                pass
+            except (AttributeError, OSError, RuntimeError) as exc:
+                LOG.debug("Failed to set music volume: %s", exc)
 
     def play_menuclick(self):
         """Play the menu click sound."""
@@ -637,18 +640,18 @@ class SoundManager:
             if self.ambience_intro:
                 try:
                     self.ambience_intro.stop()
-                except Exception:
-                    pass
+                except (AttributeError, OSError, RuntimeError) as exc:
+                    LOG.debug("Failed to stop ambience intro: %s", exc)
             if self.ambience_loop:
                 try:
                     self.ambience_loop.stop()
-                except Exception:
-                    pass
+                except (AttributeError, OSError, RuntimeError) as exc:
+                    LOG.debug("Failed to stop ambience loop: %s", exc)
             if self.ambience_outro:
                 try:
                     self.ambience_outro.stop()
-                except Exception:
-                    pass
+                except (AttributeError, OSError, RuntimeError) as exc:
+                    LOG.debug("Failed to stop ambience outro: %s", exc)
 
             self.ambience_intro = None
             self.ambience_loop = None
@@ -668,18 +671,18 @@ class SoundManager:
         if self.ambience_intro:
             try:
                 self.ambience_intro.volume = self.ambience_volume
-            except Exception:
-                pass
+            except (AttributeError, OSError, RuntimeError) as exc:
+                LOG.debug("Failed to set ambience intro volume: %s", exc)
         if self.ambience_loop:
             try:
                 self.ambience_loop.volume = self.ambience_volume
-            except Exception:
-                pass
+            except (AttributeError, OSError, RuntimeError) as exc:
+                LOG.debug("Failed to set ambience loop volume: %s", exc)
         if self.ambience_outro:
             try:
                 self.ambience_outro.volume = self.ambience_volume
-            except Exception:
-                pass
+            except (AttributeError, OSError, RuntimeError) as exc:
+                LOG.debug("Failed to set ambience outro volume: %s", exc)
 
     def add_playlist(
         self,

@@ -198,11 +198,11 @@ class LightTurretGame(Game):
             return
 
         # Play shoot sound
-        shoot_sound = f"game_lightturret/shoot{random.randint(1, 3)}.ogg"
+        shoot_sound = f"game_lightturret/shoot{random.randint(1, 3)}.ogg"  # nosec B311
         self.play_sound(shoot_sound)
 
         # Gain light and coins
-        gain = random.randint(1, 4)
+        gain = random.randint(1, 4)  # nosec B311
         lt_player.light += gain
         lt_player.coins += gain * 2
         self._team_manager.add_to_team_score(player.name, gain)
@@ -248,9 +248,9 @@ class LightTurretGame(Game):
         self.broadcast_l("lightturret-buys-upgrade", player=player.name)
 
         # 25% chance of accident
-        if random.randint(0, 3) == 3:
+        if random.randint(0, 3) == 3:  # nosec B311
             # Accident - upgrade infuses with turret
-            accident_light = random.randint(1, 5)
+            accident_light = random.randint(1, 5)  # nosec B311
             lt_player.light += accident_light
             self._team_manager.add_to_team_score(player.name, accident_light)
             # Schedule merge sound after delay (5 ticks = 250ms)
@@ -263,7 +263,7 @@ class LightTurretGame(Game):
                 self._eliminate_player(lt_player)
         else:
             # Normal upgrade
-            power_gain = random.randint(2, 8)
+            power_gain = random.randint(2, 8)  # nosec B311
             lt_player.power += power_gain
             self.broadcast_l(
                 "lightturret-power-gained",
@@ -364,7 +364,7 @@ class LightTurretGame(Game):
         self.announce_turn()
 
         if player.is_bot:
-            BotHelper.jolt_bot(player, ticks=random.randint(12, 20))
+            BotHelper.jolt_bot(player, ticks=random.randint(12, 20))  # nosec B311
 
         self.rebuild_all_menus()
 
@@ -558,5 +558,5 @@ class LightTurretGame(Game):
 
     def end_turn(self, jolt_min: int = 15, jolt_max: int = 25) -> None:
         """End the current player's turn."""
-        BotHelper.jolt_bots(self, ticks=random.randint(jolt_min, jolt_max))
+        BotHelper.jolt_bots(self, ticks=random.randint(jolt_min, jolt_max))  # nosec B311
         self._on_turn_end()

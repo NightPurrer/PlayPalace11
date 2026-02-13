@@ -156,8 +156,9 @@ class ConfigManager:
                 },
                 "local_table": {
                     "start_as_visible": "always",
-                    "start_with_password": "never",
-                    "default_password_text": "",
+                    # Config keys only; not secrets.
+                    "start_with_password": "never",  # nosec B105
+                    "default_password_text": "",  # nosec B105
                     "creation_notifications": {}},  # Will be populated dynamically
             },
             "server_options": {},  # server_id -> options_overrides dict
@@ -174,111 +175,18 @@ class ConfigManager:
         """
         needs_save = False
 
-        # Migration: Convert old "servers" structure to "server_options"
-        if "servers" in profiles and "server_options" not in profiles:
-            profiles["server_options"] = {}
-            for server_id, server_info in profiles["servers"].items():
-                if "options_overrides" in server_info and server_info["options_overrides"]:
-                    profiles["server_options"][server_id] = server_info["options_overrides"]
-            del profiles["servers"]
+        if self._migrate_server_options(profiles):
             needs_save = True
-            print("Migrated 'servers' to 'server_options' in profiles")
-
-        # Ensure server_options exists
-        if "server_options" not in profiles:
-            profiles["server_options"] = {}
-
-        # Migration: Fix "check" -> "Czech" in language subscriptions
-        # Check default profile language subscriptions
-        if "client_options_defaults" in profiles:
-            defaults = profiles["client_options_defaults"]
-            if "social" in defaults:
-                # Fix language subscriptions
-                if "language_subscriptions" in defaults["social"]:
-                    lang_subs = defaults["social"]["language_subscriptions"]
-                    if "Check" in lang_subs:
-                        lang_subs["Czech"] = lang_subs.pop("Check")
-                        needs_save = True
-                        print(
-                            "Migrated language subscription: 'Check' -> 'Czech' in default profile"
-                        )
-
-                # Fix chat_input_language
-                if "chat_input_language" in defaults["social"]:
-                    chat_lang = defaults["social"]["chat_input_language"]
-                    if chat_lang == "Check":
-                        defaults["social"]["chat_input_language"] = "Czech"
-                        needs_save = True
-                        print(
-                            "Migrated chat_input_language: 'Check' -> 'Czech' in default profile"
-                        )
-
-        # Check each server override for language subscriptions
-        for server_id, overrides in profiles.get("server_options", {}).items():
-            if "social" in overrides:
-                # Fix language subscriptions
-                if "language_subscriptions" in overrides["social"]:
-                    lang_subs = overrides["social"]["language_subscriptions"]
-                    if "Check" in lang_subs:
-                        lang_subs["Czech"] = lang_subs.pop("Check")
-                        needs_save = True
-                        print(
-                            f"Migrated language subscription: 'Check' -> 'Czech' in server {server_id}"
-                        )
-
-                # Fix chat_input_language
-                if "chat_input_language" in overrides["social"]:
-                    chat_lang = overrides["social"]["chat_input_language"]
-                    if chat_lang == "Check":
-                        overrides["social"]["chat_input_language"] = "Czech"
-                        needs_save = True
-                        print(
-                            f"Migrated chat_input_language: 'Check' -> 'Czech' in server {server_id}"
-                        )
-
-        # Migration: Rename table_creations to local_table/creation_notifications
-        # and add new default options to local_table
-        if "client_options_defaults" in profiles:
-            defaults = profiles["client_options_defaults"]
-            if "table_creations" in defaults:
-                table_creations_value = defaults.pop("table_creations")
-                if "local_table" not in defaults:
-                    defaults["local_table"] = {}
-                # Build local_table with proper ordering (new options before creation_notifications)
-                new_local_table = {
-                    "start_as_visible": defaults["local_table"].get("start_as_visible", "always"),
-                    "start_with_password": defaults["local_table"].get("start_with_password", "never"),
-                    "default_password_text": defaults["local_table"].get("default_password_text", ""),
-                    "creation_notifications": table_creations_value,
-                }
-                # Preserve any other existing keys in local_table
-                for key, value in defaults["local_table"].items():
-                    if key not in new_local_table:
-                        new_local_table[key] = value
-                defaults["local_table"] = new_local_table
-                needs_save = True
-                print("Migrated 'table_creations' -> 'local_table/creation_notifications' in default profile")
-
-        # Check each server override for table_creations
-        for server_id, overrides in profiles.get("server_options", {}).items():
-            if "table_creations" in overrides:
-                table_creations_value = overrides.pop("table_creations")
-                if "local_table" not in overrides:
-                    overrides["local_table"] = {}
-                # Build local_table with proper ordering
-                new_local_table = {
-                    "start_as_visible": overrides["local_table"].get("start_as_visible", "always"),
-                    "start_with_password": overrides["local_table"].get("start_with_password", "never"),
-                    "default_password_text": overrides["local_table"].get("default_password_text", ""),
-                    "creation_notifications": table_creations_value,
-                }
-                # Preserve any other existing keys in local_table
-                for key, value in overrides["local_table"].items():
-                    if key not in new_local_table:
-                        new_local_table[key] = value
-                overrides["local_table"] = new_local_table
-                needs_save = True
-                print(f"Migrated 'table_creations' -> 'local_table/creation_notifications' in server {server_id}")
+        if self._ensure_server_options(profiles):
+            needs_save = True
+        if self._fix_default_language_subscriptions(profiles):
+            needs_save = True
+        if self._fix_server_language_subscriptions(profiles):
+            needs_save = True
+        if self._migrate_default_table_creations(profiles):
+            needs_save = True
+        if self._migrate_server_table_creations(profiles):
+            needs_save = True
 
         # Save immediately if migration occurred
         if needs_save:
@@ -287,6 +195,107 @@ class ConfigManager:
             print("Profile migration completed and saved to disk.")
 
         return profiles
+
+    def _migrate_server_options(self, profiles: Dict[str, Any]) -> bool:
+        if "servers" not in profiles or "server_options" in profiles:
+            return False
+        profiles["server_options"] = {}
+        for server_id, server_info in profiles["servers"].items():
+            if "options_overrides" in server_info and server_info["options_overrides"]:
+                profiles["server_options"][server_id] = server_info["options_overrides"]
+        del profiles["servers"]
+        print("Migrated 'servers' to 'server_options' in profiles")
+        return True
+
+    def _ensure_server_options(self, profiles: Dict[str, Any]) -> bool:
+        if "server_options" in profiles:
+            return False
+        profiles["server_options"] = {}
+        return True
+
+    def _fix_default_language_subscriptions(self, profiles: Dict[str, Any]) -> bool:
+        defaults = profiles.get("client_options_defaults")
+        if not isinstance(defaults, dict):
+            return False
+        social = defaults.get("social")
+        if not isinstance(social, dict):
+            return False
+        changed = False
+        changed |= self._fix_language_subs_in_profile(
+            social, "default profile", prefix="default"
+        )
+        return changed
+
+    def _fix_server_language_subscriptions(self, profiles: Dict[str, Any]) -> bool:
+        changed = False
+        for server_id, overrides in profiles.get("server_options", {}).items():
+            if not isinstance(overrides, dict):
+                continue
+            social = overrides.get("social")
+            if not isinstance(social, dict):
+                continue
+            if self._fix_language_subs_in_profile(social, f"server {server_id}"):
+                changed = True
+        return changed
+
+    def _fix_language_subs_in_profile(self, social: Dict[str, Any], label: str, prefix: str | None = None) -> bool:
+        changed = False
+        lang_subs = social.get("language_subscriptions")
+        if isinstance(lang_subs, dict) and "Check" in lang_subs:
+            lang_subs["Czech"] = lang_subs.pop("Check")
+            changed = True
+            print(
+                f"Migrated language subscription: 'Check' -> 'Czech' in {label}"
+            )
+        chat_lang = social.get("chat_input_language")
+        if chat_lang == "Check":
+            social["chat_input_language"] = "Czech"
+            changed = True
+            print(
+                f"Migrated chat_input_language: 'Check' -> 'Czech' in {label}"
+            )
+        return changed
+
+    def _migrate_default_table_creations(self, profiles: Dict[str, Any]) -> bool:
+        defaults = profiles.get("client_options_defaults")
+        if not isinstance(defaults, dict) or "table_creations" not in defaults:
+            return False
+        table_creations_value = defaults.pop("table_creations")
+        defaults["local_table"] = self._build_local_table_migration(
+            defaults.get("local_table", {}),
+            table_creations_value,
+        )
+        print("Migrated 'table_creations' -> 'local_table/creation_notifications' in default profile")
+        return True
+
+    def _migrate_server_table_creations(self, profiles: Dict[str, Any]) -> bool:
+        changed = False
+        for server_id, overrides in profiles.get("server_options", {}).items():
+            if not isinstance(overrides, dict) or "table_creations" not in overrides:
+                continue
+            table_creations_value = overrides.pop("table_creations")
+            overrides["local_table"] = self._build_local_table_migration(
+                overrides.get("local_table", {}),
+                table_creations_value,
+            )
+            print(
+                f"Migrated 'table_creations' -> 'local_table/creation_notifications' in server {server_id}"
+            )
+            changed = True
+        return changed
+
+    @staticmethod
+    def _build_local_table_migration(local_table: Dict[str, Any], table_creations_value: Dict[str, Any]) -> Dict[str, Any]:
+        new_local_table = {
+            "start_as_visible": local_table.get("start_as_visible", "always"),
+            "start_with_password": local_table.get("start_with_password", "never"),
+            "default_password_text": local_table.get("default_password_text", ""),
+            "creation_notifications": table_creations_value,
+        }
+        for key, value in local_table.items():
+            if key not in new_local_table:
+                new_local_table[key] = value
+        return new_local_table
 
     def _deep_merge(
         self, base: Dict[str, Any], override: Dict[str, Any], override_wins: bool = True
@@ -561,7 +570,8 @@ class ConfigManager:
         self,
         server_id: str,
         username: str,
-        password: str,
+        # User-supplied password, not a default.
+        password: str,  # nosec B107
         email: str = "",
         notes: str = "",
         refresh_token: str = "",

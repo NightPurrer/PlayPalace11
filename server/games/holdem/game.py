@@ -647,7 +647,7 @@ class HoldemGame(Game):
             return
         self.announce_turn(turn_sound="game_3cardpoker/turn.ogg")
         if p.is_bot:
-            BotHelper.jolt_bot(p, ticks=random.randint(30, 50))
+            BotHelper.jolt_bot(p, ticks=random.randint(30, 50))  # nosec B311
         self._start_turn_timer()
         self.rebuild_all_menus()
 
@@ -882,7 +882,7 @@ class HoldemGame(Game):
         amount = self.pot_manager.total_pot()
         if isinstance(winner, HoldemPlayer):
             winner.chips += amount
-        self.play_sound(random.choice(["game_blackjack/win1.ogg", "game_blackjack/win2.ogg", "game_blackjack/win3.ogg"]))
+        self.play_sound(random.choice(["game_blackjack/win1.ogg", "game_blackjack/win2.ogg", "game_blackjack/win3.ogg"]))  # nosec B311
         self.broadcast_l("poker-player-wins-pot", player=winner.name, amount=amount)
         self._sync_team_scores()
         self._advance_blind_level()
@@ -917,7 +917,7 @@ class HoldemGame(Game):
                 winner = winners[0]
                 cards = read_cards(winner.hand, "en")
                 if pot_index == 0 or len(pot.eligible_player_ids) <= 1:
-                    self.play_sound(random.choice(["game_blackjack/win1.ogg", "game_blackjack/win2.ogg", "game_blackjack/win3.ogg"]))
+                    self.play_sound(random.choice(["game_blackjack/win1.ogg", "game_blackjack/win2.ogg", "game_blackjack/win3.ogg"]))  # nosec B311
                     self.broadcast_l(
                         "poker-player-wins-pot-hand",
                         player=winner.name,
@@ -926,7 +926,7 @@ class HoldemGame(Game):
                         hand=desc,
                     )
                 else:
-                    self.play_sound(random.choice(["game_blackjack/win1.ogg", "game_blackjack/win2.ogg", "game_blackjack/win3.ogg"]))
+                    self.play_sound(random.choice(["game_blackjack/win1.ogg", "game_blackjack/win2.ogg", "game_blackjack/win3.ogg"]))  # nosec B311
                     self.broadcast_l(
                         "poker-player-wins-side-pot-hand",
                         player=winner.name,
@@ -937,7 +937,7 @@ class HoldemGame(Game):
                     )
             else:
                 names = ", ".join(w.name for w in winners)
-                self.play_sound(random.choice(["game_blackjack/win1.ogg", "game_blackjack/win2.ogg", "game_blackjack/win3.ogg"]))
+                self.play_sound(random.choice(["game_blackjack/win1.ogg", "game_blackjack/win2.ogg", "game_blackjack/win3.ogg"]))  # nosec B311
                 if pot_index == 0:
                     self.broadcast_l("poker-players-split-pot", players=names, amount=pot.amount, hand=desc)
                 else:

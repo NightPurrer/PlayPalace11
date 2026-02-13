@@ -66,77 +66,69 @@ class MenuList(wx.ListBox):
         """Handle key down events for keybinds and multiletter navigation."""
         key_code = event.GetKeyCode()
 
-        # Handle Tab for focus navigation
-        if key_code == wx.WXK_TAB:
-            # Use Navigate to explicitly move focus
-            if event.ShiftDown():
-                self.Navigate(wx.NavigationKeyEvent.IsBackward)
-            else:
-                self.Navigate(wx.NavigationKeyEvent.IsForward)
+        if self._handle_tab_navigation(event, key_code):
             return
+        if self._handle_arrow_navigation(key_code):
+            return
+        if self._handle_enter_activation(event, key_code):
+            return
+        if self._handle_multiletter_input(event, key_code):
+            return
+        event.Skip()
 
-        # Handle arrow keys in grid mode
-        if self.grid_enabled:
-            is_arrow = key_code in (wx.WXK_LEFT, wx.WXK_RIGHT, wx.WXK_UP, wx.WXK_DOWN)
-            if is_arrow:
-                self._handle_grid_navigation(key_code)
-                return
+    def _handle_tab_navigation(self, event, key_code: int) -> bool:
+        if key_code != wx.WXK_TAB:
+            return False
+        if event.ShiftDown():
+            self.Navigate(wx.NavigationKeyEvent.IsBackward)
         else:
-            if key_code in (wx.WXK_UP, wx.WXK_DOWN) and self.GetCount() == 1:
-                self._repeat_single_item()
-                return
+            self.Navigate(wx.NavigationKeyEvent.IsForward)
+        return True
 
-        # Check if this is a letter, number, space, or enter
+    def _handle_arrow_navigation(self, key_code: int) -> bool:
+        if self.grid_enabled:
+            if key_code in (wx.WXK_LEFT, wx.WXK_RIGHT, wx.WXK_UP, wx.WXK_DOWN):
+                self._handle_grid_navigation(key_code)
+                return True
+            return False
+        if key_code in (wx.WXK_UP, wx.WXK_DOWN) and self.GetCount() == 1:
+            self._repeat_single_item()
+            return True
+        return False
+
+    def _handle_enter_activation(self, event, key_code: int) -> bool:
+        if key_code not in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER):
+            return False
+        if event.ControlDown() or event.ShiftDown() or event.AltDown():
+            return False
+        self._on_activation()
+        return True
+
+    def _handle_multiletter_input(self, event, key_code: int) -> bool:
         is_letter = ord("A") <= key_code <= ord("Z")
         is_number = ord("0") <= key_code <= ord("9")
         is_space = key_code == wx.WXK_SPACE
-        # Don't include 307 anymore - need to find the real Enter key code
-        is_enter = key_code == wx.WXK_RETURN or key_code == wx.WXK_NUMPAD_ENTER
 
-        # Handle Enter directly since WANTS_CHARS prevents dclick from firing
-        # Only activate if no modifiers are held (shift+enter etc. should be keybinds)
-        if is_enter and not event.ControlDown() and not event.ShiftDown() and not event.AltDown():
-            self._on_activation()
-            return
+        if not (is_letter or is_number or is_space):
+            return False
 
-        # If it's one of our keybind keys (letters/numbers/space)
-        if is_letter or is_number or is_space:
-            # Get modifier states
-            alt = event.AltDown()
+        if not self.multiletter_enabled:
+            return True
 
-            # Letters and numbers only trigger keybinds when multiletter is off
-            should_trigger_keybind = not self.multiletter_enabled
+        if event.AltDown():
+            event.Skip()
+            return True
 
-            if should_trigger_keybind:
-                # For letters/numbers, consume the event to prevent default behavior
-                return
+        char = chr(key_code).lower()
+        current_time = time.time()
 
-            # If we get here, multiletter is enabled and it's a letter/number/space
-            # Do multiletter navigation
-            if is_letter or is_number or is_space:
-                # Don't do multiletter navigation if Alt is pressed
-                if alt:
-                    # Let the event through for Alt+letter combinations
-                    event.Skip()
-                    return
+        if current_time - self.last_keypress_time > self.search_timeout:
+            self.search_buffer = ""
 
-                char = chr(key_code).lower()
-                current_time = time.time()
-
-                # Reset search buffer if too much time has passed
-                if current_time - self.last_keypress_time > self.search_timeout:
-                    self.search_buffer = ""
-
-                self.search_buffer += char
-                self.last_keypress_time = current_time
-
-                # Search for matching item
-                self._find_and_select(self.search_buffer)
-                # Don't skip - we handled it
-                return
-
-        # For all other keys (arrows, etc.), let them work normally
-        event.Skip()
+        self.search_buffer += char
+        self.last_keypress_time = current_time
+        self._find_and_select(self.search_buffer)
+        return True
 
     def _repeat_single_item(self):
         """Repeat the single menu item when up/down is pressed."""

@@ -247,7 +247,7 @@ def player_roll_war_dice(game: AgeOfHeroesGame, player: AgeOfHeroesPlayer) -> in
     player_index = active_players.index(player)
 
     # Roll one die (war uses 1d6, not 2d6 like setup)
-    die_roll = random.randint(1, 6)
+    die_roll = random.randint(1, 6)  # nosec B311
 
     # Store roll for this player
     if player_index == war.attacker_index:
@@ -288,96 +288,166 @@ def resolve_battle_round(game: AgeOfHeroesGame) -> tuple[str, int, int]:
     war = game.war_state
     active_players = game.get_active_players()
 
+    (
+        attacker_total,
+        defender_total,
+        att_gen_bonus,
+        att_fort_bonus,
+        def_gen_bonus,
+        def_fort_bonus,
+        attacker,
+        defender,
+    ) = _calculate_war_totals(war, active_players)
+
+    _announce_war_bonuses(
+        game,
+        attacker,
+        defender,
+        att_gen_bonus,
+        att_fort_bonus,
+        def_gen_bonus,
+        def_fort_bonus,
+        attacker_total,
+        defender_total,
+    )
+
+    winner, attacker_losses, defender_losses = _resolve_war_outcome(
+        game, attacker, defender, attacker_total, defender_total
+    )
+
+    # Apply losses (only if not a draw)
+    apply_battle_losses(game, attacker_losses, defender_losses)
+
+    return winner, attacker_losses, defender_losses
+
+
+def _calculate_war_totals(
+    war: WarState, active_players: list[AgeOfHeroesPlayer]
+) -> tuple[
+    int,
+    int,
+    int,
+    int,
+    int,
+    int,
+    AgeOfHeroesPlayer | None,
+    AgeOfHeroesPlayer | None,
+]:
+    """Compute dice totals, bonuses, and participant references for war."""
     # Use stored rolls from player clicks
     att_dice_total = war.attacker_roll
     def_dice_total = war.defender_roll
 
     # Calculate bonuses separately
-    att_gen_bonus = 0
-    att_fort_bonus = 0
-    def_gen_bonus = 0
+    att_gen_bonus = 2 if war.get_attacker_total_generals() > 0 else 0
+    def_gen_bonus = 2 if war.get_defender_total_generals() > 0 else 0
+
     def_fort_bonus = 0
-
-    # Attacker bonus: +2 if has at least 1 general (Pascal: SetStore)
-    if war.get_attacker_total_generals() > 0:
-        att_gen_bonus = 2
-
-    # Defender bonus: +2 if has general, +fortresses
-    if war.get_defender_total_generals() > 0:
-        def_gen_bonus = 2
-
     defender_index = war.defender_index
     if defender_index < len(active_players):
         defender_player = active_players[defender_index]
         if hasattr(defender_player, "tribe_state") and defender_player.tribe_state:
             def_fort_bonus = defender_player.tribe_state.fortresses
 
+    att_fort_bonus = 0
     att_total_bonus = att_gen_bonus + att_fort_bonus
     def_total_bonus = def_gen_bonus + def_fort_bonus
 
     attacker_total = att_dice_total + att_total_bonus
     defender_total = def_dice_total + def_total_bonus
 
-    # Get player references
-    attacker = active_players[war.attacker_index] if war.attacker_index < len(active_players) else None
-    defender = active_players[war.defender_index] if war.defender_index < len(active_players) else None
+    attacker = (
+        active_players[war.attacker_index]
+        if war.attacker_index < len(active_players)
+        else None
+    )
+    defender = (
+        active_players[war.defender_index]
+        if war.defender_index < len(active_players)
+        else None
+    )
 
-    # Announce bonuses only if there are any
-    if attacker and att_total_bonus > 0:
-        for p in game.players:
-            user = game.get_user(p)
-            if user:
-                if p == attacker:
-                    # Attacker sees their own bonuses
-                    user.speak_l(
-                        "ageofheroes-war-bonuses-you",
-                        general=att_gen_bonus,
-                        fortress=att_fort_bonus,
-                        total=attacker_total,
-                    )
-                else:
-                    # Others see attacker's bonuses
-                    user.speak_l(
-                        "ageofheroes-war-bonuses-other",
-                        player=attacker.name,
-                        general=att_gen_bonus,
-                        fortress=att_fort_bonus,
-                        total=attacker_total,
-                    )
+    return (
+        attacker_total,
+        defender_total,
+        att_gen_bonus,
+        att_fort_bonus,
+        def_gen_bonus,
+        def_fort_bonus,
+        attacker,
+        defender,
+    )
 
-    if defender and def_total_bonus > 0:
-        for p in game.players:
-            user = game.get_user(p)
-            if user:
-                if p == defender:
-                    # Defender sees their own bonuses
-                    user.speak_l(
-                        "ageofheroes-war-bonuses-you",
-                        general=def_gen_bonus,
-                        fortress=def_fort_bonus,
-                        total=defender_total,
-                    )
-                else:
-                    # Others see defender's bonuses
-                    user.speak_l(
-                        "ageofheroes-war-bonuses-other",
-                        player=defender.name,
-                        general=def_gen_bonus,
-                        fortress=def_fort_bonus,
-                        total=defender_total,
-                    )
 
-    # Determine winner and announce outcome
-    attacker_losses = 0
-    defender_losses = 0
+def _announce_war_bonuses(
+    game: AgeOfHeroesGame,
+    attacker: AgeOfHeroesPlayer | None,
+    defender: AgeOfHeroesPlayer | None,
+    att_gen_bonus: int,
+    att_fort_bonus: int,
+    def_gen_bonus: int,
+    def_fort_bonus: int,
+    attacker_total: int,
+    defender_total: int,
+) -> None:
+    """Announce bonuses for attacker and defender when present."""
+    if attacker and (att_gen_bonus + att_fort_bonus) > 0:
+        _announce_war_bonus_for_side(
+            game,
+            attacker,
+            att_gen_bonus,
+            att_fort_bonus,
+            attacker_total,
+        )
 
+    if defender and (def_gen_bonus + def_fort_bonus) > 0:
+        _announce_war_bonus_for_side(
+            game,
+            defender,
+            def_gen_bonus,
+            def_fort_bonus,
+            defender_total,
+        )
+
+
+def _announce_war_bonus_for_side(
+    game: AgeOfHeroesGame,
+    participant: AgeOfHeroesPlayer,
+    gen_bonus: int,
+    fort_bonus: int,
+    total: int,
+) -> None:
+    for p in game.players:
+        user = game.get_user(p)
+        if not user:
+            continue
+        if p == participant:
+            user.speak_l(
+                "ageofheroes-war-bonuses-you",
+                general=gen_bonus,
+                fortress=fort_bonus,
+                total=total,
+            )
+        else:
+            user.speak_l(
+                "ageofheroes-war-bonuses-other",
+                player=participant.name,
+                general=gen_bonus,
+                fortress=fort_bonus,
+                total=total,
+            )
+
+
+def _resolve_war_outcome(
+    game: AgeOfHeroesGame,
+    attacker: AgeOfHeroesPlayer | None,
+    defender: AgeOfHeroesPlayer | None,
+    attacker_total: int,
+    defender_total: int,
+) -> tuple[str, int, int]:
+    """Determine winner, announce outcome, and return losses."""
     if attacker_total > defender_total:
-        # Attacker wins this round - defender loses an army
-        defender_losses = 1
-        winner = "attacker"
         game.play_sound("game_ageofheroes/attack_win.ogg")
-
-        # Announce round outcome
         game.broadcast_l(
             "ageofheroes-round-attacker-wins",
             attacker=attacker.name if attacker else "Attacker",
@@ -385,14 +455,10 @@ def resolve_battle_round(game: AgeOfHeroesGame) -> tuple[str, int, int]:
             att_total=attacker_total,
             def_total=defender_total,
         )
+        return "attacker", 0, 1
 
-    elif defender_total > attacker_total:
-        # Defender wins this round - attacker loses an army
-        attacker_losses = 1
-        winner = "defender"
+    if defender_total > attacker_total:
         game.play_sound("game_ageofheroes/defend_win.ogg")
-
-        # Announce round outcome
         game.broadcast_l(
             "ageofheroes-round-defender-wins",
             attacker=attacker.name if attacker else "Attacker",
@@ -400,23 +466,15 @@ def resolve_battle_round(game: AgeOfHeroesGame) -> tuple[str, int, int]:
             att_total=attacker_total,
             def_total=defender_total,
         )
+        return "defender", 1, 0
 
-    else:
-        # Draw - NO LOSSES in Pascal version (unlike Risk)
-        winner = "draw"
-
-        # Announce round outcome
-        game.broadcast_l(
-            "ageofheroes-round-draw",
-            attacker=attacker.name if attacker else "Attacker",
-            defender=defender.name if defender else "Defender",
-            total=attacker_total,
-        )
-
-    # Apply losses (only if not a draw)
-    apply_battle_losses(game, attacker_losses, defender_losses)
-
-    return winner, attacker_losses, defender_losses
+    game.broadcast_l(
+        "ageofheroes-round-draw",
+        attacker=attacker.name if attacker else "Attacker",
+        defender=defender.name if defender else "Defender",
+        total=attacker_total,
+    )
+    return "draw", 0, 0
 
 
 def apply_battle_losses(
@@ -546,7 +604,7 @@ def apply_war_outcome(game: AgeOfHeroesGame) -> None:
             for _ in range(cards_to_steal):
                 if defender.hand:
                     # Steal random card
-                    idx = random.randint(0, len(defender.hand) - 1)
+                    idx = random.randint(0, len(defender.hand) - 1)  # nosec B311
                     card = defender.hand.pop(idx)
                     attacker.hand.append(card)
                     stolen.append(card)

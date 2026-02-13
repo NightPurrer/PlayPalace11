@@ -1,6 +1,6 @@
 """Mixin providing game duration estimation via simulation."""
 
-import subprocess
+import subprocess  # nosec B404
 import sys
 import json as json_module
 import threading
@@ -77,10 +77,11 @@ class DurationEstimateMixin:
             """Run a single headless simulation and collect tick counts."""
             try:
                 result = subprocess.run(
-                    base_cmd,
+                    base_cmd,  # nosec B603
                     capture_output=True,
                     text=True,
                     timeout=600,  # 10 minute timeout per simulation
+                    shell=False,
                 )
                 if result.returncode == 0 and result.stdout:
                     data = json_module.loads(result.stdout)

@@ -43,29 +43,7 @@ class EventHandlingMixin:
         selection_id = event.get("selection_id", "")
 
         if menu_id == "turn_menu":
-            # If interacting with turn_menu, actions menu is no longer open
-            self._actions_menu_open.discard(player.id)
-            # Try by ID first, then by index
-            action = (
-                self.find_action(player, selection_id) if selection_id else None
-            )
-            if action:
-                resolved = self.resolve_action(player, action)
-                if resolved.enabled:
-                    self.execute_action(player, selection_id)
-                    # Don't rebuild if action is waiting for input
-                    if player.id not in self._pending_actions:
-                        self.rebuild_all_menus()
-            else:
-                # Fallback to index-based selection - use visible actions only
-                selection = event.get("selection", 1) - 1  # Convert to 0-based
-                visible = self.get_all_visible_actions(player)
-                if 0 <= selection < len(visible):
-                    resolved = visible[selection]
-                    self.execute_action(player, resolved.action.id)
-                    # Don't rebuild if action is waiting for input
-                    if player.id not in self._pending_actions:
-                        self.rebuild_all_menus()
+            self._handle_turn_menu_selection(player, event, selection_id)
 
         elif menu_id == "actions_menu":
             # Actions menu - use selection_id directly
@@ -90,28 +68,9 @@ class EventHandlingMixin:
                 self.execute_action(player, "leave_game")
 
         elif menu_id == "action_input_menu":
-            # Handle action input menu selection
-            if player.id in self._pending_actions:
-                action_id = self._pending_actions.pop(player.id)
-                if selection_id != "_cancel":
-                    # Execute the action with the selected input
-                    self.execute_action(player, action_id, selection_id)
-            self.rebuild_player_menu(player)
+            self._handle_action_input_menu(player, selection_id)
         elif menu_id == "leave_game_confirm":
-            user = self.get_user(player)
-            if user:
-                user.remove_menu("leave_game_confirm")
-            if player.id in self._pending_actions:
-                self._pending_actions.pop(player.id, None)
-            choice = selection_id
-            if not choice:
-                selection = event.get("selection", 1) - 1
-                choice = "yes" if selection == 0 else "no"
-            if choice == "yes":
-                handler = getattr(self, "_perform_leave_game", None)
-                if handler:
-                    handler(player)
-            self.rebuild_player_menu(player)
+            self._handle_leave_game_confirm(player, event, selection_id)
 
     def _handle_editbox_event(self, player: "Player", event: dict) -> None:
         """Handle an editbox submission event."""
@@ -128,69 +87,29 @@ class EventHandlingMixin:
 
     def _handle_keybind_event(self, player: "Player", event: dict) -> None:
         """Handle a keybind press event."""
-        key = event.get("key", "").lower()  # Normalize to lowercase
+        key = self._normalize_keybind(event)
         menu_item_id = event.get("menu_item_id")
         menu_index = event.get("menu_index")
 
-        # Handle modifiers - reconstruct full key string
-        if event.get("shift") and not key.startswith("shift+"):
-            key = f"shift+{key}"
-        if event.get("control") and not key.startswith("ctrl+"):
-            key = f"ctrl+{key}"
-        if event.get("alt") and not key.startswith("alt+"):
-            key = f"alt+{key}"
-
-        # Look up keybinds for this key
         keybinds = self._keybinds.get(key)
         if keybinds is None:
             return
 
-        # Check if player is a spectator
         is_spectator = self._is_player_spectator(player)
 
-        # Import here to avoid circular dependency at module level
         from ..games.base import ActionContext
 
-        # Build context for action handlers
         context = ActionContext(
             menu_item_id=menu_item_id,
             menu_index=menu_index,
             from_keybind=True,
         )
 
-        # Try each keybind for this key (allows same key for different states)
-        executed_any = False
-        for keybind in keybinds:
-            # Check if keybind can be used by this player in current state
-            if not keybind.can_player_use(self, player, is_spectator):
-                continue
+        executed_any = self._execute_keybinds(
+            player, keybinds, is_spectator, menu_item_id, context
+        )
 
-            # Check focus requirement
-            if keybind.requires_focus and menu_item_id not in keybind.actions:
-                continue
-
-            # Execute all enabled actions in the keybind
-            for action_id in keybind.actions:
-                action = self.find_action(player, action_id)
-                if action:
-                    resolved = self.resolve_action(player, action)
-                    if resolved.enabled:
-                        self.execute_action(player, action_id, context=context)
-                        executed_any = True
-                    elif resolved.disabled_reason:
-                        if resolved.disabled_reason != "action-not-available":
-                            # Speak the disabled reason to the player
-                            user = self.get_user(player)
-                            if user:
-                                user.speak_l(resolved.disabled_reason)
-
-        # Don't rebuild if action is waiting for input, status box is open, or actions menu is open
-        if (
-            executed_any
-            and player.id not in self._pending_actions
-            and player.id not in self._status_box_open
-            and player.id not in self._actions_menu_open
-        ):
+        if self._should_rebuild_after_keybind(player, executed_any):
             self.rebuild_all_menus()
 
     def _handle_actions_menu_selection(self, player: "Player", action_id: str) -> None:
@@ -212,3 +131,92 @@ class EventHandlingMixin:
             and player.id not in self._status_box_open
         ):
             self.rebuild_player_menu(player)
+
+    def _handle_turn_menu_selection(self, player: "Player", event: dict, selection_id: str) -> None:
+        self._actions_menu_open.discard(player.id)
+        action = self.find_action(player, selection_id) if selection_id else None
+        if action:
+            resolved = self.resolve_action(player, action)
+            if resolved.enabled:
+                self.execute_action(player, selection_id)
+                if player.id not in self._pending_actions:
+                    self.rebuild_all_menus()
+            return
+
+        selection = event.get("selection", 1) - 1
+        visible = self.get_all_visible_actions(player)
+        if 0 <= selection < len(visible):
+            resolved = visible[selection]
+            self.execute_action(player, resolved.action.id)
+            if player.id not in self._pending_actions:
+                self.rebuild_all_menus()
+
+    def _handle_action_input_menu(self, player: "Player", selection_id: str) -> None:
+        if player.id in self._pending_actions:
+            action_id = self._pending_actions.pop(player.id)
+            if selection_id != "_cancel":
+                self.execute_action(player, action_id, selection_id)
+        self.rebuild_player_menu(player)
+
+    def _handle_leave_game_confirm(self, player: "Player", event: dict, selection_id: str) -> None:
+        user = self.get_user(player)
+        if user:
+            user.remove_menu("leave_game_confirm")
+        if player.id in self._pending_actions:
+            self._pending_actions.pop(player.id, None)
+        choice = selection_id
+        if not choice:
+            selection = event.get("selection", 1) - 1
+            choice = "yes" if selection == 0 else "no"
+        if choice == "yes":
+            handler = getattr(self, "_perform_leave_game", None)
+            if handler:
+                handler(player)
+        self.rebuild_player_menu(player)
+
+    @staticmethod
+    def _normalize_keybind(event: dict) -> str:
+        key = event.get("key", "").lower()
+        if event.get("shift") and not key.startswith("shift+"):
+            key = f"shift+{key}"
+        if event.get("control") and not key.startswith("ctrl+"):
+            key = f"ctrl+{key}"
+        if event.get("alt") and not key.startswith("alt+"):
+            key = f"alt+{key}"
+        return key
+
+    def _execute_keybinds(
+        self,
+        player: "Player",
+        keybinds: list,
+        is_spectator: bool,
+        menu_item_id: str | None,
+        context: "ActionContext",
+    ) -> bool:
+        executed_any = False
+        for keybind in keybinds:
+            if not keybind.can_player_use(self, player, is_spectator):
+                continue
+            if keybind.requires_focus and menu_item_id not in keybind.actions:
+                continue
+            for action_id in keybind.actions:
+                action = self.find_action(player, action_id)
+                if action:
+                    resolved = self.resolve_action(player, action)
+                    if resolved.enabled:
+                        self.execute_action(player, action_id, context=context)
+                        executed_any = True
+                    elif resolved.disabled_reason:
+                        if resolved.disabled_reason != "action-not-available":
+                            user = self.get_user(player)
+                            if user:
+                                user.speak_l(resolved.disabled_reason)
+        return executed_any
+
+    def _should_rebuild_after_keybind(self, player: "Player", executed_any: bool) -> bool:
+        return (
+            executed_any
+            and player.id not in self._pending_actions
+            and player.id not in self._status_box_open
+            and player.id not in self._actions_menu_open
+        )

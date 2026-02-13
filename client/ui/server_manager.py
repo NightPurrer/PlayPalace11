@@ -71,7 +71,8 @@ class AccountEditorDialog(wx.Dialog):
         sizer.Add(password_label, 0, wx.LEFT | wx.TOP, 10)
 
         password_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        password_value = ""
+        # Placeholder for user-entered password.
+        password_value = ""  # nosec B105
         if self.account_data:
             password_value = self.account_data.get("password", "")
 

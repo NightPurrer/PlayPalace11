@@ -531,7 +531,7 @@ class CrazyEightsGame(Game):
         )
 
         if player.is_bot:
-            BotHelper.jolt_bot(player, ticks=random.randint(30, 40))
+            BotHelper.jolt_bot(player, ticks=random.randint(30, 40))  # nosec B311
 
         self._start_turn_timer()
         self._sync_turn_actions(player)
@@ -618,7 +618,7 @@ class CrazyEightsGame(Game):
             self.rebuild_all_menus()
             self._start_turn_timer()  # reset timer for suit selection
             if p.is_bot:
-                BotHelper.jolt_bot(p, ticks=random.randint(20, 30))
+                BotHelper.jolt_bot(p, ticks=random.randint(20, 30))  # nosec B311
             return
 
         self.current_suit = card.suit
@@ -670,7 +670,7 @@ class CrazyEightsGame(Game):
         selection_id = f"play_card_{card.id}"
         self.update_player_menu(p, selection_id=selection_id)
         if p.is_bot:
-            BotHelper.jolt_bot(p, ticks=random.randint(20, 30))
+            BotHelper.jolt_bot(p, ticks=random.randint(20, 30))  # nosec B311
 
     def _action_pass(self, player: Player, action_id: str) -> None:
         p = self._require_active_player(player)
@@ -700,7 +700,7 @@ class CrazyEightsGame(Game):
         self._broadcast_suit_chosen(suit)
         self.rebuild_all_menus()
         if p.is_bot:
-            BotHelper.jolt_bot(p, ticks=random.randint(20, 30))
+            BotHelper.jolt_bot(p, ticks=random.randint(20, 30))  # nosec B311
 
         self.timer.clear()
         self.wild_wait_ticks = 15

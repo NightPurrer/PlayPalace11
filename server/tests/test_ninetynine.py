@@ -11,6 +11,7 @@ import pytest
 import random
 import json
 
+from server.games.ninetynine.bot import evaluate_count
 from server.games.ninetynine.game import (
     NinetyNineGame,
     NinetyNineOptions,
@@ -73,6 +74,56 @@ class TestNinetyNineUnit:
         assert game.options.hand_size == 5
         assert game.options.rules_variant == "rs_games"
 
+
+class TestNinetyNineBotHeuristics:
+    """Unit tests for Ninety Nine bot evaluation heuristics."""
+
+    def _create_game(self, player_count: int, rules_variant: str = "quentin_c"):
+        options = NinetyNineOptions(rules_variant=rules_variant)
+        game = NinetyNineGame(options=options)
+        players = []
+        for i in range(player_count):
+            user = MockUser(f"Bot{i+1}")
+            player = game.add_player(user.username, user)
+            players.append(player)
+        game.alive_player_ids = [p.id for p in players]
+        return game, players
+
+    def test_setup_zone_bonus_three_player(self):
+        """Setup zones should reward multiplayer Quentin C games."""
+        game, players = self._create_game(player_count=3)
+        game.count = 25
+
+        score = evaluate_count(game, players[0], new_count=30, rank=5)
+
+        assert score == 5000
+
+    def test_setup_zone_bonus_two_player(self):
+        """Setup zones should still reward two-player Quentin C games."""
+        game, players = self._create_game(player_count=2)
+        game.count = 25
+
+        score = evaluate_count(game, players[0], new_count=30, rank=5)
+
+        assert score == 5000
+
+    def test_setup_zone_bonus_not_triggered_outside_ranges(self):
+        """Counts outside setup window should not receive the bonus."""
+        game, players = self._create_game(player_count=3)
+        game.count = 10
+
+        score = evaluate_count(game, players[0], new_count=12, rank=5)
+
+        assert score == 0
+
+    def test_setup_zone_bonus_disabled_in_rs_games(self):
+        """RS Games variant should never apply the Quentin C setup bonus."""
+        game, players = self._create_game(player_count=3, rules_variant="rs_games")
+        game.count = 25
+
+        score = evaluate_count(game, players[0], new_count=30, rank=RS_RANK_PLUS_10)
+
+        assert score != 5000
 
 class TestCardAndDeck:
     """Tests for Card and Deck classes."""

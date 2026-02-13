@@ -244,7 +244,7 @@ class ChaosBearGame(Game):
         self._announce_turn()
 
         # Jolt bots
-        BotHelper.jolt_bots(self, ticks=random.randint(30, 60))
+        BotHelper.jolt_bots(self, ticks=random.randint(30, 60))  # nosec B311
 
     def _announce_turn(self) -> None:
         """Announce whose turn it is."""
@@ -311,7 +311,7 @@ class ChaosBearGame(Game):
         self.rebuild_all_menus()
 
         # Jolt bots
-        BotHelper.jolt_bots(self, ticks=random.randint(30, 60))
+        BotHelper.jolt_bots(self, ticks=random.randint(30, 60))  # nosec B311
 
     def _bear_turn(self) -> None:
         """The bear takes its turn."""
@@ -320,18 +320,18 @@ class ChaosBearGame(Game):
             if player.alive and not player.is_spectator:
                 if player.position - self.bear_position <= 10:
                     self.play_sound(
-                        f"game_chaosbear/bearwarn{random.randint(1, 2)}.ogg"
+                        f"game_chaosbear/bearwarn{random.randint(1, 2)}.ogg"  # nosec B311
                     )
                     break
 
         # Bear dice roll sounds (scheduled for timing)
         self.schedule_sound("game_chaosbear/beardice0.ogg", delay_ticks=10)
         self.schedule_sound(
-            f"game_chaosbear/beardice{random.randint(1, 3)}.ogg", delay_ticks=18
+            f"game_chaosbear/beardice{random.randint(1, 3)}.ogg", delay_ticks=18  # nosec B311
         )
 
         # Bear rolls 1-3 + energy
-        bear_die = random.randint(1, 3)
+        bear_die = random.randint(1, 3)  # nosec B311
         move_distance = bear_die + self.bear_energy
 
         self.broadcast_l(
@@ -346,7 +346,7 @@ class ChaosBearGame(Game):
             self.bear_energy += 1
             self.broadcast_l("chaosbear-bear-energy-up", energy=self.bear_energy)
             self.schedule_sound(
-                f"game_chaosbear/energyup{random.randint(1, 2)}.ogg", delay_ticks=25
+                f"game_chaosbear/energyup{random.randint(1, 2)}.ogg", delay_ticks=25  # nosec B311
             )
             # Don't count the extra energy toward movement this turn
             move_distance -= 1
@@ -358,7 +358,7 @@ class ChaosBearGame(Game):
         step_delay = 35
         for i in range(bear_die + bonus_steps):
             self.schedule_sound(
-                f"game_chaosbear/bearstep{random.randint(1, 5)}.ogg",
+                f"game_chaosbear/bearstep{random.randint(1, 5)}.ogg",  # nosec B311
                 delay_ticks=step_delay + i * 4,
             )
 
@@ -374,13 +374,13 @@ class ChaosBearGame(Game):
                 if self.bear_position >= player.position:
                     player.alive = False
                     self.schedule_sound(
-                        f"game_chaosbear/playerdie{random.randint(1, 2)}.ogg",
+                        f"game_chaosbear/playerdie{random.randint(1, 2)}.ogg",  # nosec B311
                         delay_ticks=catch_delay,
                     )
                     self.broadcast_l("chaosbear-player-caught", player=player.name)
                     kills += 1
                     self.schedule_sound(
-                        f"game_chaosbear/energydown{random.randint(1, 3)}.ogg",
+                        f"game_chaosbear/energydown{random.randint(1, 3)}.ogg",  # nosec B311
                         delay_ticks=catch_delay + 40,
                     )
                     catch_delay += 50
@@ -502,7 +502,7 @@ class ChaosBearGame(Game):
 
         self.play_sound("game_pig/roll.ogg")
 
-        roll = random.randint(1, 6)
+        roll = random.randint(1, 6)  # nosec B311
         player.position += roll
 
         self.broadcast_l("chaosbear-roll", player=player.name, roll=roll)
@@ -510,7 +510,7 @@ class ChaosBearGame(Game):
         # Schedule player step sounds
         for i in range(roll):
             self.schedule_sound(
-                f"game_chaosbear/playerstep{random.randint(1, 5)}.ogg",
+                f"game_chaosbear/playerstep{random.randint(1, 5)}.ogg",  # nosec B311
                 delay_ticks=6 + i * 4,
             )
 
@@ -529,16 +529,16 @@ class ChaosBearGame(Game):
         if player.position % 5 != 0 or player.position == 0:
             return
 
-        self.play_sound(f"game_chaosbear/draw{random.randint(1, 2)}.ogg")
+        self.play_sound(f"game_chaosbear/draw{random.randint(1, 2)}.ogg")  # nosec B311
         self.broadcast_l("chaosbear-draws-card", player=player.name)
 
-        card = random.randint(0, 5)
+        card = random.randint(0, 5)  # nosec B311
 
         if card == 0:
             # Impulsion - forward 3
             player.position += 3
             self.schedule_sound(
-                f"game_chaosbear/impulsion{random.randint(1, 2)}.ogg", delay_ticks=4
+                f"game_chaosbear/impulsion{random.randint(1, 2)}.ogg", delay_ticks=4  # nosec B311
             )
             self.broadcast_l(
                 "chaosbear-card-impulsion", player=player.name, position=player.position
@@ -547,7 +547,7 @@ class ChaosBearGame(Game):
             # Super impulsion - forward 5
             player.position += 5
             self.schedule_sound(
-                f"game_chaosbear/impulsion{random.randint(1, 2)}.ogg", delay_ticks=4
+                f"game_chaosbear/impulsion{random.randint(1, 2)}.ogg", delay_ticks=4  # nosec B311
             )
             self.broadcast_l(
                 "chaosbear-card-super-impulsion",
@@ -558,21 +558,21 @@ class ChaosBearGame(Game):
             # Tiredness - bear energy -1
             self.bear_energy = max(1, self.bear_energy - 1)
             self.schedule_sound(
-                f"game_chaosbear/tiredness{random.randint(1, 2)}.ogg", delay_ticks=4
+                f"game_chaosbear/tiredness{random.randint(1, 2)}.ogg", delay_ticks=4  # nosec B311
             )
             self.broadcast_l("chaosbear-card-tiredness", energy=self.bear_energy)
             self.schedule_sound(
-                f"game_chaosbear/energydown{random.randint(1, 3)}.ogg", delay_ticks=24
+                f"game_chaosbear/energydown{random.randint(1, 3)}.ogg", delay_ticks=24  # nosec B311
             )
         elif card == 3:
             # Hunger - bear energy +1
             self.bear_energy += 1
             self.schedule_sound(
-                f"game_chaosbear/hunger{random.randint(1, 2)}.ogg", delay_ticks=4
+                f"game_chaosbear/hunger{random.randint(1, 2)}.ogg", delay_ticks=4  # nosec B311
             )
             self.broadcast_l("chaosbear-card-hunger", energy=self.bear_energy)
             self.schedule_sound(
-                f"game_chaosbear/energyup{random.randint(1, 2)}.ogg", delay_ticks=14
+                f"game_chaosbear/energyup{random.randint(1, 2)}.ogg", delay_ticks=14  # nosec B311
             )
         elif card == 4:
             # Backward push - back 3
@@ -584,8 +584,8 @@ class ChaosBearGame(Game):
         else:
             # Random gift - forward/back 1-6
             self.broadcast_l("chaosbear-card-random-gift")
-            amount = random.randint(1, 6)
-            if random.random() < 0.5:
+            amount = random.randint(1, 6)  # nosec B311
+            if random.random() < 0.5:  # nosec B311
                 player.position = max(0, player.position - amount)
                 self.schedule_sound("game_chaosbear/backpush.ogg", delay_ticks=4)
                 self.broadcast_l(
@@ -594,7 +594,7 @@ class ChaosBearGame(Game):
             else:
                 player.position += amount
                 self.schedule_sound(
-                    f"game_chaosbear/impulsion{random.randint(1, 2)}.ogg", delay_ticks=4
+                    f"game_chaosbear/impulsion{random.randint(1, 2)}.ogg", delay_ticks=4  # nosec B311
                 )
                 self.broadcast_l(
                     "chaosbear-gift-forward",

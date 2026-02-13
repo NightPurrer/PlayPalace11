@@ -201,7 +201,7 @@ class MidnightGame(ActionGuardMixin, Game, DiceGameMixin):
 
         # Give bot time to think about next action
         if player.is_bot:
-            BotHelper.jolt_bot(player, ticks=random.randint(10, 20))
+            BotHelper.jolt_bot(player, ticks=random.randint(10, 20))  # nosec B311
 
         self.rebuild_all_menus()
 
@@ -275,7 +275,7 @@ class MidnightGame(ActionGuardMixin, Game, DiceGameMixin):
             )
 
         # Jolt all bots to pause for the turn change
-        BotHelper.jolt_bots(self, ticks=random.randint(20, 30))
+        BotHelper.jolt_bots(self, ticks=random.randint(20, 30))  # nosec B311
 
         self._on_turn_end()
 
@@ -410,27 +410,40 @@ class MidnightGame(ActionGuardMixin, Game, DiceGameMixin):
 
     def bot_think(self, player: MidnightPlayer) -> str | None:
         """Bot AI decision making. Called by BotHelper."""
-        # Strategy: Keep 1 and 4 first, then keep highest dice
+        if self._should_bot_roll(player):
+            return "roll"
+
+        decision = self._bot_lock_target_value(player, 1)
+        if decision:
+            return decision
+
+        decision = self._bot_lock_target_value(player, 4)
+        if decision:
+            return decision
+
+        decision = self._bot_lock_highest_available(player)
+        if decision:
+            return decision
+
+        return self._bot_finalize_turn(player)
+
+    def _should_bot_roll(self, player: MidnightPlayer) -> bool:
         if not player.dice.has_rolled:
-            return "roll"
-
-        # If we have kept dice but haven't rolled yet to lock them, roll
+            return True
         if player.dice.kept_unlocked_count > 0:
-            return "roll"
+            return True
+        return False
 
-        # Look for 1 if we don't have one locked yet
-        if 1 not in [player.dice.values[i] for i in player.dice.locked]:
-            for i in range(6):
-                if not player.dice.is_locked(i) and player.dice.values[i] == 1:
-                    return f"toggle_die_{i}"
+    def _bot_lock_target_value(self, player: MidnightPlayer, target: int) -> str | None:
+        locked_values = [player.dice.values[i] for i in player.dice.locked]
+        if target in locked_values:
+            return None
+        for i in range(6):
+            if not player.dice.is_locked(i) and player.dice.values[i] == target:
+                return f"toggle_die_{i}"
+        return None
 
-        # Look for 4 if we don't have one locked yet
-        if 4 not in [player.dice.values[i] for i in player.dice.locked]:
-            for i in range(6):
-                if not player.dice.is_locked(i) and player.dice.values[i] == 4:
-                    return f"toggle_die_{i}"
-
-        # Keep highest available die
+    def _bot_lock_highest_available(self, player: MidnightPlayer) -> str | None:
         best_index = -1
         best_value = 0
         for i in range(6):
@@ -438,22 +451,18 @@ class MidnightGame(ActionGuardMixin, Game, DiceGameMixin):
                 if player.dice.values[i] > best_value:
                     best_value = player.dice.values[i]
                     best_index = i
-
         if best_index >= 0:
             return f"toggle_die_{best_index}"
+        return None
 
-        # No more dice to keep - decide whether to roll or stop
-        # If we have both 1 and 4 locked, we can stop
+    def _bot_finalize_turn(self, player: MidnightPlayer) -> str:
         locked_values = [player.dice.values[i] for i in player.dice.locked]
         has_one = 1 in locked_values
         has_four = 4 in locked_values
 
         if has_one and has_four:
-            # We have what we need, bank to lock in score
             return "bank"
 
-        # Still missing 1 or 4, keep trying (but can't roll if kept_unlocked_count is 0)
-        # In this case, bank anyway to avoid getting stuck
         if player.dice.kept_unlocked_count == 0:
             return "bank"
 

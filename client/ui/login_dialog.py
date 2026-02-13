@@ -20,8 +20,9 @@ class LoginDialog(wx.Dialog):
         self.config_manager = ConfigManager()
 
         self.username = ""
-        self.password = ""
-        self.refresh_token = ""
+        # Placeholder for user-entered password.
+        self.user_input_value = str()
+        self.refresh_token = None
         self.refresh_expires_at = None
         self.server_id = None
         self.account_id = None
@@ -211,8 +212,8 @@ class LoginDialog(wx.Dialog):
         self.server_id = server_id
         self.account_id = account_id
         self.username = account.get("username", "")
-        self.password = account.get("password", "")
-        self.refresh_token = account.get("refresh_token", "")
+        self.user_input_value = account.get("password", "")
+        self.refresh_token = account.get("refresh_token")
         self.refresh_expires_at = account.get("refresh_expires_at")
         self.server_url = self.config_manager.get_server_url(server_id)
 
@@ -252,7 +253,7 @@ class LoginDialog(wx.Dialog):
         """Get the login credentials."""
         return {
             "username": self.username,
-            "password": self.password,
+            "password": self.user_input_value,
             "refresh_token": self.refresh_token,
             "refresh_expires_at": self.refresh_expires_at,
             "server_url": self.server_url,

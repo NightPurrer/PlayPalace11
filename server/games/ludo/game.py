@@ -239,7 +239,7 @@ class LudoGame(Game):
             self.turn_start_state = self._save_turn_state()
         self.extra_turn = False
         if player and player.is_bot:
-            BotHelper.jolt_bot(player, ticks=random.randint(30, 40))
+            BotHelper.jolt_bot(player, ticks=random.randint(30, 40))  # nosec B311
         self.announce_turn()
         self.rebuild_all_menus()
 
@@ -449,7 +449,7 @@ class LudoGame(Game):
     def _action_roll_dice(self, player: Player, action_id: str) -> None:
         ludo_player: LudoPlayer = player  # type: ignore
 
-        self.last_roll = random.randint(1, 6)
+        self.last_roll = random.randint(1, 6)  # nosec B311
         self.play_sound("game_pig/roll.ogg")
         self.broadcast_personal_l(
             player,
@@ -479,7 +479,7 @@ class LudoGame(Game):
             idx: self._describe_token(token, locale) for idx, token in moveable
         }
         if player.is_bot:
-            BotHelper.jolt_bot(player, ticks=random.randint(30, 40))
+            BotHelper.jolt_bot(player, ticks=random.randint(30, 40))  # nosec B311
         self.update_all_menus()
         return
 
