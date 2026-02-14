@@ -5,6 +5,7 @@
   <ItemGroup>
     <PackageReference Include="WixToolset.Util.wixext" Version="4.0.2" />
     <PackageReference Include="WixToolset.UI.wixext" Version="4.0.2" />
+    <PackageReference Include="WixToolset.Heat" Version="4.0.2" />
   </ItemGroup>
   <ItemGroup>
     <WixLocalization Include="locales\en-us.wxl" />
