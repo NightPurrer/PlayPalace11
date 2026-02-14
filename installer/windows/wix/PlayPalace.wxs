@@ -29,13 +29,13 @@
     </StandardDirectory>
 
     <Component Id="ClientExecutable" Directory="CLIENTDIR" Guid="{05b8b594-0a71-4e74-a32e-772842c64a63}">
-      <File Id="PlayPalaceClientExe" Source="!(wix.ClientSource)\PlayPalace.exe" KeyPath="yes">
+      <File Id="PlayPalaceClientExe" Source="$(var.ClientSource)\PlayPalace.exe" KeyPath="yes">
         <Shortcut Id="ClientStartMenuShortcut" Directory="PlayPalaceProgramMenu" Name="PlayPalace Client" WorkingDirectory="CLIENTDIR" Icon="ProductIcon" IconIndex="0" />
       </File>
     </Component>
 
     <Component Id="ServerExecutable" Directory="SERVERDIR" Guid="{9c0b7f68-4c76-4e3a-aa83-07c2c0cc8171}">
-      <File Id="PlayPalaceServerExe" Source="!(wix.ServerSource)\PlayPalaceServer.exe" KeyPath="yes" />
+      <File Id="PlayPalaceServerExe" Source="$(var.ServerSource)\PlayPalaceServer.exe" KeyPath="yes" />
       <ServiceInstall
           Id="PlayPalaceServiceInstall"
           Name="PlayPalaceServer"
