@@ -10,9 +10,9 @@
     <Property Id="SERVERPORT" Value="8000" />
     <Property Id="SERVERALLOWINSECURE" Value="0" />
     <Property Id="SERVERENABLESSL" Value="0" />
-    <Property Id="SERVERCERTPATH" Value="" />
-    <Property Id="SERVERKEYPATH" Value="" />
-    <MajorUpgrade Schedule="afterInstallInitialize" AllowDowngrades="no" />
+    <Property Id="SERVERCERTPATH" Secure="yes" />
+    <Property Id="SERVERKEYPATH" Secure="yes" />
+    <MajorUpgrade Schedule="afterInstallInitialize" DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
 
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="PlayPalace">
@@ -86,34 +86,43 @@
       <ComponentGroupRef Id="InstallerToolsComponents" />
     </Feature>
 
+    <!-- Deferred quiet exec: configure server after install -->
     <CustomAction Id="ConfigureServerAction"
-                  BinaryKey="WixCA"
-                  DllEntry="CAQuietExec64"
+                  BinaryRef="Wix4UtilCA_X64"
+                  DllEntry="WixQuietExec64"
                   Execute="deferred"
                   Return="check"
                   Impersonate="no" />
-
-    <InstallExecuteSequence>
-      <Custom Action="SetConfigureServerActionData" Before="ConfigureServerAction"><![CDATA[(&ServerFeature=3) AND (!ServerFeature=2)]]></Custom>
-      <Custom Action="ConfigureServerAction" After="InstallFiles"><![CDATA[(&ServerFeature=3) AND (!ServerFeature=2)]]></Custom>
-      <Custom Action="ValidateCertAction" Before="VerifyReadyDlg"><![CDATA[(&ServerFeature=3) AND (SERVERENABLESSL = "1") AND (NOT Installed)]]></Custom>
-    </InstallExecuteSequence>
 
     <CustomAction Id="SetConfigureServerActionData"
                   Property="ConfigureServerAction"
                   Value='powershell.exe -ExecutionPolicy Bypass -NoProfile -File "[#ConfigureServerScript]" -ProgramDataPath "[CommonAppDataFolder]PlayPalace" -HostName "[SERVERHOST]" -Port "[SERVERPORT]" -AllowInsecure [SERVERALLOWINSECURE] -EnableSsl [SERVERENABLESSL] -CertificatePath "[SERVERCERTPATH]" -PrivateKeyPath "[SERVERKEYPATH]"' />
 
+    <InstallExecuteSequence>
+      <Custom Action="SetConfigureServerActionData" Before="ConfigureServerAction" Condition="(&amp;ServerFeature=3) AND (!ServerFeature=2)" />
+      <Custom Action="ConfigureServerAction" After="InstallFiles" Condition="(&amp;ServerFeature=3) AND (!ServerFeature=2)" />
+    </InstallExecuteSequence>
+
+    <!-- Immediate quiet exec: validate certificate paths -->
+    <CustomAction Id="SetValidateCertCmd"
+                  Property="WixQuietExecCmdLine"
+                  Value='powershell.exe -ExecutionPolicy Bypass -NoProfile -Command "&amp; { if (-not \"[SERVERCERTPATH]\") { throw \"Certificate path missing\" } if (-not (Test-Path \"[SERVERCERTPATH]\")) { throw \"Certificate path not found\" } if (-not \"[SERVERKEYPATH]\") { throw \"Key path missing\" } if (-not (Test-Path \"[SERVERKEYPATH]\")) { throw \"Key path not found\" } Write-Output \"Certificate inputs look valid.\" }"' />
+
     <CustomAction Id="ValidateCertAction"
-                  BinaryKey="WixCA"
-                  DllEntry="CAQuietExec64"
+                  BinaryRef="Wix4UtilCA_X64"
+                  DllEntry="WixQuietExec64"
                   Execute="immediate"
                   Return="check"
-                  Impersonate="yes"
-                  ExeCommand='powershell.exe -ExecutionPolicy Bypass -NoProfile -Command "&amp; { if (-not \"[SERVERCERTPATH]\") { throw \"Certificate path missing\" } if (-not (Test-Path \"[SERVERCERTPATH]\")) { throw \"Certificate path not found\" } if (-not \"[SERVERKEYPATH]\") { throw \"Key path missing\" } if (-not (Test-Path \"[SERVERKEYPATH]\")) { throw \"Key path not found\" } Write-Output \"Certificate inputs look valid.\" }"' />
+                  Impersonate="yes" />
+
+    <!-- Immediate quiet exec: generate self-signed certificate -->
+    <CustomAction Id="SetGenerateCertCmd"
+                  Property="WixQuietExecCmdLine"
+                  Value='powershell.exe -ExecutionPolicy Bypass -NoProfile -File "[#GenerateCertScript]" -OutDir "[CommonAppDataFolder]PlayPalace\ssl"' />
 
     <CustomAction Id="GenerateCertAction"
-                  BinaryKey="WixCA"
-                  DllEntry="CAQuietExec64"
+                  BinaryRef="Wix4UtilCA_X64"
+                  DllEntry="WixQuietExec64"
                   Execute="immediate"
                   Return="check"
                   Impersonate="no" />
@@ -143,7 +152,7 @@
           <Condition Action="disable"><![CDATA[SERVERENABLESSL <> "1"]]></Condition>
           <Condition Action="enable"><![CDATA[SERVERENABLESSL = "1"]]></Condition>
         </Control>
-        <Control Id="CertPath" Type="PathEdit" X="15" Y="157" Width="330" Height="18" Property="SERVERCERTPATH" Filter="Certificate (*.cer;*.crt)|*.cer;*.crt|All Files (*.*)|*.*">
+        <Control Id="CertPath" Type="PathEdit" X="15" Y="157" Width="330" Height="18" Property="SERVERCERTPATH">
           <Condition Action="disable"><![CDATA[SERVERENABLESSL <> "1"]]></Condition>
           <Condition Action="enable"><![CDATA[SERVERENABLESSL = "1"]]></Condition>
         </Control>
@@ -152,7 +161,7 @@
           <Condition Action="disable"><![CDATA[SERVERENABLESSL <> "1"]]></Condition>
           <Condition Action="enable"><![CDATA[SERVERENABLESSL = "1"]]></Condition>
         </Control>
-        <Control Id="KeyPath" Type="PathEdit" X="15" Y="192" Width="330" Height="18" Property="SERVERKEYPATH" Filter="Key (*.key;*.pem;*.pfx)|*.key;*.pem;*.pfx|All Files (*.*)|*.*">
+        <Control Id="KeyPath" Type="PathEdit" X="15" Y="192" Width="330" Height="18" Property="SERVERKEYPATH">
           <Condition Action="disable"><![CDATA[SERVERENABLESSL <> "1"]]></Condition>
           <Condition Action="enable"><![CDATA[SERVERENABLESSL = "1"]]></Condition>
         </Control>
@@ -160,13 +169,14 @@
         <Control Id="GenerateCertBtn" Type="PushButton" X="15" Y="217" Width="160" Height="17" Text="!(loc.ConfigGenerateCert)">
           <Publish Event="SetProperty" Value="SERVERCERTPATH=[CommonAppDataFolder]PlayPalace\ssl\playpalace_cert.cer"><![CDATA[SERVERENABLESSL = "1"]]></Publish>
           <Publish Event="SetProperty" Value="SERVERKEYPATH=[CommonAppDataFolder]PlayPalace\ssl\playpalace_key.pfx"><![CDATA[SERVERENABLESSL = "1"]]></Publish>
-          <Publish Event="SetProperty" Value='GenerateCertAction=powershell.exe -ExecutionPolicy Bypass -NoProfile -File "[#GenerateCertScript]" -OutDir "[CommonAppDataFolder]PlayPalace\ssl"'><![CDATA[SERVERENABLESSL = "1"]]></Publish>
+          <Publish Event="DoAction" Value="SetGenerateCertCmd"><![CDATA[SERVERENABLESSL = "1"]]></Publish>
           <Publish Event="DoAction" Value="GenerateCertAction"><![CDATA[SERVERENABLESSL = "1"]]></Publish>
           <Condition Action="disable"><![CDATA[SERVERENABLESSL <> "1"]]></Condition>
           <Condition Action="enable"><![CDATA[SERVERENABLESSL = "1"]]></Condition>
         </Control>
 
         <Control Id="ValidateCertBtn" Type="PushButton" X="185" Y="217" Width="160" Height="17" Text="!(loc.ConfigValidateCert)">
+          <Publish Event="DoAction" Value="SetValidateCertCmd"><![CDATA[SERVERENABLESSL = "1"]]></Publish>
           <Publish Event="DoAction" Value="ValidateCertAction"><![CDATA[SERVERENABLESSL = "1"]]></Publish>
           <Condition Action="disable"><![CDATA[SERVERENABLESSL <> "1"]]></Condition>
           <Condition Action="enable"><![CDATA[SERVERENABLESSL = "1"]]></Condition>

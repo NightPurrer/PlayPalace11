@@ -158,9 +158,13 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
-      - name: Install WiX v4 CLI
+      - name: Install WiX v4 CLI and extensions
         shell: pwsh
-        run: dotnet tool install --global wix --version 4.0.2
+        run: |
+          dotnet tool install --global wix --version 4.0.2
+          $env:PATH += ";" + (Join-Path $env:USERPROFILE ".dotnet\tools")
+          wix extension add WixToolset.Util.wixext/4.0.2
+          wix extension add WixToolset.UI.wixext/4.0.2
 
       - name: Build MSI with WiX
         shell: pwsh
@@ -168,7 +172,7 @@ jobs:
           $env:PATH += ";" + (Join-Path $env:USERPROFILE ".dotnet\tools")
           New-Item -ItemType Directory -Force -Path installer/dist | Out-Null
           Push-Location installer/windows/wix
-          wix build PlayPalace.wxs -arch x64 -loc locales/en-us.wxl -out ../../dist/PlayPalace.msi
+          wix build PlayPalace.wxs -arch x64 -loc locales/en-us.wxl -ext WixToolset.Util.wixext -ext WixToolset.UI.wixext -out ../../dist/PlayPalace.msi
           Pop-Location
 
       - name: Upload MSI artifact
