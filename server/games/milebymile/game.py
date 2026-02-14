@@ -15,7 +15,7 @@ from ...game_utils.actions import Action, ActionSet, MenuInput, Visibility
 from ...game_utils.bot_helper import BotHelper
 from ...game_utils.game_result import GameResult, PlayerResult
 from ...game_utils.round_timer import RoundTransitionTimer
-from ...game_utils.teams import TeamManager
+from ...game_utils.teams import Team, TeamManager
 from ...messages.localization import Localization
 from ...ui.keybinds import KeybindState
 
