@@ -41,6 +41,12 @@ repos:
         language: python
         pass_filenames: false
         files: ^server/network/packet_models\.py$
+      - id: check-locales
+        name: Locale completeness check
+        entry: python server/tools/check_locales.py
+        language: python
+        pass_filenames: false
+        files: ^server/locales/.*\.ftl$
       - id: uv-ruff-critical
         name: Ruff (E9,F63,F7 via uvx)
         entry: python scripts/hooks/run_ruff.py
