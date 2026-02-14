@@ -32,7 +32,10 @@ def _patch_run_server_environment(tmp_path, monkeypatch):
     monkeypatch.setattr(core_server, "get_default_config_path", lambda: config_path)
     monkeypatch.setattr(core_server, "get_example_config_path", lambda: example_path)
     monkeypatch.setattr(core_server, "ensure_default_config_dir", lambda: tmp_path)
-    monkeypatch.setattr(core_server, "_ensure_var_server_dir", lambda: var_dir)
+    if hasattr(core_server, "_ensure_var_server_dir"):
+        monkeypatch.setattr(core_server, "_ensure_var_server_dir", lambda: var_dir)
+    else:
+        monkeypatch.setattr(core_server, "_MODULE_DIR", tmp_path)
 
     return config_path, example_path, var_dir
 
