@@ -162,8 +162,9 @@ async def test_stop_cleans_resources(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_start_with_restored_bots_message(tmp_path, capsys):
-    monkeypatch = pytest.MonkeyPatch()
+async def test_start_with_restored_bots_message(tmp_path, capsys, monkeypatch):
+    # Use the fixture-managed monkeypatch so patched startup classes are restored
+    # after this test; a raw pytest.MonkeyPatch() here leaks state to later modules.
     srv = Server(host="127.0.0.1", port=0, db_path=tmp_path / "db.sqlite", preload_locales=True)
     srv._validate_transport_security = lambda: None
     srv._preload_locales = False

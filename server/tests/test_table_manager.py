@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from core.tables.manager import TableManager
-from core.tables.table import Table
+from server.core.tables.manager import TableManager
+from server.core.tables.table import Table
 
 
 class DummyUser:

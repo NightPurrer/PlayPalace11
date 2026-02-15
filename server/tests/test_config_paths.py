@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from core import config_paths
+from server.core import config_paths
 
 
 def test_running_on_windows_is_case_insensitive(monkeypatch):
