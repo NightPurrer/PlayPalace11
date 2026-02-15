@@ -9,15 +9,26 @@ This directory hosts early WiX v4 scaffolding for the single MSI that packages b
 - `configure_server.ps1` – helper invoked by custom actions to ensure `%PROGRAMDATA%\PlayPalace\config.toml` exists and to apply wizard-provided host/port/SSL values.
 - `generate_self_signed.ps1` – optional utility to mint a self-signed certificate using PowerShell's `New-SelfSignedCertificate`. The installer dialog can call this when the user requests automatic cert creation.
 
-## Building the MSI (draft workflow)
+## Building the MSI
 1. Build the client binary via `clients/desktop/build.ps1` so `clients/desktop/dist/PlayPalace/PlayPalace.exe` exists.
 2. Build the server binary via `server/build.ps1` so `server/dist/PlayPalaceServer.exe` exists.
-3. From `packaging/installers/windows/wix/` (or by passing the `.wixproj/.wxs` file explicitly), run WiX v4 (after installing `wix.exe` and ensuring it is on PATH):
+3. Build the MSI via the WiX project (recommended; restores extensions automatically):
+
   ```powershell
   PS repo:\> cd packaging/installers/windows/wix
-  PS ...\wix> wix build PlayPalace.wxs -arch x64 -loc locales/en-us.wxl -out ..\dist\PlayPalace.msi
+  PS ...\wix> dotnet build PlayPalace.wixproj -c Release
   ```
-   WiX resolves the `ClientSource`/`ServerSource` defines relative to this directory, so keeping the build command in `packaging/installers/windows/wix` avoids ambiguity. If you invoke `wix build` from elsewhere, pass the path to `PlayPalace.wixproj` or `PlayPalace.wxs` so the same relative resolution applies.
+
+Output MSI:
+- `packaging/installers/windows/wix/bin/Release/en-US/PlayPalace.msi`
+
+Notes:
+- The MSI is built as a **single file** (embedded cabinet) via `<MediaTemplate EmbedCab="yes" />` in `PlayPalace.wxs`.
+- This workflow intentionally avoids calling `wix build` directly; doing so requires manually specifying WiX extensions (e.g., UI) and is easy to misconfigure.
+- The installer expects:
+  - Client at `clients/desktop/dist/PlayPalace/` (at minimum `PlayPalace.exe`)
+  - Server at `server/dist/PlayPalaceServer.exe`
+- Client files are **not** harvested automatically; the MSI explicitly installs `PlayPalace.exe` plus the runtime folders `_internal/` and `sounds/` into `CLIENTDIR`.
 
 ## Custom action inputs
 The MSI defines the following public properties, intended to be bound to a custom dialog:
@@ -34,7 +45,9 @@ The MSI defines the following public properties, intended to be bound to a custo
 When `ServerFeature` is selected, the installer sets a deferred `ConfigureServerAction` command (via `CustomActionData`) and runs `packaging\installers\windows\configure_server.ps1` after `InstallFiles`. The script copies `config.example.toml` into `%PROGRAMDATA%\PlayPalace\config.toml` (if missing), clamps `[network].allow_insecure_ws`, and stores any SSL paths so the Windows service and the user’s edits share one config file.
 
 ## Installer UI
-`PlayPalace.wxs` now injects a `ServerConfigDlg` after the standard `InstallDirDlg` whenever the Server feature is selected on a fresh install. The dialog captures host, port, insecure toggle, and SSL settings while dynamically disabling the insecure checkbox once TLS is enabled. Certificate/key path fields only activate when the SSL checkbox is checked. The “Generate self-signed” button writes files to `%PROGRAMDATA%\PlayPalace\ssl\` and automatically populates the certificate/key fields; the “Validate paths” button ensures both files exist before the installer proceeds. `VerifyReadyDlg`’s Back button also returns to the config dialog in this case so values are easy to adjust before installation continues.
+The MSI uses `WixUI_FeatureTree`, so users can choose whether to install the **Client**, **Server**, or both.
+
+`PlayPalace.wxs` injects a `ServerConfigDlg` after the standard `InstallDirDlg` whenever the Server feature is selected on a fresh install. The dialog captures host, port, insecure toggle, and SSL settings while dynamically disabling the insecure checkbox once TLS is enabled. Certificate/key path fields only activate when the SSL checkbox is checked. The “Generate self-signed” button writes files to `%PROGRAMDATA%\PlayPalace\ssl\` and automatically populates the certificate/key fields; the “Validate paths” button ensures both files exist before the installer proceeds. `VerifyReadyDlg`’s Back button also returns to the config dialog in this case so values are easy to adjust before installation continues.
 
 ## Pending Work
 1. Add Start Menu shortcuts/icons for the server config wizard, documentation URL, and service troubleshooting notes.

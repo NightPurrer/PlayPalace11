@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<?define ServerSource=..\..\..\server\dist ?>
+<?define ServerSource=..\..\..\..\server\dist ?>
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
   <Package Name="PlayPalace" Manufacturer="XGDevGroup" Version="11.0.0.0" UpgradeCode="{b40ba410-e0df-422a-9f26-f630a7fe3d1d}" Language="1033" Codepage="1252">
+    <MediaTemplate EmbedCab="yes" />
     <Icon Id="ProductIcon" SourceFile="assets/product.ico" />
     <Property Id="ARPPRODUCTICON" Value="ProductIcon" />
     <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
@@ -62,7 +63,23 @@
       <File Id="GenerateCertScript" Source="..\generate_self_signed.ps1" KeyPath="yes" />
     </Component>
 
+    <Component Id="ClientExecutable" Directory="CLIENTDIR" Guid="{c2ff34fd-6c8a-4c57-9c60-20b3bc82d8b3}">
+      <File Id="PlayPalaceClientExe" Source="$(var.ClientSource)\PlayPalace.exe" KeyPath="yes" />
+    </Component>
+
+    <!-- Client runtime payload (no harvesting): include the client distribution folders used at runtime. -->
+    <Component Id="ClientInternalDir" Directory="CLIENTDIR" Guid="{9d72f3c1-09e3-4e89-8c0a-0f19c0d0e7b9}">
+      <File Id="ClientInternalPlaceholder" Source="$(var.ClientSource)\_internal\base_library.zip" KeyPath="yes" />
+    </Component>
+
+    <Component Id="ClientSoundsDir" Directory="CLIENTDIR" Guid="{6c4f2b73-7a3d-4f32-8e1e-4e3a5d9c7f81}">
+      <File Id="ClientSoundsPlaceholder" Source="$(var.ClientSource)\sounds\click.ogg" KeyPath="yes" />
+    </Component>
+
     <ComponentGroup Id="ClientComponents">
+      <ComponentRef Id="ClientExecutable" />
+      <ComponentRef Id="ClientInternalDir" />
+      <ComponentRef Id="ClientSoundsDir" />
       <ComponentRef Id="ClientShortcutComponent" />
     </ComponentGroup>
 
@@ -78,7 +95,6 @@
 
     <Feature Id="ClientFeature" Title="!(loc.FeatureClient)" Level="1" AllowAbsent="yes" ConfigurableDirectory="CLIENTDIR">
       <ComponentGroupRef Id="ClientComponents" />
-      <ComponentGroupRef Id="ClientHarvestedFiles" />
     </Feature>
 
     <Feature Id="ServerFeature" Title="!(loc.FeatureServer)" Level="1" AllowAbsent="yes" ConfigurableDirectory="SERVERDIR">
@@ -129,7 +145,7 @@
 
     <UI>
       <TextStyle Id="Tahoma" FaceName="Tahoma" Size="8" />
-      <ui:WixUI Id="WixUI_InstallDir" />
+      <ui:WixUI Id="WixUI_FeatureTree" />
 
       <Dialog Id="ServerConfigDlg" Width="370" Height="295" Title="!(loc.ConfigDialogTitle)">
         <Control Id="Title" Type="Text" X="15" Y="6" Width="340" Height="15" Transparent="yes" NoPrefix="yes" Text="!(loc.ConfigDialogTitle)" />
@@ -176,6 +192,10 @@
 
       <!-- Override InstallDirDlg Next to route through ServerConfigDlg when server feature is selected -->
       <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="ServerConfigDlg" Condition="(&amp;ServerFeature=3) AND (NOT Installed)" Order="2" />
+
+      <!-- Required by WixUI_FeatureTree so InstallDirDlg buttons are not "Do Nothing". -->
+      <Publish Dialog="InstallDirDlg" Control="Back" Event="NewDialog" Value="CustomizeDlg" Condition="1" Order="1" />
+      <Publish Dialog="InstallDirDlg" Control="ChangeFolder" Event="SetTargetPath" Value="INSTALLFOLDER" Condition="1" Order="1" />
       <!-- Override VerifyReadyDlg Back to go to ServerConfigDlg when server feature is selected -->
       <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="ServerConfigDlg" Condition="(&amp;ServerFeature=3) AND (NOT Installed)" Order="2" />
     </UI>

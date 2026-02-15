@@ -1,7 +1,7 @@
 <Project Sdk="WixToolset.Sdk/4.0.2">
   <PropertyGroup>
     <InstallerPlatform>x64</InstallerPlatform>
-    <DefineConstants>ClientSource=..\..\..\client\dist\PlayPalace</DefineConstants>
+    <DefineConstants>ClientSource=..\..\..\..\clients\desktop\dist\PlayPalace</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="WixToolset.Util.wixext" Version="4.0.2" />
@@ -10,13 +10,5 @@
   </ItemGroup>
   <ItemGroup>
     <WixLocalization Include="locales\en-us.wxl" />
-  </ItemGroup>
-  <ItemGroup>
-    <HarvestDirectory Include="..\..\..\client\dist\PlayPalace">
-      <ComponentGroupName>ClientHarvestedFiles</ComponentGroupName>
-      <DirectoryRefId>CLIENTDIR</DirectoryRefId>
-      <SuppressRootDirectory>true</SuppressRootDirectory>
-      <PreprocessorVariable>var.ClientSource</PreprocessorVariable>
-    </HarvestDirectory>
   </ItemGroup>
 </Project>
