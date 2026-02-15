@@ -6,6 +6,8 @@ Crazy Eights is a classic shedding card game where the goal is to be the first p
 
 Players take turns matching the top card of the discard pile by suit or rank, using eights as wild cards to change the suit at will. The first player to empty their hand wins the round and scores points based on the cards left in their opponents' hands. Play continues across multiple rounds until someone reaches the winning score.
 
+This game is in memory of All in Play, likely the first accessible online multiplayer game platform from the early 2000's. All game sounds are from this game, and gameplay matches their version as much as possible.
+
 ## Gameplay
 The game supports 2 to 8 players and uses two standard 52-card decks shuffled together. Each round, every player is dealt 5 cards, and a starting card is turned face-up from the deck to begin the discard pile. This starting card will always be a numbered card (never a wild or face card).
 
@@ -16,20 +18,20 @@ On your turn, you must play a card from your hand that matches either the suit o
 ### Special Cards
 Not all cards are created equal. There are four types of special cards that shake things up:
 
-* **Eights (Wild):** Eights can be played on top of anything, at any time. When you play an eight, you choose the suit that the next player must follow. This is the most powerful card in the game.
-* **Queens (Skip):** Playing a queen skips the next player's turn entirely.
-* **Jacks (Reverse):** Playing a jack reverses the direction of play. In a two-player game, since reversing direction has the same effect as skipping, it simply skips the other player instead.
-* **Kings (Draw Two):** Playing a king forces the next player to draw 2 cards from the deck and lose their turn.
+* **Wild 8:** Eights can be played on top of anything, at any time. When you play a Wild 8, you choose the suit that the next player must follow. This is the most powerful card in the game.
+* **Skip:** Playing a Skip skips the next player's turn entirely.
+* **Reverse:** Playing a reverse  reverses the direction of play. In a two-player game, since reversing direction has the same effect as skipping, it simply skips the other player instead. Skips and reverses have a lot of strategic value. 
+* **Draw Two:** Playing a Draw Two forces the next player to draw 2 cards from the deck and lose their turn. Again, if you are in a two-player game, the other player will draw and you will get another turn. They will even have to draw if you play a Draw Two as your last card.
 
 ### Drawing and Passing
-If you have no playable cards in your hand, you must draw one card from the deck. If the card you drew is playable, you have the option to play it immediately. If it is not playable (or you choose not to play it), you pass and your turn ends.
+If you have no playable cards in your hand, you must draw one card from the deck. If the card you drew is playable, you will hear a sound, and have the option to play it immediately. If it is not playable (or you choose not to play it), you pass and your turn ends.
 
-You cannot draw if you already have a playable card in your hand -- the game requires you to play when you can. There is also a hand size limit of 15 cards; if your hand is full, you cannot draw and must pass instead.
+You cannot draw if you already have a playable card in your hand -- the game requires you to play when you can.
 
 If the draw pile runs out, the discard pile (except for the top card) is reshuffled to form a new draw pile.
 
 ### Example Turn
-It is the start of the round and you are dealt: 3 of Clubs, 7 of Hearts, Queen of Diamonds, 5 of Hearts, and an Eight. The starting card is the 6 of Hearts.
+It is the start of the round and you are dealt: 3 of Clubs, 7 of Hearts, Queen of Diamonds, 5 of Hearts, and an Wild 8. The starting card is the 6 of Hearts.
 
 You could play the 7 of Hearts (matching the Hearts suit) or the 5 of Hearts. You could also play your 8, but you have no reason to.
 
@@ -40,14 +42,14 @@ A few turns later, the top card is the 10 of Clubs and you have no Clubs and no 
 ### Scoring
 When a player empties their hand, the round ends and they score points based on what remains in all other players' hands. The card values are:
 
-* **Eights (Wild):** 50 points each
-* **Kings, Queens, Jacks (Face cards):** 20 points each
+* **8's (Wild):** 50 points each
+* **Skips, Reverses, and Draw Twos:** 20 points each
 * **Aces:** 1 point each
 * **Number cards (2-7, 9-10):** Face value (e.g., a 5 is worth 5 points)
 
 The winner of the round collects points from every opponent. For example, if one opponent is left holding an Eight and a 3, that is 53 points from them alone. All opponents' totals are added together for your round score.
 
-The game continues across multiple rounds, with scores accumulating, until a player reaches the winning score (500 by default, but this is configurable up to 10,000).
+The game continues across multiple rounds, with scores accumulating, until a player reaches the winning score which is configurable by the host up to 10,000).
 
 ## Keyboard Shortcuts
 Shortcuts specific to the game of Crazy Eights:
@@ -58,16 +60,18 @@ Shortcuts specific to the game of Crazy Eights:
 * **E:** Read card counts (how many cards each player holds and how many remain in the deck).
 * **Shift+T:** Check the turn timer.
 
-When choosing a suit after playing a wild (Eight):
+When choosing a suit after playing a Wild 8:
 
 * **C:** Choose Clubs.
 * **D:** Choose Diamonds.
 * **H:** Choose Hearts.
 * **S:** Choose Spades.
 
+When arrowing through your list of cards, a short sound will be played if you land on a playable card. This updates as cards are played, even when it's not your turn.
+
 ## Game Theory / Tips
 * Save your eights for when you truly need them. They are your get-out-of-jail-free cards, and playing one early just because you can is a waste.
 * Pay attention to what suits your opponents seem to be short on. If someone keeps drawing, they probably lack the current suit. Changing to that suit (via a wild or natural play) can keep the pressure on them.
-* Kings are best played strategically. Forcing a draw-two on the player who is close to going out can turn the tide of a round.
+* Draw Twos are best played strategically. Forcing a draw-two on the player who is close to going out can turn the tide of a round.
 * If someone else is about to win the round, try to get rid of your cards in descending order of point value. If they have one card left and have used a wild, even if you could follow suit, you should instead play as many eights as possible.
 * Especially in games with two players, it is sometimes possible to play a combination of cards that allows you to win the round without them being able to do anything about it. This is quite fun, especially making your opponents draw cards that they have no chance to play.
