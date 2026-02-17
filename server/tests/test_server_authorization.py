@@ -448,12 +448,25 @@ async def test_refresh_session_success(server):
     server._send_game_list = fake_send_game_list
 
     client = DummyClient()
-    await server._handle_refresh_session(client, {"refresh_token": "refresh-token", "username": "alice"})
+    await server._handle_refresh_session(
+        client,
+        {
+            "refresh_token": "refresh-token",
+            "username": "alice",
+            "client_type": "Desktop",
+            "platform": "Windows 11",
+        },
+    )
 
     assert client.authenticated is True
     assert client.username == "alice"
     assert any(p.get("type") == "refresh_session_success" for p in client.sent)
     assert sent_game_list == ["alice"]
+    assert client.client_type == "Desktop"
+    assert client.platform == "Windows 11"
+    user = server._users["alice"]
+    assert user.client_type == "Desktop"
+    assert user.platform == "Windows 11"
 
 
 @pytest.mark.asyncio
