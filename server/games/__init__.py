@@ -52,7 +52,7 @@ __all__ = [
     "FiveCardDrawGame",
     "HoldemGame",
     "CrazyEightsGame",
-    "SnakesAndbg-branch
+    "SnakesAndLaddersGame",
     "RollingBallsGame",
     "SorryGame",
 ]
