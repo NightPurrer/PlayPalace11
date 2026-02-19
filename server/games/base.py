@@ -149,6 +149,11 @@ class Game(
         default_factory=list
     )  # [[tick, sound, vol, pan, pitch], ...]
     sound_scheduler_tick: int = 0  # Current tick counter
+    # Event queue state (serialized for persistence)
+    event_queue: list[tuple[int, str, dict]] = field(
+        default_factory=list
+    )  # [(tick, event_type, data), ...]
+    is_animating: bool = False  # True while event sequence is playing
     # Action sets (serialized - actions are pure data now)
     player_action_sets: dict[str, list[ActionSet]] = field(default_factory=dict)
     # Team manager (serialized for persistence)

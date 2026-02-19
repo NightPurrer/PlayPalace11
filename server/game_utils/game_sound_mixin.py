@@ -1,4 +1,4 @@
-"""Mixin providing sound scheduling and playback for games."""
+"""Mixin providing sound scheduling, event scheduling, and playback for games."""
 
 from typing import TYPE_CHECKING
 
@@ -8,11 +8,13 @@ if TYPE_CHECKING:
 
 
 class GameSoundMixin:
-    """Schedule and play sounds for games.
+    """Schedule and play sounds and game events for games.
 
     Expected Game attributes:
         scheduled_sounds: list of [tick, sound, vol, pan, pitch].
         sound_scheduler_tick: int.
+        event_queue: list of (tick, event_type, data).
+        is_animating: bool.
         current_music: str.
         current_ambience: str.
         players: list[Player].
@@ -80,6 +82,54 @@ class GameSoundMixin:
 
         self.scheduled_sounds = remaining
         self.sound_scheduler_tick += 1
+
+    # ==========================================================================
+    # Event Scheduling
+    # ==========================================================================
+
+    def schedule_event(
+        self, event_type: str, data: dict, delay_ticks: int = 0
+    ) -> None:
+        """Schedule a game event to fire after a delay.
+
+        Args:
+            event_type: Event identifier (game-specific).
+            data: Event payload dict.
+            delay_ticks: Ticks to wait before firing (0 = next tick).
+        """
+        target_tick = self.sound_scheduler_tick + delay_ticks
+        self.event_queue.append((target_tick, event_type, data))
+
+    def process_scheduled_events(self) -> None:
+        """Process scheduled events. Call in on_tick() after process_scheduled_sounds().
+
+        Events whose tick has arrived are dispatched to on_game_event().
+        Uses queue-swap so events added during handling are preserved.
+        """
+        if not self.event_queue:
+            return
+
+        to_process = self.event_queue
+        self.event_queue = []
+        remaining = []
+        current_tick = self.sound_scheduler_tick
+
+        for tick, event_type, data in to_process:
+            if tick <= current_tick:
+                self.on_game_event(event_type, data)
+            else:
+                remaining.append((tick, event_type, data))
+
+        self.event_queue = remaining + self.event_queue
+
+    def on_game_event(self, event_type: str, data: dict) -> None:
+        """Handle a scheduled game event. Override in subclasses.
+
+        Args:
+            event_type: The event identifier.
+            data: The event payload dict.
+        """
+        pass
 
     # ==========================================================================
     # Sound Playback
