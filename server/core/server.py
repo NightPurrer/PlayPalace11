@@ -1392,6 +1392,13 @@ class Server(AdministrationMixin):
 
     def _show_main_menu(self, user: NetworkUser) -> None:
         """Show the main menu to a user."""
+        # Reset menu history when returning to main menu (fresh navigation tree).
+        current_menus = getattr(user, "_current_menus", None)
+        if isinstance(current_menus, dict):
+            for menu_id in list(current_menus.keys()):
+                if menu_id != "main_menu":
+                    current_menus.pop(menu_id, None)
+
         items = []
         if user.approved:
             # Full menu for approved users
@@ -1431,6 +1438,7 @@ class Server(AdministrationMixin):
             items,
             multiletter=True,
             escape_behavior=EscapeBehavior.SELECT_LAST,
+            position=1,
         )
         user.play_music("mainmus.ogg")
         user.stop_ambience()
@@ -1650,12 +1658,18 @@ class Server(AdministrationMixin):
             ),
             MenuItem(text=Localization.get(user.locale, "back"), id="back"),
         ]
-        user.show_menu(
-            "options_menu",
-            items,
-            multiletter=True,
-            escape_behavior=EscapeBehavior.SELECT_LAST,
-        )
+        current_menu = self._user_states.get(user.username, {}).get("menu")
+        current_menus = getattr(user, "_current_menus", {})
+        if current_menu == "options_menu" and "options_menu" in current_menus:
+            user.update_menu("options_menu", items)
+        else:
+            user.show_menu(
+                "options_menu",
+                items,
+                multiletter=True,
+                escape_behavior=EscapeBehavior.SELECT_LAST,
+            )
+            user.play_music("settingsmus.ogg")
         self._user_states[user.username] = {"menu": "options_menu"}
 
     def _show_language_menu(self, user: NetworkUser) -> None:
@@ -1672,7 +1686,8 @@ class Server(AdministrationMixin):
         )
 
         items = []
-        for lang_code, lang_name in languages.items():
+        selected_position = 1
+        for index, (lang_code, lang_name) in enumerate(languages.items(), start=1):
             prefix = "* " if lang_code == user.locale else ""
             localized_name = localized_languages.get(lang_code, lang_name)
             # Show localized name first, then native name in parentheses if different
@@ -1681,13 +1696,17 @@ class Server(AdministrationMixin):
             else:
                 display = f"{prefix}{lang_name}"
             items.append(MenuItem(text=display, id=f"lang_{lang_code}"))
+            if lang_code == user.locale:
+                selected_position = index
         items.append(MenuItem(text=Localization.get(user.locale, "back"), id="back"))
         user.show_menu(
             "language_menu",
             items,
             multiletter=True,
             escape_behavior=EscapeBehavior.SELECT_LAST,
+            position=selected_position,
         )
+        user.play_music("settingsmus.ogg")
         self._user_states[user.username] = {"menu": "language_menu"}
 
     def _show_saved_tables_menu(self, user: NetworkUser) -> None:
@@ -1751,6 +1770,7 @@ class Server(AdministrationMixin):
 
         state = self._user_states.get(username, {})
         current_menu = state.get("menu")
+        self._remember_menu_position(user, current_menu, packet)
 
         # Check if user is in a table - delegate all events to game
         table = self._tables.find_user_table(username)
@@ -1766,6 +1786,62 @@ class Server(AdministrationMixin):
             return
 
         await self._dispatch_menu_selection(user, selection_id, state, current_menu)
+        self._prune_menu_history_after_dispatch(
+            user=user,
+            previous_menu=current_menu,
+            selection_id=selection_id,
+            previous_state=state,
+        )
+
+    def _prune_menu_history_after_dispatch(
+        self,
+        *,
+        user: NetworkUser,
+        previous_menu: str | None,
+        selection_id: str,
+        previous_state: dict,
+    ) -> None:
+        """Prune menu history for back-style navigation.
+
+        Keeps position memory scoped to the current navigation path by dropping
+        menus that were exited with a back action.
+        """
+        if not previous_menu:
+            return
+        new_state = self._user_states.get(user.username, {})
+        new_menu = new_state.get("menu")
+        if new_menu == previous_menu:
+            return
+        if selection_id != "back" and previous_menu != "online_users":
+            return
+        current_menus = getattr(user, "_current_menus", None)
+        if isinstance(current_menus, dict):
+            current_menus.pop(previous_menu, None)
+
+    def _remember_menu_position(
+        self, user: NetworkUser, current_menu: str | None, packet: dict
+    ) -> None:
+        """Store the user's last selected position for the active menu."""
+        if not current_menu:
+            return
+        current_menus = getattr(user, "_current_menus", {})
+        menu_state = current_menus.get(current_menu)
+        if not menu_state:
+            return
+
+        selection = packet.get("selection")
+        if isinstance(selection, int) and selection > 0:
+            menu_state["position"] = selection
+            return
+
+        selection_id = packet.get("selection_id")
+        if not selection_id:
+            return
+        items = menu_state.get("items", [])
+        for index, item in enumerate(items, start=1):
+            if isinstance(item, dict) and item.get("id") == selection_id:
+                menu_state["position"] = index
+                return
 
     async def _dispatch_menu_selection(
         self,
@@ -1894,12 +1970,18 @@ class Server(AdministrationMixin):
             # Toggle turn sound
             prefs = user.preferences
             prefs.play_turn_sound = not prefs.play_turn_sound
+            user.play_sound(
+                "checkbox_list_on.wav" if prefs.play_turn_sound else "checkbox_list_off.wav"
+            )
             self._save_user_preferences(user)
             self._show_options_menu(user)
         elif selection_id == "clear_kept":
             # Toggle clear kept on roll
             prefs = user.preferences
             prefs.clear_kept_on_roll = not prefs.clear_kept_on_roll
+            user.play_sound(
+                "checkbox_list_on.wav" if prefs.clear_kept_on_roll else "checkbox_list_off.wav"
+            )
             self._save_user_preferences(user)
             self._show_options_menu(user)
         elif selection_id == "dice_keeping_style":
@@ -1911,17 +1993,22 @@ class Server(AdministrationMixin):
         """Show dice keeping style selection menu."""
         items = []
         current_style = user.preferences.dice_keeping_style
-        for style, name_key in self.DICE_KEEPING_STYLES.items():
+        selected_position = 1
+        for index, (style, name_key) in enumerate(self.DICE_KEEPING_STYLES.items(), start=1):
             prefix = "* " if style == current_style else ""
             name = Localization.get(user.locale, name_key)
             items.append(MenuItem(text=f"{prefix}{name}", id=f"style_{style.value}"))
+            if style == current_style:
+                selected_position = index
         items.append(MenuItem(text=Localization.get(user.locale, "back"), id="back"))
         user.show_menu(
             "dice_keeping_style_menu",
             items,
             multiletter=True,
             escape_behavior=EscapeBehavior.SELECT_LAST,
+            position=selected_position,
         )
+        user.play_music("settingsmus.ogg")
         self._user_states[user.username] = {"menu": "dice_keeping_style_menu"}
 
     async def _handle_dice_keeping_style_selection(
@@ -3683,11 +3770,14 @@ class Server(AdministrationMixin):
             escape_behavior=EscapeBehavior.SELECT_LAST,
             position=0,
         )
+        previous_music = getattr(user, "_current_music", None)
+        user.play_music("playersmus.ogg")
         self._user_states[user.username] = {
             "menu": "online_users",
             "return_menu_id": previous_menu_id,
             "return_menu": previous_menu,
             "return_state": dict(current_state),
+            "return_music": dict(previous_music) if isinstance(previous_music, dict) else None,
         }
 
     def _restore_previous_menu(self, user: NetworkUser, state: dict) -> None:
@@ -3707,6 +3797,11 @@ class Server(AdministrationMixin):
             grid_enabled=previous_menu.get("grid_enabled", False),
             grid_width=previous_menu.get("grid_width", 1),
         )
+        return_music = state.get("return_music")
+        if isinstance(return_music, dict):
+            music_name = return_music.get("name")
+            if isinstance(music_name, str) and music_name:
+                user.play_music(music_name, looping=bool(return_music.get("looping", True)))
         restored_state = dict(state.get("return_state", {}))
         restored_state["menu"] = previous_menu_id
         self._user_states[user.username] = restored_state

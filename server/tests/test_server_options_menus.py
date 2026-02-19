@@ -31,6 +31,8 @@ class DummyUser:
         self.preferences = UserPreferences()
         self.spoken: list[tuple[str, dict]] = []
         self.menu_id: str | None = None
+        self.music_played: list[str] = []
+        self.sounds_played: list[str] = []
         async def _send(payload):
             return None
         self.connection = SimpleNamespace(send=_send)
@@ -43,6 +45,14 @@ class DummyUser:
 
     def show_menu(self, menu_id: str, *args, **kwargs) -> None:
         self.menu_id = menu_id
+
+    def play_music(self, name: str, looping: bool = True) -> None:
+        self.music_played.append(name)
+
+    def play_sound(
+        self, name: str, volume: int = 100, pan: int = 0, pitch: int = 100
+    ) -> None:
+        self.sounds_played.append(name)
 
     def set_locale(self, locale: str) -> None:
         self.locale = locale
@@ -74,6 +84,7 @@ async def test_handle_options_selection_toggle_turn_sound(server, monkeypatch):
     await server._handle_options_selection(user, "turn_sound")
 
     assert user.preferences.play_turn_sound is False
+    assert user.sounds_played[-1] == "checkbox_list_off.wav"
     assert server._db.preferences_updates  # saved
     assert shown.get("called")
 
