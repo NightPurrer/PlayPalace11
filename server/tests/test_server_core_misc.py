@@ -31,9 +31,10 @@ class FakeLoop:
         self.tasks = []
 
     def create_task(self, coro):
-        task = asyncio.create_task(coro)
-        self.tasks.append(task)
-        return task
+        # Record scheduling intent without touching the real event loop.
+        self.tasks.append(coro)
+        coro.close()
+        return SimpleNamespace(cancel=lambda: None, done=lambda: True)
 
 
 @pytest.fixture
@@ -184,7 +185,11 @@ async def test_preload_locales_if_requested_runs(monkeypatch, server):
     def fake_preload():
         called["ran"] = True
 
+    async def fake_to_thread(func, *args, **kwargs):
+        return func(*args, **kwargs)
+
     monkeypatch.setattr("server.messages.localization.Localization.preload_bundles", fake_preload)
+    monkeypatch.setattr(asyncio, "to_thread", fake_to_thread)
     server._preload_locales = True
 
     await server._preload_locales_if_requested()
