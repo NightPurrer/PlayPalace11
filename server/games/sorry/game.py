@@ -165,7 +165,7 @@ class SorryGame(Game):
                 "sorry-move-start",
                 pawn=move.pawn_index or 0,
             )
-        if move.move_type == "forward":
+        if move.move_type in {"forward", "sorry_fallback_forward"}:
             return Localization.get(
                 locale,
                 "sorry-move-forward",
@@ -214,7 +214,7 @@ class SorryGame(Game):
                 pawn=move.pawn_index or 0,
             )
             return
-        if move.move_type == "forward":
+        if move.move_type in {"forward", "sorry_fallback_forward"}:
             self.broadcast_l(
                 "sorry-play-forward",
                 player=player.name,

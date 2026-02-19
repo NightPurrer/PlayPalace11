@@ -48,6 +48,22 @@ def test_classic_rules_policy_matches_existing_behavior() -> None:
     assert rules.allows_sorry("1") is False
 
 
+def test_a5065_rules_policy_deltas_from_classic() -> None:
+    rules = A5065CoreRules()
+
+    assert rules.profile_id == "a5065_core"
+    assert rules.pawns_per_player == 3
+    assert rules.card_two_grants_extra_turn() is False
+    assert rules.slide_policy_id() == "a5065_core"
+
+    assert rules.can_leave_start_with_card("1") is True
+    assert rules.can_leave_start_with_card("2") is True
+    assert rules.can_leave_start_with_card("3") is True
+    assert rules.can_leave_start_with_card("4") is False
+    assert rules.sorry_fallback_forward_steps("sorry") == (4,)
+    assert rules.sorry_fallback_forward_steps("1") == ()
+
+
 def test_game_creation() -> None:
     """Sorry game metadata should be wired correctly."""
     game = SorryGame()

@@ -303,6 +303,33 @@ def _generate_sorry_moves(
     return moves
 
 
+def _generate_sorry_fallback_forward_moves(
+    player_state: SorryPlayerState,
+    steps: int,
+) -> list[SorryMove]:
+    moves: list[SorryMove] = []
+    for pawn in player_state.pawns:
+        destination = _compute_forward_destination(player_state, pawn, steps)
+        if destination is None:
+            continue
+        if not _is_destination_legal_for_player(
+            player_state,
+            destination,
+            ignore_pawn_indexes={pawn.pawn_index},
+        ):
+            continue
+        moves.append(
+            SorryMove(
+                action_id=f"sorry_fwd{steps}_p{pawn.pawn_index}",
+                move_type="sorry_fallback_forward",
+                description=f"Move pawn {pawn.pawn_index} forward {steps}",
+                pawn_index=pawn.pawn_index,
+                steps=steps,
+            )
+        )
+    return moves
+
+
 def _generate_split_seven_moves(
     player_state: SorryPlayerState,
 ) -> list[SorryMove]:
@@ -410,7 +437,13 @@ def generate_legal_moves(
         moves.extend(_generate_swap_moves(state, player_state))
 
     if rules.allows_sorry(card_face):
-        moves.extend(_generate_sorry_moves(state, player_state))
+        sorry_moves = _generate_sorry_moves(state, player_state)
+        moves.extend(sorry_moves)
+        if not sorry_moves:
+            for fallback_steps in rules.sorry_fallback_forward_steps(card_face):
+                moves.extend(
+                    _generate_sorry_fallback_forward_moves(player_state, fallback_steps)
+                )
 
     return sorted(moves, key=lambda move: move.action_id)
 
@@ -483,7 +516,7 @@ def apply_move(
         _capture_opponents_on_track(state, player_state, pawn.track_position)
         return
 
-    if move.move_type == "forward":
+    if move.move_type in {"forward", "sorry_fallback_forward"}:
         pawn = _get_pawn(player_state, move.pawn_index)
         if pawn is None or move.steps is None:
             raise ValueError("Invalid forward move payload")

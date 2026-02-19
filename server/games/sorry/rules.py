@@ -39,8 +39,16 @@ class SorryRulesProfile(Protocol):
         """Return whether this card allows Sorry replacement moves."""
         ...
 
+    def sorry_fallback_forward_steps(self, card_face: str) -> tuple[int, ...]:
+        """Return fallback forward steps used when no Sorry target exists."""
+        ...
+
     def card_two_grants_extra_turn(self) -> bool:
         """Return whether card 2 grants another turn."""
+        ...
+
+    def slide_policy_id(self) -> str:
+        """Return identifier for profile-specific slide policy."""
         ...
 
 
@@ -92,17 +100,20 @@ class Classic00390Rules:
     def allows_sorry(self, card_face: str) -> bool:
         return card_face == "sorry"
 
+    def sorry_fallback_forward_steps(self, card_face: str) -> tuple[int, ...]:
+        _ = card_face
+        return ()
+
     def card_two_grants_extra_turn(self) -> bool:
         return True
+
+    def slide_policy_id(self) -> str:
+        return "classic_00390"
 
 
 @dataclass(frozen=True)
 class A5065CoreRules:
-    """A5065 core profile scaffold.
-
-    Milestone 2 wiring uses classic-equivalent behavior until profile deltas
-    are implemented in later milestones.
-    """
+    """A5065 core profile."""
 
     profile_id: str = "a5065_core"
     display_name: str = "A5065 Core"
@@ -112,7 +123,7 @@ class A5065CoreRules:
         return Classic00390Rules().card_faces()
 
     def can_leave_start_with_card(self, card_face: str) -> bool:
-        return Classic00390Rules().can_leave_start_with_card(card_face)
+        return bool(self.forward_steps_for_card(card_face))
 
     def forward_steps_for_card(self, card_face: str) -> tuple[int, ...]:
         return Classic00390Rules().forward_steps_for_card(card_face)
@@ -129,8 +140,16 @@ class A5065CoreRules:
     def allows_sorry(self, card_face: str) -> bool:
         return Classic00390Rules().allows_sorry(card_face)
 
+    def sorry_fallback_forward_steps(self, card_face: str) -> tuple[int, ...]:
+        if card_face == "sorry":
+            return (4,)
+        return ()
+
     def card_two_grants_extra_turn(self) -> bool:
-        return Classic00390Rules().card_two_grants_extra_turn()
+        return False
+
+    def slide_policy_id(self) -> str:
+        return "a5065_core"
 
 
 RULES_PROFILES: dict[str, SorryRulesProfile] = {

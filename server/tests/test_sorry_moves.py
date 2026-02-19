@@ -5,7 +5,7 @@ from server.games.sorry.moves import (
     apply_move,
     generate_legal_moves,
 )
-from server.games.sorry.rules import Classic00390Rules
+from server.games.sorry.rules import A5065CoreRules, Classic00390Rules
 from server.games.sorry.state import (
     SAFETY_LENGTH,
     build_initial_game_state,
@@ -82,6 +82,15 @@ def test_card_eleven_generates_swap_when_targets_exist() -> None:
     assert any(move.move_type == "forward" and move.steps == 11 for move in moves)
 
 
+def test_a5065_card_three_allows_start_moves() -> None:
+    state = build_initial_game_state(["p1", "p2"], pawns_per_player=3, shuffle_deck=False)
+    p1 = state.player_states["p1"]
+
+    moves = generate_legal_moves(state, p1, "3", A5065CoreRules())
+    start_moves = [move for move in moves if move.move_type == "start"]
+    assert len(start_moves) == 3
+
+
 def test_sorry_card_moves_from_start_and_captures_target() -> None:
     state = build_initial_game_state(["p1", "p2"], shuffle_deck=False)
     p1 = state.player_states["p1"]
@@ -96,6 +105,35 @@ def test_sorry_card_moves_from_start_and_captures_target() -> None:
     assert p1.pawns[0].track_position == 22
     assert p2.pawns[0].zone == "start"
     assert p2.pawns[0].track_position is None
+
+
+def test_a5065_sorry_card_uses_forward_four_when_no_replace_target() -> None:
+    state = build_initial_game_state(["p1", "p2"], pawns_per_player=3, shuffle_deck=False)
+    p1 = state.player_states["p1"]
+    _set_track(p1.pawns[0], 0)
+
+    moves = generate_legal_moves(state, p1, "sorry", A5065CoreRules())
+    assert not any(move.move_type == "sorry" for move in moves)
+
+    move = _find_move(
+        moves,
+        move_type="sorry_fallback_forward",
+        pawn_index=1,
+        steps=4,
+    )
+    apply_move(state, p1, move, A5065CoreRules())
+    assert p1.pawns[0].track_position == 4
+
+
+def test_a5065_sorry_card_does_not_add_fallback_when_replace_exists() -> None:
+    state = build_initial_game_state(["p1", "p2"], pawns_per_player=3, shuffle_deck=False)
+    p1 = state.player_states["p1"]
+    p2 = state.player_states["p2"]
+    _set_track(p2.pawns[0], 22)
+
+    moves = generate_legal_moves(state, p1, "sorry", A5065CoreRules())
+    assert any(move.move_type == "sorry" for move in moves)
+    assert not any(move.move_type == "sorry_fallback_forward" for move in moves)
 
 
 def test_forward_move_captures_opponent_on_landing_square() -> None:

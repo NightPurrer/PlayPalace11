@@ -6,9 +6,14 @@ from server.game_utils.actions import Visibility
 from server.games.sorry.game import SorryGame, SorryOptions
 
 
-def _build_game(*, auto_apply_single_move: bool = False) -> tuple[SorryGame, MockUser, MockUser]:
+def _build_game(
+    *,
+    auto_apply_single_move: bool = False,
+    rules_profile: str = "classic_00390",
+) -> tuple[SorryGame, MockUser, MockUser]:
     game = SorryGame(
         options=SorryOptions(
+            rules_profile=rules_profile,
             auto_apply_single_move=auto_apply_single_move,
             faster_setup_one_pawn_out=False,
         )
@@ -112,6 +117,26 @@ def test_card_two_grants_extra_turn() -> None:
 
     assert player_state.pawns[0].track_position == 2
     assert game.current_player == player
+    assert game.game_state.current_card is None
+    assert game.game_state.turn_phase == "draw"
+    assert game.game_state.turn_number == 2
+
+
+def test_a5065_card_two_does_not_grant_extra_turn() -> None:
+    game, _, _ = _build_game(auto_apply_single_move=True, rules_profile="a5065_core")
+    player = game.current_player
+    assert player is not None
+    player_state = game.game_state.player_states[player.id]
+
+    player_state.pawns[0].zone = "track"
+    player_state.pawns[0].track_position = 0
+    game.game_state.draw_pile = ["2"]
+
+    game.execute_action(player, "draw_card")
+
+    assert player_state.pawns[0].track_position == 2
+    assert game.current_player is not None
+    assert game.current_player.id != player.id
     assert game.game_state.current_card is None
     assert game.game_state.turn_phase == "draw"
     assert game.game_state.turn_number == 2
