@@ -33,7 +33,7 @@ rb-reshuffled = The pipe has been reshuffled!
 rb-reshuffle-penalty = { $player } loses { $points } { $points ->
     [one] point
    *[other] points
-} for reshuffling. Score: { $score }.
+} for reshuffling.
 
 # View pipe
 rb-view-pipe-header = Viewing the pipe. There are { $count } balls:
@@ -44,7 +44,7 @@ rb-pipe-filled = The pipe has been filled with { $count } balls!
 rb-balls-remaining = { $count } balls remain in the pipe.
 
 # Game end
-rb-pipe-empty = The pipe is empty! Calculating final scores...
+rb-pipe-empty = The pipe is empty!
 rb-score-line = { $player }: { $score } points.
 rb-winner = The winner is { $player } with { $score } points!
 rb-you-win = You win with { $score } points!

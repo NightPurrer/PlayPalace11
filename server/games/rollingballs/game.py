@@ -139,6 +139,9 @@ class RollingBallsGame(ActionGuardMixin, Game):
     players: list[RollingBallsPlayer] = field(default_factory=list)
     options: RollingBallsOptions = field(default_factory=RollingBallsOptions)
     pipe: list[dict] = field(default_factory=list)
+    _ball_reveal_queue: list[dict] = field(default_factory=list)
+    _ball_reveal_tick: int = 0
+    _ball_reveal_player_id: str = ""
 
     @classmethod
     def get_name(cls) -> str:
@@ -301,7 +304,7 @@ class RollingBallsGame(ActionGuardMixin, Game):
         """Define all keybinds for the game."""
         super().setup_keybinds()
 
-        for n in range(self.options.min_take, self.options.max_take + 1):
+        for n in range(1, 6):
             label = f"Take {n} ball{'s' if n != 1 else ''}"
             self.define_keybind(
                 str(n), label, [f"take_{n}"], state=KeybindState.ACTIVE
@@ -318,6 +321,8 @@ class RollingBallsGame(ActionGuardMixin, Game):
     # ==========================================================================
 
     def _is_take_enabled(self, player: Player, action_id: str) -> str | None:
+        if self._ball_reveal_player_id:
+            return "action-not-your-turn"
         error = self.guard_turn_action_enabled(player)
         if error:
             return error
@@ -327,6 +332,8 @@ class RollingBallsGame(ActionGuardMixin, Game):
         return None
 
     def _is_reshuffle_enabled(self, player: Player) -> str | None:
+        if self._ball_reveal_player_id:
+            return "action-not-your-turn"
         error = self.guard_turn_action_enabled(player)
         if error:
             return error
@@ -406,52 +413,74 @@ class RollingBallsGame(ActionGuardMixin, Game):
         self._take_balls(player, count)
 
     def _take_balls(self, player: Player, count: int) -> None:
-        """Take balls from the pipe."""
+        """Take balls from the pipe, queuing reveals for on_tick."""
         rb_player: RollingBallsPlayer = player  # type: ignore
 
         self.broadcast_personal_l(
             player, "rb-you-take", "rb-player-takes", count=count
         )
-        self.play_sound(f"game_rollingballs/take{count}.ogg")
+        self.play_sound(f"game_rollingballs/take{random.randint(1,3)}.ogg")
 
-        # Jolt bot to pause before next action
-        BotHelper.jolt_bot(player, ticks=random.randint(10, 20))  # nosec B311
-
-        for i in range(1, count + 1):
+        # Pop balls from pipe and queue them for reveal
+        balls = []
+        for _ in range(count):
             if not self.pipe:
                 break
+            balls.append(self.pipe.pop(0))
 
-            ball = self.pipe.pop(0)
+        # Apply scores immediately (game state is updated now)
+        for ball in balls:
             rb_player.score += ball["value"]
 
-            self.play_sound("game_rollingballs/takeball.ogg")
-            if ball["value"] > 0:
-                self.play_sound(f"game_rollingballs/plus{ball['value']}.ogg")
-                self.broadcast_l(
-                    "rb-ball-plus",
-                    num=i,
-                    description=ball["description"],
-                    value=ball["value"],
-                )
-            elif ball["value"] < 0:
-                self.play_sound(
-                    f"game_rollingballs/minus{abs(ball['value'])}.ogg"
-                )
-                self.broadcast_l(
-                    "rb-ball-minus",
-                    num=i,
-                    description=ball["description"],
-                    value=abs(ball["value"]),
-                )
-            else:
-                self.broadcast_l(
-                    "rb-ball-zero",
-                    num=i,
-                    description=ball["description"],
-                )
+        # Queue balls for synchronized sound+speech reveal in on_tick
+        for i, ball in enumerate(balls, 1):
+            ball["num"] = i
+        self._ball_reveal_queue = balls
+        self._ball_reveal_player_id = player.id
+        self._ball_reveal_tick = self.sound_scheduler_tick + 8  # ~400 ms initial delay
+
+    def _reveal_next_ball(self) -> None:
+        """Reveal the next ball from the queue with synchronized sound and speech."""
+        ball = self._ball_reveal_queue.pop(0)
+        ball_num = ball["num"]
+
+        # Play value sound and broadcast description
+        value = ball["value"]
+        description = ball["description"]
+        abs_value = abs(value)
+
+        # Play takeball sound immediately, schedule value sound 1 tick later
+        self.play_sound("game_rollingballs/takeball.ogg")
+        if value > 0:
+            self.schedule_sound(f"game_rollingballs/plus{abs_value}.ogg", delay_ticks=1, volume=80)
+            self.broadcast_l(
+                "rb-ball-plus", num=ball_num, description=description, value=abs_value
+            )
+        elif value < 0:
+            self.schedule_sound(f"game_rollingballs/minus{abs_value}.ogg", delay_ticks=1)
+            self.broadcast_l(
+                "rb-ball-minus", num=ball_num, description=description, value=abs_value
+            )
+        else:
+            self.broadcast_l("rb-ball-zero", num=ball_num, description=description)
+
+        if self._ball_reveal_queue:
+            # More balls to reveal - schedule next in 1200ms (24 ticks)
+            self._ball_reveal_tick = self.sound_scheduler_tick + 12
+        else:
+            # All balls revealed - finish after 1500ms delay
+            self._ball_reveal_tick = self.sound_scheduler_tick + 15
+
+    def _finish_ball_reveals(self) -> None:
+        """Announce score and end turn after all balls are revealed."""
+        player = self.get_player_by_id(self._ball_reveal_player_id)
+        self._ball_reveal_player_id = ""
+
+        if not player:
+            return
+        rb_player: RollingBallsPlayer = player  # type: ignore
 
         self.broadcast_l("rb-new-score", player=player.name, score=rb_player.score)
-
         self.end_turn()
 
     def _action_reshuffle(self, player: Player, action_id: str) -> None:
@@ -480,7 +509,6 @@ class RollingBallsGame(ActionGuardMixin, Game):
                 "rb-reshuffle-penalty",
                 player=player.name,
                 points=self.options.reshuffle_penalty,
-                score=rb_player.score,
             )
 
         rb_player.has_reshuffled = True
@@ -603,11 +631,20 @@ class RollingBallsGame(ActionGuardMixin, Game):
         self.rebuild_all_menus()
 
     def on_tick(self) -> None:
-        """Called every tick. Handle bot AI and scheduled sounds."""
+        """Called every tick. Handle bot AI, ball reveals, and scheduled sounds."""
         super().on_tick()
         self.process_scheduled_sounds()
 
         if not self.game_active:
+            return
+
+        # Process ball reveal queue (blocks bot actions while active)
+        if self._ball_reveal_player_id:
+            if self.sound_scheduler_tick >= self._ball_reveal_tick:
+                if self._ball_reveal_queue:
+                    self._reveal_next_ball()
+                else:
+                    self._finish_ball_reveals()
             return
 
         BotHelper.on_tick(self)
@@ -673,11 +710,6 @@ class RollingBallsGame(ActionGuardMixin, Game):
         self.broadcast_l("rb-pipe-empty")
 
         active_players = self.get_active_players()
-
-        # Announce all scores
-        for p in active_players:
-            rb_p: RollingBallsPlayer = p  # type: ignore
-            self.broadcast_l("rb-score-line", player=p.name, score=rb_p.score)
 
         # Find highest score
         best_score = max(

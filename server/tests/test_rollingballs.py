@@ -650,12 +650,12 @@ class TestRollingBallsPlayTest:
             if not game.game_active:
                 break
 
-            # Human always takes 1 ball on their turn
+            game.on_tick()
+
+            # Human always takes 1 ball on their turn (when not revealing)
             current = game.current_player
-            if current and current.name == "Human":
+            if current and current.name == "Human" and not game._ball_reveal_player_id:
                 game.execute_action(current, "take_1")
-            else:
-                game.on_tick()
 
         assert not game.game_active
         messages = human.get_spoken_messages()
