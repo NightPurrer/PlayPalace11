@@ -48,7 +48,7 @@ yahtzee-continuing = ادامه نوبت.
 
 # Status checks
 yahtzee-check-scoresheet = بررسی کارت امتیاز
-yahtzee-view-dice = بررسی دست
+yahtzee-view-dice = بررسی تاس‌های خود
 yahtzee-your-dice = تاس‌های شما: { $dice }.
 yahtzee-your-dice-kept = تاس‌های شما: { $dice }. نگه‌داشته: { $kept }
 yahtzee-not-rolled = شما هنوز پرتاب نکرده‌اید.

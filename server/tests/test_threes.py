@@ -112,6 +112,25 @@ class TestThreesGameUnit:
         assert selected.startswith("toggle_die_")
         assert selected != "toggle_die_0"
 
+    def test_roll_hidden_when_all_dice_kept_then_reappears(self):
+        """Roll should hide when all dice are kept and reappear after unkeep."""
+        game = ThreesGame()
+        user = MockUser("Alice")
+        player = game.add_player("Alice", user)
+        game.add_player("Bob", MockUser("Bob"))
+        game.on_start()
+
+        player.dice.values = [1, 2, 3, 4, 5]
+        player.dice.kept = [0, 1, 2, 3, 4]
+        player.dice.locked = []
+
+        visible_ids = [ra.action.id for ra in game.get_all_visible_actions(player)]
+        assert "roll" not in visible_ids
+
+        player.dice.unkeep(4)
+        visible_ids = [ra.action.id for ra in game.get_all_visible_actions(player)]
+        assert "roll" in visible_ids
+
 
 class TestThreesPlayTest:
     """Integration tests for complete game play."""

@@ -112,6 +112,8 @@ class ThreesGame(Game, DiceGameMixin):
         if threes_player.dice.unlocked_count <= 1:
             # Only 1 die left, can't roll (must bank)
             return "threes-must-bank"
+        if threes_player.dice.all_decided:
+            return "threes-must-bank"
         if threes_player.dice.kept_unlocked_count == 0:
             # Must keep at least one die
             return "threes-must-keep"
@@ -122,6 +124,9 @@ class ThreesGame(Game, DiceGameMixin):
         if self.status != "playing":
             return Visibility.HIDDEN
         if self.current_player != player:
+            return Visibility.HIDDEN
+        threes_player: ThreesPlayer = player  # type: ignore
+        if threes_player.dice.has_rolled and threes_player.dice.all_decided:
             return Visibility.HIDDEN
         return Visibility.VISIBLE
 
@@ -268,13 +273,25 @@ class ThreesGame(Game, DiceGameMixin):
                     user.speak_l("threes-must-keep")
                 return
 
+        had_rolled = player.dice.has_rolled
+        locked_before = set(player.dice.locked)
+        kept_before = set(player.dice.kept)
+        if had_rolled:
+            rolled_indices = [
+                i
+                for i in range(player.dice.num_dice)
+                if i not in locked_before and i not in kept_before
+            ]
+        else:
+            rolled_indices = list(range(player.dice.num_dice))
+
         # Roll dice (locks kept dice and rerolls unlocked)
         self.play_sound("game_pig/roll.ogg")
         player.dice.roll()
         self._apply_dice_values_defaults(player)
 
-        # Announce roll
-        dice_str = player.dice.format_values_only()
+        # Announce rerolled dice only (first roll announces all dice).
+        dice_str = ", ".join(str(player.dice.values[i]) for i in rolled_indices)
         self.broadcast_personal_l(
             player, "threes-you-rolled", "threes-player-rolled", dice=dice_str
         )

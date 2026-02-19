@@ -207,6 +207,25 @@ class TestYahtzeeGameUnit:
         action_set = game.create_turn_action_set(player)
         assert action_set._order.index("dice_key_1") < action_set._order.index("roll")
 
+    def test_roll_hidden_when_all_dice_kept_then_reappears_on_unkeep(self):
+        """Roll should disappear when all dice are kept and reappear after unkeep."""
+        game = YahtzeeGame()
+        user = MockUser("Alice")
+        player: YahtzeePlayer = game.add_player("Alice", user)  # type: ignore
+        game.on_start()
+
+        player.dice.values = [1, 2, 3, 4, 5]
+        player.rolls_left = 2
+        player.dice.kept = [0, 1, 2, 3, 4]
+        player.dice.locked = []
+
+        visible_ids = [ra.action.id for ra in game.get_all_visible_actions(player)]
+        assert "roll" not in visible_ids
+
+        player.dice.unkeep(4)
+        visible_ids = [ra.action.id for ra in game.get_all_visible_actions(player)]
+        assert "roll" in visible_ids
+
     def test_roll_focuses_first_dice_toggle(self):
         """After rolling, focus should move to first dice toggle item."""
         game = YahtzeeGame()

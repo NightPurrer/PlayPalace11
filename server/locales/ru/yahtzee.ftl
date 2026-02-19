@@ -104,7 +104,7 @@ yahtzee-continuing = Продолжение хода.
 
 # Status checks
 yahtzee-check-scoresheet = Посмотреть таблицу очков
-yahtzee-view-dice = Посмотреть кубики
+yahtzee-view-dice = Проверить кубики
 yahtzee-your-dice = Ваши кубики: { $dice }.
 yahtzee-your-dice-kept = Ваши кубики: { $dice }. Оставлено: { $kept }
 yahtzee-not-rolled = Вы ещё не бросали кубики.

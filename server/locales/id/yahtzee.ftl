@@ -48,7 +48,7 @@ yahtzee-continuing = Melanjutkan giliran.
 
 # Status checks
 yahtzee-check-scoresheet = Periksa kartu skor
-yahtzee-view-dice = Periksa tangan
+yahtzee-view-dice = Periksa dadu Anda
 yahtzee-your-dice = Dadu Anda: { $dice }.
 yahtzee-your-dice-kept = Dadu Anda: { $dice }. Menyimpan: { $kept }
 yahtzee-not-rolled = Anda belum melempar.

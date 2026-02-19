@@ -48,7 +48,7 @@ yahtzee-continuing = Nadaljevanje poteze.
 
 # Status checks
 yahtzee-check-scoresheet = Preverite točkovni list
-yahtzee-view-dice = Preverite roko
+yahtzee-view-dice = Preveri svoje kocke
 yahtzee-your-dice = Vaše kocke: { $dice }.
 yahtzee-your-dice-kept = Vaše kocke: { $dice }. Obdržane: { $kept }
 yahtzee-not-rolled = Še niste vrgli.

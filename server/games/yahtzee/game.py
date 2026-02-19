@@ -331,13 +331,16 @@ class YahtzeeGame(ActionGuardMixin, Game, DiceGameMixin):
         ytz_player: YahtzeePlayer = player  # type: ignore
         if ytz_player.rolls_left <= 0:
             return "yahtzee-no-rolls-left"
+        if ytz_player.dice.has_rolled and ytz_player.dice.all_decided:
+            return "action-not-available"
         return None
 
     def _is_roll_hidden(self, player: Player) -> Visibility:
         """Check if roll action is hidden."""
         ytz_player: YahtzeePlayer = player  # type: ignore
+        can_reroll = not (ytz_player.dice.has_rolled and ytz_player.dice.all_decided)
         return self.turn_action_visibility(
-            player, extra_condition=ytz_player.rolls_left > 0
+            player, extra_condition=ytz_player.rolls_left > 0 and can_reroll
         )
 
     def _get_roll_label(self, player: Player, action_id: str) -> str:
@@ -390,6 +393,18 @@ class YahtzeeGame(ActionGuardMixin, Game, DiceGameMixin):
         if ytz_player.rolls_left <= 0:
             return
 
+        had_rolled = ytz_player.dice.has_rolled
+        locked_before = set(ytz_player.dice.locked)
+        kept_before = set(ytz_player.dice.kept)
+        if had_rolled:
+            rolled_indices = [
+                i
+                for i in range(ytz_player.dice.num_dice)
+                if i not in locked_before and i not in kept_before
+            ]
+        else:
+            rolled_indices = list(range(ytz_player.dice.num_dice))
+
         # Play roll sound
         self.play_sound("game_pig/roll.ogg")
 
@@ -402,8 +417,8 @@ class YahtzeeGame(ActionGuardMixin, Game, DiceGameMixin):
         self._apply_dice_values_defaults(ytz_player)
         ytz_player.rolls_left -= 1
 
-        # Announce roll (v10 style: "You rolled: X. Rolls remaining: Y")
-        dice_str = ytz_player.dice.format_values_only()
+        # Announce rerolled dice only (first roll announces all dice).
+        dice_str = ", ".join(str(ytz_player.dice.values[i]) for i in rolled_indices)
         self.broadcast_personal_l(
             player,
             "yahtzee-you-rolled",
