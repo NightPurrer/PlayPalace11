@@ -48,7 +48,7 @@ yahtzee-continuing = Continuarea rândului.
 
 # Status checks
 yahtzee-check-scoresheet = Verificați foaia de scor
-yahtzee-view-dice = Verificați mâna
+yahtzee-view-dice = Verifică zarurile tale
 yahtzee-your-dice = Zarurile dvs.: { $dice }.
 yahtzee-your-dice-kept = Zarurile dvs.: { $dice }. Păstrând: { $kept }
 yahtzee-not-rolled = Nu ați aruncat încă.

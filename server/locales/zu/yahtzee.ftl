@@ -48,7 +48,7 @@ yahtzee-continuing = Iqhubeka ishintshi.
 
 # Status checks
 yahtzee-check-scoresheet = Bheka ikhadi lamaphuzu
-yahtzee-view-dice = Bheka isandla
+yahtzee-view-dice = Bheka amadayisi akho
 yahtzee-your-dice = Amadayisi akho: { $dice }.
 yahtzee-your-dice-kept = Amadayisi akho: { $dice }. Kugcinwa: { $kept }
 yahtzee-not-rolled = Awukaphonsi.

@@ -48,7 +48,7 @@ yahtzee-continuing = Zug fortsetzen.
 
 # Statusprüfungen
 yahtzee-check-scoresheet = Wertungsblatt prüfen
-yahtzee-view-dice = Hand prüfen
+yahtzee-view-dice = Ihre Würfel prüfen
 yahtzee-your-dice = Ihre Würfel: { $dice }.
 yahtzee-your-dice-kept = Ihre Würfel: { $dice }. Behalten: { $kept }
 yahtzee-not-rolled = Sie haben noch nicht gewürfelt.

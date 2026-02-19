@@ -48,7 +48,7 @@ yahtzee-continuing = Pokračování tahu.
 
 # Kontroly stavu
 yahtzee-check-scoresheet = Zkontrolovat kartu skóre
-yahtzee-view-dice = Zkontrolovat ruku
+yahtzee-view-dice = Zkontrolovat kostky
 yahtzee-your-dice = Vaše kostky: { $dice }.
 yahtzee-your-dice-kept = Vaše kostky: { $dice }. Držené: { $kept }
 yahtzee-not-rolled = Ještě jste nehráli.

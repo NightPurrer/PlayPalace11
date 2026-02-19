@@ -48,7 +48,7 @@ yahtzee-continuing = 턴을 계속합니다.
 
 # Status checks
 yahtzee-check-scoresheet = 점수판 확인
-yahtzee-view-dice = 주사위 확인
+yahtzee-view-dice = 주사위 확인하기
 yahtzee-your-dice = 주사위: { $dice }.
 yahtzee-your-dice-kept = 주사위: { $dice }. 보관: { $kept }
 yahtzee-not-rolled = 아직 주사위를 굴리지 않았습니다.

@@ -48,7 +48,7 @@ yahtzee-continuing = متابعة الدور.
 
 # Status checks
 yahtzee-check-scoresheet = تحقق من بطاقة النتائج
-yahtzee-view-dice = تحقق من اليد
+yahtzee-view-dice = تحقق من نردك
 yahtzee-your-dice = نردك: { $dice }.
 yahtzee-your-dice-kept = نردك: { $dice }. الاحتفاظ بـ: { $kept }
 yahtzee-not-rolled = لم ترمِ بعد.

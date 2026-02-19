@@ -48,7 +48,7 @@ yahtzee-continuing = Turno continua.
 
 # Status checks
 yahtzee-check-scoresheet = Controlla il punteggio
-yahtzee-view-dice = Controlla la mano
+yahtzee-view-dice = Controlla i tuoi dadi
 yahtzee-your-dice = I tuoi dadi: { $dice }.
 yahtzee-your-dice-kept = I tuoi dadi: { $dice }. Tenendo: { $kept }
 yahtzee-not-rolled = Non hai ancora tirato.

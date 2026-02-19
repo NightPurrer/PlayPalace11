@@ -48,7 +48,7 @@ yahtzee-continuing = Ээлжийг үргэлжлүүлж байна.
 
 # Status checks
 yahtzee-check-scoresheet = Оноо хүснэгт шалгах
-yahtzee-view-dice = Гар шалгах
+yahtzee-view-dice = Шоонуудаа шалгах
 yahtzee-your-dice = Таны шоо: { $dice }.
 yahtzee-your-dice-kept = Таны шоо: { $dice }. Хадгалсан: { $kept }
 yahtzee-not-rolled = Та одоогоор шидээгүй байна.
