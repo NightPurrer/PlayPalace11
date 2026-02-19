@@ -549,6 +549,47 @@ class RollingBallsGame(ActionGuardMixin, Game):
         self.rebuild_all_menus()
 
     # ==========================================================================
+    # Score overrides (rolling balls tracks scores on players, not TeamManager)
+    # ==========================================================================
+
+    def _is_check_scores_enabled(self, player: Player) -> str | None:
+        if self.status != "playing":
+            return "action-not-playing"
+        return None
+
+    def _is_check_scores_detailed_enabled(self, player: Player) -> str | None:
+        if self.status != "playing":
+            return "action-not-playing"
+        return None
+
+    def _action_check_scores(self, player: Player, action_id: str) -> None:
+        user = self.get_user(player)
+        if not user:
+            return
+        sorted_players = sorted(
+            self.get_active_players(),
+            key=lambda p: p.score,  # type: ignore
+            reverse=True,
+        )
+        parts = [f"{p.name}: {p.score}" for p in sorted_players]  # type: ignore
+        user.speak(". ".join(parts) + ".")
+
+    def _action_check_scores_detailed(self, player: Player, action_id: str) -> None:
+        user = self.get_user(player)
+        if not user:
+            return
+        sorted_players = sorted(
+            self.get_active_players(),
+            key=lambda p: p.score,  # type: ignore
+            reverse=True,
+        )
+        lines = [
+            f"{p.name}: {p.score} points"  # type: ignore
+            for p in sorted_players
+        ]
+        self.status_box(player, lines)
+
+    # ==========================================================================
     # Game lifecycle
     # ==========================================================================
 
@@ -627,8 +668,13 @@ class RollingBallsGame(ActionGuardMixin, Game):
         if player.is_bot:
             BotHelper.set_target(player, 0)
 
-        # Rebuild menus
-        self.rebuild_all_menus()
+        # Rebuild menus, resetting focus to first item for current player
+        # (view_pipe shifts position when turn actions appear/disappear)
+        for p in self.players:
+            if p == player:
+                self.rebuild_player_menu(p, position=1)
+            else:
+                self.rebuild_player_menu(p)
 
     def on_tick(self) -> None:
         """Called every tick. Handle bot AI, ball reveals, and scheduled sounds."""
