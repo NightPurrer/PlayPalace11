@@ -602,7 +602,14 @@ class PiratesGame(Game):
         else:
             self._announce_turn()
 
-        self.rebuild_all_menus()
+        # Rebuild menus, resetting focus to first item for current player
+        # (always-visible actions shift position when turn actions appear)
+        current = self.current_player
+        for p in self.players:
+            if p == current:
+                self.rebuild_player_menu(p, position=1)
+            else:
+                self.rebuild_player_menu(p)
 
         # Jolt bots
         BotHelper.jolt_bots(self, ticks=random.randint(80, 120))  # nosec B311
@@ -625,7 +632,12 @@ class PiratesGame(Game):
 
         user = self.get_user(player)
         if user:
-            user.speak_l("pirates-gem-found-you", gem=gem_name, value=gem_value)
+            user.speak_l(
+                "pirates-gem-found-you",
+                gem=gem_name,
+                value=gem_value,
+                buffer="table",
+            )
         self.broadcast_l(
             "pirates-gem-found",
             player=player.name,
@@ -747,7 +759,7 @@ class PiratesGame(Game):
             # Blocked by map edge
             user = self.get_user(player)
             if user:
-                user.speak_l("pirates-map-edge", position=old_position)
+                user.speak_l("pirates-map-edge", position=old_position, buffer="table")
             return False
 
         player.position = new_position
@@ -768,9 +780,20 @@ class PiratesGame(Game):
         user = self.get_user(player)
         if user:
             if abs_amount == 1:
-                user.speak_l("pirates-move-you", direction=direction, position=player.position)
+                user.speak_l(
+                    "pirates-move-you",
+                    direction=direction,
+                    position=player.position,
+                    buffer="table",
+                )
             else:
-                user.speak_l("pirates-move-you-tiles", tiles=abs_amount, direction=direction, position=player.position)
+                user.speak_l(
+                    "pirates-move-you-tiles",
+                    tiles=abs_amount,
+                    direction=direction,
+                    position=player.position,
+                    buffer="table",
+                )
 
         self.broadcast_l(
             "pirates-move",
@@ -850,7 +873,7 @@ class PiratesGame(Game):
                 else:
                     user = self.get_user(player)
                     if user and reason:
-                        user.speak(reason)
+                        user.speak(reason, buffer="table")
                 return
 
     # ==========================================================================
@@ -924,7 +947,7 @@ class PiratesGame(Game):
             max_range = skills.get_attack_range(player)
             user = self.get_user(player)
             if user:
-                user.speak_l("pirates-no-targets", range=max_range)
+                user.speak_l("pirates-no-targets", range=max_range, buffer="table")
             return "continue"
 
         # For human players, show target selection menu
@@ -961,7 +984,7 @@ class PiratesGame(Game):
         if not occupied_oceans:
             user = self.get_user(player)
             if user:
-                user.speak_l("pirates-portal-no-ships")
+                user.speak_l("pirates-portal-no-ships", buffer="table")
             self.broadcast_l("pirates-portal-fizzle", player=player.name, exclude=player)
             return "continue"
 
@@ -1003,18 +1026,18 @@ class PiratesGame(Game):
 
         user = self.get_user(player)
         if user:
-            user.speak_l("pirates-battleship-activated")
+            user.speak_l("pirates-battleship-activated", buffer="table")
         self.broadcast_l("pirates-skill-activated", player=player.name, skill="Battleship", exclude=player)
 
         for shot in range(1, 3):
             targets = self.get_targets_in_range(player)
             if not targets:
                 if user:
-                    user.speak_l("pirates-battleship-no-targets", shot=shot)
+                    user.speak_l("pirates-battleship-no-targets", shot=shot, buffer="table")
                 break
 
             if user:
-                user.speak_l("pirates-battleship-shot", shot=shot)
+                user.speak_l("pirates-battleship-shot", shot=shot, buffer="table")
 
             target = bot_ai.bot_select_target(self, player, targets)
             if target:

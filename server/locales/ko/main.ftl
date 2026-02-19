@@ -341,3 +341,5 @@ virtual-bots-profiles-header = 프로필: { $count }개 정의됨 (기본: { $de
 virtual-bots-profiles-empty = 정의된 프로필이 없습니다.
 virtual-bots-profiles-line = { $profile } ({ $bot_count }개 봇) 재정의: { $overrides }.
 virtual-bots-profiles-no-overrides = 기본 구성 상속
+
+localization-in-progress-try-again = 현지화 작업이 진행 중입니다. 1분 후에 다시 시도해 주세요.

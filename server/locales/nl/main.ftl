@@ -353,3 +353,5 @@ virtual-bots-profiles-header = Profielen: { $count } gedefinieerd (standaard: { 
 virtual-bots-profiles-empty = Geen profielen zijn gedefinieerd.
 virtual-bots-profiles-line = { $profile } ({ $bot_count } bots) overschrijvingen: { $overrides }.
 virtual-bots-profiles-no-overrides = erft basisconfiguratie
+
+localization-in-progress-try-again = Lokalisatie is bezig. Probeer het over een minuut opnieuw.

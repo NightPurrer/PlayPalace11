@@ -353,3 +353,5 @@ virtual-bots-profiles-header = Profiles: { $count } defined (default: { $default
 virtual-bots-profiles-empty = No profiles are defined.
 virtual-bots-profiles-line = { $profile } ({ $bot_count } bots) overrides: { $overrides }.
 virtual-bots-profiles-no-overrides = inherits base configuration
+
+localization-in-progress-try-again = Localization in progress. Please try again in a minute.

@@ -353,3 +353,5 @@ virtual-bots-profiles-header = Hồ sơ: { $count } đã định nghĩa (mặc �
 virtual-bots-profiles-empty = Chưa định nghĩa hồ sơ nào.
 virtual-bots-profiles-line = { $profile } ({ $bot_count } bots) ghi đè: { $overrides }.
 virtual-bots-profiles-no-overrides = kế thừa cấu hình gốc
+
+localization-in-progress-try-again = Bản địa hóa đang được xử lý. Vui lòng thử lại sau một phút.

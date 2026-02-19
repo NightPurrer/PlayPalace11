@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from types import SimpleNamespace
 
 import pytest
@@ -30,6 +31,8 @@ class DummyUser:
         self.preferences = UserPreferences()
         self.spoken: list[tuple[str, dict]] = []
         self.menu_id: str | None = None
+        self.music_played: list[str] = []
+        self.sounds_played: list[str] = []
         async def _send(payload):
             return None
         self.connection = SimpleNamespace(send=_send)
@@ -37,8 +40,19 @@ class DummyUser:
     def speak_l(self, message_id: str, buffer: str = "misc", **kwargs) -> None:
         self.spoken.append((message_id, kwargs))
 
+    def speak(self, text: str, buffer: str = "misc") -> None:
+        self.spoken.append((text, {"buffer": buffer}))
+
     def show_menu(self, menu_id: str, *args, **kwargs) -> None:
         self.menu_id = menu_id
+
+    def play_music(self, name: str, looping: bool = True) -> None:
+        self.music_played.append(name)
+
+    def play_sound(
+        self, name: str, volume: int = 100, pan: int = 0, pitch: int = 100
+    ) -> None:
+        self.sounds_played.append(name)
 
     def set_locale(self, locale: str) -> None:
         self.locale = locale
@@ -70,6 +84,7 @@ async def test_handle_options_selection_toggle_turn_sound(server, monkeypatch):
     await server._handle_options_selection(user, "turn_sound")
 
     assert user.preferences.play_turn_sound is False
+    assert user.sounds_played[-1] == "checkbox_list_off.wav"
     assert server._db.preferences_updates  # saved
     assert shown.get("called")
 
@@ -83,6 +98,24 @@ async def test_handle_options_selection_language_opens_menu(server, monkeypatch)
     await server._handle_options_selection(user, "language")
 
     assert opened.get("lang")
+
+
+@pytest.mark.asyncio
+async def test_handle_options_selection_language_warmup_in_progress(server, monkeypatch):
+    user = DummyUser("alice")
+    shown = {}
+    server._localization_warmup_task = asyncio.create_task(asyncio.sleep(1))
+    monkeypatch.setattr(server, "_show_options_menu", lambda u: shown.setdefault("options", True))
+    monkeypatch.setattr(server, "_show_language_menu", lambda u: shown.setdefault("lang", True))
+
+    await server._handle_options_selection(user, "language")
+
+    assert shown.get("options")
+    assert not shown.get("lang")
+    assert user.spoken[-1][0] == "localization-in-progress-try-again"
+    server._localization_warmup_task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await server._localization_warmup_task
 
 
 @pytest.mark.asyncio
@@ -113,3 +146,19 @@ async def test_handle_language_selection_updates_locale(server, monkeypatch):
     assert server._db.locale_updates == [("alice", "es")]
     assert ("language-changed", {"language": "Español"}) in user.spoken
     assert shown.get("options")
+
+
+@pytest.mark.asyncio
+async def test_show_language_menu_warmup_in_progress(server, monkeypatch):
+    user = DummyUser("alice")
+    shown = {}
+    server._localization_warmup_task = asyncio.create_task(asyncio.sleep(1))
+    monkeypatch.setattr(server, "_show_options_menu", lambda u: shown.setdefault("options", True))
+
+    server._show_language_menu(user)
+
+    assert shown.get("options")
+    assert user.spoken[-1][0] == "localization-in-progress-try-again"
+    server._localization_warmup_task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await server._localization_warmup_task

@@ -67,6 +67,70 @@ class TestThreesGameUnit:
         loaded_game = ThreesGame.from_json(json_str)
         assert loaded_game.current_round == 3
 
+    def test_roll_focuses_first_dice_toggle(self):
+        """After rolling, focus should move to first dice toggle item."""
+        game = ThreesGame()
+        user = MockUser("Alice")
+        player = game.add_player("Alice", user)
+        game.add_player("Bob", MockUser("Bob"))
+        game.on_start()
+
+        game.execute_action(player, "roll")
+
+        assert any(
+            message.type == "update_menu"
+            and message.data.get("menu_id") == "turn_menu"
+            and message.data.get("selection_id") == "toggle_die_0"
+            for message in user.messages
+        )
+
+    def test_second_roll_focuses_first_available_toggle(self):
+        """After locking die 0, focus should move to next available toggle."""
+        game = ThreesGame()
+        user = MockUser("Alice")
+        player = game.add_player("Alice", user)
+        game.add_player("Bob", MockUser("Bob"))
+        game.on_start()
+
+        player.dice.values = [1, 2, 3, 4, 5]
+        player.dice.kept = [0]
+        player.dice.locked = []
+        user.clear_messages()
+
+        game.execute_action(player, "roll")
+
+        updates = [
+            message
+            for message in user.messages
+            if message.type == "update_menu"
+            and message.data.get("menu_id") == "turn_menu"
+            and message.data.get("selection_id")
+        ]
+        assert updates
+        selected = updates[-1].data.get("selection_id")
+        assert selected is not None
+        assert selected.startswith("toggle_die_")
+        assert selected != "toggle_die_0"
+
+    def test_roll_hidden_when_all_dice_kept_then_reappears(self):
+        """Roll should hide when all dice are kept and reappear after unkeep."""
+        game = ThreesGame()
+        user = MockUser("Alice")
+        player = game.add_player("Alice", user)
+        game.add_player("Bob", MockUser("Bob"))
+        game.on_start()
+
+        player.dice.values = [1, 2, 3, 4, 5]
+        player.dice.kept = [0, 1, 2, 3, 4]
+        player.dice.locked = []
+
+        visible_ids = [ra.action.id for ra in game.get_all_visible_actions(player)]
+        assert "roll" not in visible_ids
+
+        player.dice.unkeep(4)
+        visible_ids = [ra.action.id for ra in game.get_all_visible_actions(player)]
+        assert "roll" in visible_ids
+
 
 class TestThreesPlayTest:
     """Integration tests for complete game play."""

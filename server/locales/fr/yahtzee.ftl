@@ -48,7 +48,7 @@ yahtzee-continuing = Continuation du tour.
 
 # Vérifications de statut
 yahtzee-check-scoresheet = Vérifier la feuille de score
-yahtzee-view-dice = Vérifier la main
+yahtzee-view-dice = Vérifier vos dés
 yahtzee-your-dice = Vos dés : { $dice }.
 yahtzee-your-dice-kept = Vos dés : { $dice }. Gardés : { $kept }
 yahtzee-not-rolled = Vous n'avez pas encore lancé.

@@ -165,6 +165,8 @@ class MidnightGame(ActionGuardMixin, Game, DiceGameMixin):
         # Must keep at least one die per roll (except first roll)
         if midnight_player.dice.has_rolled and midnight_player.dice.kept_unlocked_count == 0:
             return "midnight-must-keep-one"
+        if midnight_player.dice.has_rolled and midnight_player.dice.all_decided:
+            return "action-not-available"
         if midnight_player.dice.unlocked_count == 0:
             return "midnight-no-dice-to-keep"
         return None
@@ -172,13 +174,28 @@ class MidnightGame(ActionGuardMixin, Game, DiceGameMixin):
     def _is_roll_hidden(self, player: Player) -> Visibility:
         """Roll is visible during play for current player."""
         midnight_player: MidnightPlayer = player  # type: ignore
+        can_reroll = not (
+            midnight_player.dice.has_rolled and midnight_player.dice.all_decided
+        )
         return self.turn_action_visibility(
-            player, extra_condition=midnight_player.dice.unlocked_count > 0
+            player, extra_condition=midnight_player.dice.unlocked_count > 0 and can_reroll
         )
 
     def _action_roll(self, player: Player, action_id: str) -> None:
         """Handle roll action."""
         midnight_player: MidnightPlayer = player  # type: ignore
+
+        had_rolled = midnight_player.dice.has_rolled
+        locked_before = set(midnight_player.dice.locked)
+        kept_before = set(midnight_player.dice.kept)
+        if had_rolled:
+            rolled_indices = [
+                i
+                for i in range(midnight_player.dice.num_dice)
+                if i not in locked_before and i not in kept_before
+            ]
+        else:
+            rolled_indices = list(range(midnight_player.dice.num_dice))
 
         self.play_sound("game_pig/roll.ogg")
 
@@ -186,8 +203,10 @@ class MidnightGame(ActionGuardMixin, Game, DiceGameMixin):
         midnight_player.dice.roll(lock_kept=True, clear_kept=True)
         self._apply_dice_values_defaults(midnight_player)
 
-        # Format roll results
-        result_text = ", ".join(str(v) for v in midnight_player.dice.values)
+        # Format rerolled dice only (first roll announces all dice).
+        result_text = ", ".join(
+            str(midnight_player.dice.values[i]) for i in rolled_indices
+        )
 
         # Announce results
         self.broadcast_personal_l(

@@ -220,6 +220,11 @@ class NetworkUser(User):
     ) -> None:
         """Send a menu definition to the client."""
         converted_items = self._convert_items(items)
+        previous_menu = self._current_menus.get(menu_id)
+        if position is None and previous_menu:
+            previous_position = previous_menu.get("position")
+            if isinstance(previous_position, int) and previous_position > 0:
+                position = previous_position
         escape_str = escape_behavior.value
 
         # Store for session resumption

@@ -353,3 +353,5 @@ virtual-bots-profiles-header = Профілі: { $count } визначено (з
 virtual-bots-profiles-empty = Не визначено профілів.
 virtual-bots-profiles-line = { $profile } ({ $bot_count } ботів) перевизначення: { $overrides }.
 virtual-bots-profiles-no-overrides = успадковує базову конфігурацію
+
+localization-in-progress-try-again = Локалізація ще завантажується. Будь ласка, спробуйте знову за хвилину.

@@ -210,7 +210,7 @@ async def test_start_localization_warmup_schedules(monkeypatch, server):
 
     server._start_localization_warmup()
 
-    assert server._localization_gate_registered is True
+    assert server._localization_gate_registered is False
     assert loop.tasks, "expected task scheduling"
 
 

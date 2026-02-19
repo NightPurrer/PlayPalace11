@@ -1022,7 +1022,12 @@ class MainWindow(wx.Frame):
             self.switch_to_list_mode()
             return  # Don't process the Escape key
 
-        if key_code in self._NAVIGATION_KEYS or event.ShiftDown() or event.ControlDown() or event.AltDown() or event.MetaDown():
+        if (
+            key_code in self._NAVIGATION_KEYS
+            or event.ControlDown()
+            or event.AltDown()
+            or event.MetaDown()
+        ):
             self._pending_edit_clear = False
             event.Skip()
             return
@@ -1090,7 +1095,6 @@ class MainWindow(wx.Frame):
     def _should_defer_multiline_to_default(self, event, key_code: int) -> bool:
         if (
             key_code in self._NAVIGATION_KEYS
-            or event.ShiftDown()
             or event.ControlDown()
             or event.AltDown()
             or event.MetaDown()
@@ -2026,12 +2030,26 @@ class MainWindow(wx.Frame):
         """Parse menu packet into structured data."""
         items_raw = packet.get("items", [])
         menu_id = packet.get("menu_id", None)
-        multiletter_enabled = packet.get("multiletter_enabled", True)
-        escape_behavior = packet.get("escape_behavior", "keybind")
+        previous_state = (
+            self.current_menu_state
+            if isinstance(self.current_menu_state, dict)
+            and self.current_menu_state.get("menu_id") == menu_id
+            else {}
+        )
+        multiletter_enabled = packet.get(
+            "multiletter_enabled",
+            previous_state.get("multiletter_enabled", True),
+        )
+        escape_behavior = packet.get(
+            "escape_behavior",
+            previous_state.get("escape_behavior", "keybind"),
+        )
         position = packet.get("position", None)
         selection_id = packet.get("selection_id", None)
-        grid_enabled = packet.get("grid_enabled", False)
-        grid_width = packet.get("grid_width", 1)
+        grid_enabled = packet.get(
+            "grid_enabled", previous_state.get("grid_enabled", False)
+        )
+        grid_width = packet.get("grid_width", previous_state.get("grid_width", 1))
 
         items = []
         item_ids = []

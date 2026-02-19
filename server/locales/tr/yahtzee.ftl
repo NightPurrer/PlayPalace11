@@ -48,7 +48,7 @@ yahtzee-continuing = Tura devam ediliyor.
 
 # Durum kontrolleri
 yahtzee-check-scoresheet = Skor kartını kontrol et
-yahtzee-view-dice = Eli kontrol et
+yahtzee-view-dice = Zarlarını kontrol et
 yahtzee-your-dice = Zarların: { $dice }.
 yahtzee-your-dice-kept = Zarların: { $dice }. Tutulanlar: { $kept }
 yahtzee-not-rolled = Henüz atmadın.

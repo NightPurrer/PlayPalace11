@@ -48,7 +48,7 @@ yahtzee-continuing = Kör folytatása.
 
 # Status checks
 yahtzee-check-scoresheet = Ellenőrizd a pontlapot
-yahtzee-view-dice = Ellenőrizd a kezed
+yahtzee-view-dice = Kockák ellenőrzése
 yahtzee-your-dice = A kockáid: { $dice }.
 yahtzee-your-dice-kept = A kockáid: { $dice }. Megtartva: { $kept }
 yahtzee-not-rolled = Még nem dobtál.

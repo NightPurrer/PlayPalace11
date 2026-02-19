@@ -110,9 +110,9 @@ class NetworkManager:
             self.should_stop = False
             self.server_url = server_url
             self.server_id = getattr(self.main_window, "server_id", None)
-            if refresh_token:
-                self.refresh_token = refresh_token
-                self.refresh_expires_at = refresh_expires_at
+            # Keep refresh token state aligned with the credentials used for this connection.
+            self.refresh_token = refresh_token or None
+            self.refresh_expires_at = refresh_expires_at if refresh_token else None
 
             # Start async thread
             self.thread = threading.Thread(
@@ -155,9 +155,7 @@ class NetworkManager:
             self.ws = websocket
             self.connected = True
 
-            if self._session_valid():
-                await self._send_authorize(websocket, username, password)
-            elif self._refresh_valid():
+            if self._refresh_valid():
                 await self._send_refresh_session(websocket, username)
                 # Wait for the server's response to the refresh attempt.
                 # If it fails (or the server silently drops the packet),

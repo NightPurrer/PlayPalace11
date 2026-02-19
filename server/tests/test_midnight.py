@@ -211,11 +211,11 @@ class TestMidnightGameActions:
         for i in range(6):
             self.game.execute_action(self.player1, f"toggle_die_{i}")
 
-        # Roll to lock them all (autobank should trigger)
+        # When all dice are kept, roll is hidden/disabled and bank ends turn.
         old_player = self.game.current_player
-        self.game.execute_action(self.player1, "roll")
+        self.game.execute_action(self.player1, "bank")
 
-        # Turn should have ended due to autobank
+        # Turn should have ended due to banking
         assert self.game.current_player != old_player
 
     def test_qualification_with_1_and_4(self):

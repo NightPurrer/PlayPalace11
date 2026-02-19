@@ -341,3 +341,5 @@ virtual-bots-profiles-header = โปรไฟล์: { $count } กำหนด
 virtual-bots-profiles-empty = ไม่มีโปรไฟล์ที่กำหนดไว้
 virtual-bots-profiles-line = { $profile } ({ $bot_count } บอต) แทนที่: { $overrides }
 virtual-bots-profiles-no-overrides = สืบทอดการกำหนดค่าพื้นฐาน
+
+localization-in-progress-try-again = กำลังโหลดการแปลภาษา โปรดลองอีกครั้งในอีกหนึ่งนาที

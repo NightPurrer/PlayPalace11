@@ -48,7 +48,7 @@ yahtzee-continuing = Beurt voortzetten.
 
 # Status checks
 yahtzee-check-scoresheet = Bekijk scorekaart
-yahtzee-view-dice = Bekijk hand
+yahtzee-view-dice = Bekijk je dobbelstenen
 yahtzee-your-dice = Jouw dobbelstenen: { $dice }.
 yahtzee-your-dice-kept = Jouw dobbelstenen: { $dice }. Bewaren: { $kept }
 yahtzee-not-rolled = Je hebt nog niet gegooid.

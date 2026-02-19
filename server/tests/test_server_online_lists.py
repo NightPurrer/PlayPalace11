@@ -45,6 +45,9 @@ class DummyUser:
         self.last_menu_id = menu_id
         self.menu_items = items
 
+    def play_music(self, name: str, looping: bool = True) -> None:
+        return None
+
 
 class FakeTables:
     """Minimal table manager stub."""

@@ -50,6 +50,36 @@ def test_show_main_menu_includes_admin_option(server):
     assert admin_items, "expected administration option in main menu"
 
 
+@pytest.mark.slow
+def test_show_main_menu_resets_submenu_history(server):
+    user = make_network_user("ResetMenus")
+    user._current_menus = {
+        "main_menu": {"items": []},
+        "options_menu": {"items": [], "position": 3},
+        "language_menu": {"items": [], "position": 2},
+    }
+
+    server._show_main_menu(user, reset_history=True)
+
+    assert "main_menu" in user._current_menus
+    assert "options_menu" not in user._current_menus
+    assert "language_menu" not in user._current_menus
+
+
+@pytest.mark.slow
+def test_show_main_menu_preserves_history_without_reset(server):
+    user = make_network_user("KeepMenus")
+    user._current_menus = {
+        "main_menu": {"items": [], "position": 3},
+        "options_menu": {"items": [], "position": 2},
+    }
+
+    server._show_main_menu(user)
+
+    assert "options_menu" in user._current_menus
+    assert user._current_menus["main_menu"]["position"] == 3
+
+
 @pytest.mark.asyncio
 @pytest.mark.slow
 async def test_handle_menu_dispatches_events_when_in_table(server):
@@ -122,6 +152,12 @@ async def test_options_selection_toggles_turn_sound(server):
     assert saved and saved[0][0] == user.username
     payload = json.loads(saved[0][1])
     assert payload["play_turn_sound"] is False
+    packets = user.get_queued_messages()
+    assert any(
+        packet.get("type") == "play_sound"
+        and packet.get("name") == "checkbox_list_off.wav"
+        for packet in packets
+    )
 
 
 @pytest.mark.asyncio
@@ -139,6 +175,12 @@ async def test_options_selection_toggles_clear_kept(server):
     assert user.preferences.clear_kept_on_roll is True
     payload = json.loads(saved[-1][1])
     assert payload["clear_kept_on_roll"] is True
+    packets = user.get_queued_messages()
+    assert any(
+        packet.get("type") == "play_sound"
+        and packet.get("name") == "checkbox_list_on.wav"
+        for packet in packets
+    )
 
 
 @pytest.mark.slow
@@ -149,12 +191,152 @@ def test_show_dice_keeping_style_menu_marks_current(server):
     server._show_dice_keeping_style_menu(user)
 
     menu = user._current_menus["dice_keeping_style_menu"]
+    selected_index = None
+    for index, item in enumerate(menu["items"], start=1):
+        if (
+            isinstance(item, dict)
+            and item.get("id") == f"style_{DiceKeepingStyle.QUENTIN_C.value}"
+        ):
+            selected_index = index
+            break
+    assert selected_index is not None
+    assert menu["position"] == selected_index
     assert any(
         isinstance(item, dict)
         and item.get("id") == f"style_{DiceKeepingStyle.QUENTIN_C.value}"
         and item.get("text", "").startswith("* ")
         for item in menu["items"]
     ), "expected selected dice style to be starred"
+
+
+@pytest.mark.slow
+def test_show_language_menu_focuses_current_locale(server):
+    user = make_network_user("Polyglot", locale="pl")
+
+    server._show_language_menu(user)
+
+    menu = user._current_menus["language_menu"]
+    selected_index = None
+    for index, item in enumerate(menu["items"], start=1):
+        if isinstance(item, dict) and item.get("id") == "lang_pl":
+            selected_index = index
+            break
+    assert selected_index is not None
+    assert menu["position"] == selected_index
+
+
+@pytest.mark.slow
+def test_show_options_menu_uses_settings_music_and_checkbox_sounds(server):
+    user = make_network_user("OptionsUser", locale="en")
+    user.preferences.play_turn_sound = True
+    user.preferences.clear_kept_on_roll = False
+
+    server._show_options_menu(user)
+
+    packets = user.get_queued_messages()
+    assert any(
+        packet.get("type") == "play_music" and packet.get("name") == "settingsmus.ogg"
+        for packet in packets
+    )
+
+    menu = user._current_menus["options_menu"]
+    turn_sound_item = next(
+        item for item in menu["items"] if isinstance(item, dict) and item.get("id") == "turn_sound"
+    )
+    clear_kept_item = next(
+        item for item in menu["items"] if isinstance(item, dict) and item.get("id") == "clear_kept"
+    )
+    assert turn_sound_item.get("sound") is None
+    assert clear_kept_item.get("sound") is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.slow
+async def test_menu_selection_is_remembered_for_return_focus(server):
+    user = make_network_user("FocusUser", locale="en")
+    server._users[user.username] = user
+    server._tables = SimpleNamespace(find_user_table=lambda username: None)
+    server._show_language_menu = lambda target: None
+
+    server._show_options_menu(user)
+    server._user_states[user.username] = {"menu": "options_menu"}
+
+    client = SimpleNamespace(username=user.username)
+    await server._handle_menu(client, {"selection_id": "clear_kept"})
+
+    assert user._current_menus["options_menu"]["position"] == 3
+
+
+@pytest.mark.asyncio
+@pytest.mark.slow
+async def test_options_toggle_updates_menu_without_forced_position(server):
+    user = make_network_user("ToggleUser", locale="en")
+    server._users[user.username] = user
+    server._tables = SimpleNamespace(find_user_table=lambda username: None)
+    server._db = SimpleNamespace(
+        update_user_preferences=lambda username, data: None,
+        update_user_locale=lambda username, locale: None,
+    )
+
+    server._show_options_menu(user)
+    user.get_queued_messages()  # clear initial show_menu + play_music
+    server._user_states[user.username] = {"menu": "options_menu"}
+
+    client = SimpleNamespace(username=user.username)
+    await server._handle_menu(client, {"selection_id": "turn_sound"})
+
+    packets = user.get_queued_messages()
+    assert any(
+        packet.get("type") == "play_sound"
+        and packet.get("name") == "checkbox_list_off.wav"
+        for packet in packets
+    )
+    menu_packets = [
+        packet
+        for packet in packets
+        if packet.get("type") == "menu" and packet.get("menu_id") == "options_menu"
+    ]
+    assert menu_packets
+    assert "position" not in menu_packets[-1]
+
+
+@pytest.mark.asyncio
+@pytest.mark.slow
+async def test_back_prunes_previous_menu_position_history(server):
+    user = make_network_user("BackUser", locale="en")
+    server._users[user.username] = user
+    server._tables = SimpleNamespace(find_user_table=lambda username: None)
+
+    server._show_options_menu(user)
+    server._show_language_menu(user)
+    assert "language_menu" in user._current_menus
+    server._user_states[user.username] = {"menu": "language_menu"}
+
+    client = SimpleNamespace(username=user.username)
+    await server._handle_menu(client, {"selection_id": "back"})
+
+    assert "language_menu" not in user._current_menus
+    assert server._user_states[user.username]["menu"] == "options_menu"
+
+
+@pytest.mark.asyncio
+@pytest.mark.slow
+async def test_back_to_main_menu_restores_previous_main_selection(server):
+    user = make_network_user("BackMain", locale="en")
+    server._users[user.username] = user
+    server._tables = SimpleNamespace(find_user_table=lambda username: None)
+
+    server._show_main_menu(user)
+    server._user_states[user.username] = {"menu": "main_menu"}
+    client = SimpleNamespace(username=user.username)
+
+    await server._handle_menu(client, {"selection_id": "options"})
+    assert server._user_states[user.username]["menu"] == "options_menu"
+
+    await server._handle_menu(client, {"selection_id": "back"})
+    assert server._user_states[user.username]["menu"] == "main_menu"
+    # "Options" is the 6th item in the approved-user main menu.
+    assert user._current_menus["main_menu"]["position"] == 6
 
 
 @pytest.mark.asyncio

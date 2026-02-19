@@ -48,7 +48,7 @@ yahtzee-continuing = Fortsätter tur.
 
 # Status checks
 yahtzee-check-scoresheet = Kontrollera poängkort
-yahtzee-view-dice = Kontrollera hand
+yahtzee-view-dice = Kontrollera dina tärningar
 yahtzee-your-dice = Dina tärningar: { $dice }.
 yahtzee-your-dice-kept = Dina tärningar: { $dice }. Behåller: { $kept }
 yahtzee-not-rolled = Du har inte kastat än.

@@ -48,7 +48,7 @@ yahtzee-continuing = ターンを続けます。
 
 # ステータスチェック
 yahtzee-check-scoresheet = スコアカードを確認
-yahtzee-view-dice = ハンドを確認
+yahtzee-view-dice = サイコロを確認
 yahtzee-your-dice = あなたのサイコロ: { $dice }。
 yahtzee-your-dice-kept = あなたのサイコロ: { $dice }。保持中: { $kept }
 yahtzee-not-rolled = まだロールしていません。

@@ -353,3 +353,5 @@ virtual-bots-profiles-header = Profiller: { $count } tanımlı (varsayılan: { $
 virtual-bots-profiles-empty = Profil tanımlanmamış.
 virtual-bots-profiles-line = { $profile } ({ $bot_count } bot) geçersiz kılmalar: { $overrides }.
 virtual-bots-profiles-no-overrides = temel yapılandırmayı miras alır
+
+localization-in-progress-try-again = Yerelleştirme sürüyor. Lütfen bir dakika sonra tekrar deneyin.

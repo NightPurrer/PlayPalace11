@@ -11,6 +11,7 @@ import random
 
 from ..base import Game, Player, GameOptions
 from ..registry import register_game
+from .bot import bot_think as yahtzee_bot_think
 from ...game_utils.action_guard_mixin import ActionGuardMixin
 from ...game_utils.actions import Action, ActionSet, Visibility
 from ...game_utils.bot_helper import BotHelper
@@ -248,6 +249,9 @@ class YahtzeeGame(ActionGuardMixin, Game, DiceGameMixin):
 
         action_set = ActionSet(name="turn")
 
+        # Dice toggle actions (1-5 keys) - shown after first roll
+        self.add_dice_toggle_actions(action_set)
+
         # Roll action
         action_set.add(
             Action(
@@ -259,9 +263,6 @@ class YahtzeeGame(ActionGuardMixin, Game, DiceGameMixin):
                 get_label="_get_roll_label",
             )
         )
-
-        # Dice toggle actions (1-5 keys) - shown after first roll
-        self.add_dice_toggle_actions(action_set)
 
         # Scoring category actions
         for cat in ALL_CATEGORIES:
@@ -330,13 +331,16 @@ class YahtzeeGame(ActionGuardMixin, Game, DiceGameMixin):
         ytz_player: YahtzeePlayer = player  # type: ignore
         if ytz_player.rolls_left <= 0:
             return "yahtzee-no-rolls-left"
+        if ytz_player.dice.has_rolled and ytz_player.dice.all_decided:
+            return "action-not-available"
         return None
 
     def _is_roll_hidden(self, player: Player) -> Visibility:
         """Check if roll action is hidden."""
         ytz_player: YahtzeePlayer = player  # type: ignore
+        can_reroll = not (ytz_player.dice.has_rolled and ytz_player.dice.all_decided)
         return self.turn_action_visibility(
-            player, extra_condition=ytz_player.rolls_left > 0
+            player, extra_condition=ytz_player.rolls_left > 0 and can_reroll
         )
 
     def _get_roll_label(self, player: Player, action_id: str) -> str:
@@ -389,6 +393,18 @@ class YahtzeeGame(ActionGuardMixin, Game, DiceGameMixin):
         if ytz_player.rolls_left <= 0:
             return
 
+        had_rolled = ytz_player.dice.has_rolled
+        locked_before = set(ytz_player.dice.locked)
+        kept_before = set(ytz_player.dice.kept)
+        if had_rolled:
+            rolled_indices = [
+                i
+                for i in range(ytz_player.dice.num_dice)
+                if i not in locked_before and i not in kept_before
+            ]
+        else:
+            rolled_indices = list(range(ytz_player.dice.num_dice))
+
         # Play roll sound
         self.play_sound("game_pig/roll.ogg")
 
@@ -401,8 +417,8 @@ class YahtzeeGame(ActionGuardMixin, Game, DiceGameMixin):
         self._apply_dice_values_defaults(ytz_player)
         ytz_player.rolls_left -= 1
 
-        # Announce roll (v10 style: "You rolled: X. Rolls remaining: Y")
-        dice_str = ytz_player.dice.format_values_only()
+        # Announce rerolled dice only (first roll announces all dice).
+        dice_str = ", ".join(str(ytz_player.dice.values[i]) for i in rolled_indices)
         self.broadcast_personal_l(
             player,
             "yahtzee-you-rolled",
@@ -422,6 +438,8 @@ class YahtzeeGame(ActionGuardMixin, Game, DiceGameMixin):
             BotHelper.jolt_bot(player, ticks=random.randint(15, 25))  # nosec B311
 
         self.rebuild_all_menus()
+        if ytz_player.rolls_left > 0:
+            self.update_player_menu(player, selection_id="toggle_die_0")
 
     def _action_score(self, player: Player, action_id: str) -> None:
         """Handle scoring in a category."""
@@ -557,13 +575,22 @@ class YahtzeeGame(ActionGuardMixin, Game, DiceGameMixin):
                 lines.append(f"  {cat_name}: -")
 
         upper_total = ytz_current.get_upper_total()
-        lines.append(
-            Localization.get(locale, "yahtzee-scoresheet-upper-total", total=upper_total)
-        )
-        bonus = 35 if ytz_current.upper_bonus_awarded else 0
-        lines.append(
-            Localization.get(locale, "yahtzee-scoresheet-upper-bonus", bonus=bonus)
-        )
+        if ytz_current.upper_bonus_awarded:
+            lines.append(
+                Localization.get(
+                    locale, "yahtzee-scoresheet-upper-total-bonus", total=upper_total
+                )
+            )
+        else:
+            needed = max(0, 63 - upper_total)
+            lines.append(
+                Localization.get(
+                    locale,
+                    "yahtzee-scoresheet-upper-total-needed",
+                    total=upper_total,
+                    needed=needed,
+                )
+            )
 
         lines.append(Localization.get(locale, "yahtzee-scoresheet-lower"))
 
@@ -793,106 +820,13 @@ class YahtzeeGame(ActionGuardMixin, Game, DiceGameMixin):
 
     def bot_think(self, player: YahtzeePlayer) -> str | None:
         """Bot AI decision making."""
-        turn_set = self.get_action_set(player, "turn")
-        if not turn_set:
-            return None
-
-        # If haven't rolled yet, roll
-        if not player.dice.has_rolled:
-            return "roll"
-
-        # Analyze current dice
-        dice_values = player.dice.values
-        counts = count_dice(dice_values)
-
-        # Check for Yahtzee - always score it
-        if is_yahtzee(dice_values):
-            return self._bot_pick_best_category(player)
-
-        # If rolls left, consider keeping/rolling
-        if player.rolls_left > 0:
-            # Keep dice that contribute to good combinations
-            best_keep = self._bot_decide_keeps(player)
-
-            # Convert current kept indices to bool list for comparison
-            current_kept = [player.dice.is_kept(i) for i in range(5)]
-            if best_keep != current_kept:
-                # Find first difference and toggle
-                for i in range(5):
-                    if best_keep[i] != current_kept[i]:
-                        return f"toggle_die_{i}"
-
-            # If happy with keeps, roll again
-            if player.rolls_left > 0 and len(player.dice.kept) < 5:
-                return "roll"
-
-        # Must score - pick best category
-        return self._bot_pick_best_category(player)
-
-    def _bot_decide_keeps(self, player: YahtzeePlayer) -> list[bool]:
-        """Decide which dice to keep for bot."""
-        dice_values = player.dice.values
-        counts = count_dice(dice_values)
-
-        # Find best value to keep multiples of
-        best_count = 0
-        best_value = 0
-        for val, count in counts.items():
-            if count > best_count or (count == best_count and val > best_value):
-                best_count = count
-                best_value = val
-
-        # Keep all dice of the best value
-        keeps = [d == best_value for d in dice_values]
-
-        # Also keep 1s and 5s (valuable for upper section)
-        for i, d in enumerate(dice_values):
-            if d in (1, 5, 6) and counts[d] >= 2:
-                keeps[i] = True
-
-        return keeps
-
-    def _bot_pick_best_category(self, player: YahtzeePlayer) -> str | None:
-        """Pick the best category to score in."""
-        open_cats = player.get_open_categories()
-        if not open_cats:
-            return None
-
-        # Calculate score for each open category
-        scores = [(cat, calculate_score(player.dice.values, cat)) for cat in open_cats]
-
-        # Sort by score descending
-        scores.sort(key=lambda x: x[1], reverse=True)
-
-        # Pick highest non-zero score, or lowest-value zero if all zero
-        for cat, score in scores:
-            if score > 0:
-                return f"score_{cat}"
-
-        # All zeros - pick the "least bad" category to waste
-        # Prefer wasting lower section categories over upper
-        waste_order = [
-            "yahtzee",  # Worst to waste but sometimes necessary
-            "large_straight",
-            "small_straight",
-            "full_house",
-            "four_kind",
-            "three_kind",
-            "chance",
-            "ones",
-            "twos",
-            "threes",
-            "fours",
-            "fives",
-            "sixes",
-        ]
-
-        for cat in waste_order:
-            if cat in open_cats:
-                return f"score_{cat}"
-
-        # Fallback
-        return f"score_{open_cats[0]}"
+        return yahtzee_bot_think(
+            self,
+            player,
+            calculate_score=calculate_score,
+            all_categories=ALL_CATEGORIES,
+            upper_categories=UPPER_CATEGORIES,
+        )
 
 
 # =============================================================================

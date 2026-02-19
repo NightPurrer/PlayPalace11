@@ -353,3 +353,5 @@ virtual-bots-profiles-header = Profiler: { $count } definierade (standard: { $de
 virtual-bots-profiles-empty = Inga profiler är definierade.
 virtual-bots-profiles-line = { $profile } ({ $bot_count } botar) åsidosätter: { $overrides }.
 virtual-bots-profiles-no-overrides = ärver baskonfiguration
+
+localization-in-progress-try-again = Lokalisering pågår. Försök igen om en minut.

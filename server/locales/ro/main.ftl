@@ -357,3 +357,5 @@ virtual-bots-profiles-header = Profiluri: { $count } definite (implicit: { $defa
 virtual-bots-profiles-empty = Niciun profil definit.
 virtual-bots-profiles-line = { $profile } ({ $bot_count } boți) suprascrie: { $overrides }.
 virtual-bots-profiles-no-overrides = moștenește configurația de bază
+
+localization-in-progress-try-again = Localizarea este în curs. Vă rugăm să încercați din nou peste un minut.

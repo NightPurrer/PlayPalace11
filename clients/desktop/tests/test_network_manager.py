@@ -375,6 +375,29 @@ def test_connect_uses_refresh_when_access_expired(monkeypatch):
     assert packet["refresh_token"] == "refresh-token"
 
 
+def test_connect_prefers_refresh_when_session_and_refresh_valid(monkeypatch):
+    window = RecordingMainWindow()
+    nm = NetworkManager(main_window=window)
+    ws = DummyAsyncWebsocket()
+
+    async def fake_open_connection(_):
+        return ws
+
+    monkeypatch.setattr(nm, "_open_connection", fake_open_connection)
+
+    nm.session_token = "session-token"
+    nm.session_expires_at = 9999999999
+    nm.refresh_token = "refresh-token"
+    nm.refresh_expires_at = 9999999999
+
+    asyncio.run(nm._connect_and_listen("wss://example", "alice", "pw"))
+
+    assert ws.sent, "Expected refresh packet to be sent first"
+    packet = json.loads(ws.sent[0])
+    assert packet["type"] == "refresh_session"
+    assert packet["refresh_token"] == "refresh-token"
+
+
 def test_connect_falls_back_to_password_when_refresh_expired(monkeypatch):
     window = RecordingMainWindow()
     nm = NetworkManager(main_window=window)

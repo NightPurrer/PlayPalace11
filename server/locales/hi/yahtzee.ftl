@@ -48,7 +48,7 @@ yahtzee-continuing = बारी जारी है।
 
 # Status checks
 yahtzee-check-scoresheet = स्कोरकार्ड जांचें
-yahtzee-view-dice = हाथ जांचें
+yahtzee-view-dice = अपने पासे जांचें
 yahtzee-your-dice = आपके पासे: { $dice }।
 yahtzee-your-dice-kept = आपके पासे: { $dice }। रखे हुए: { $kept }
 yahtzee-not-rolled = आपने अभी तक नहीं फेंका है।

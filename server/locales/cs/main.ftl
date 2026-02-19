@@ -391,3 +391,5 @@ virtual-bots-profiles-header = Profily: { $count } definováno (výchozí: { $de
 virtual-bots-profiles-empty = Nejsou definovány žádné profily.
 virtual-bots-profiles-line = { $profile } ({ $bot_count } botů) přepsání: { $overrides }.
 virtual-bots-profiles-no-overrides = dědí základní konfiguraci
+
+localization-in-progress-try-again = Lokalizace se stále načítá. Zkuste to prosím za minutu znovu.
