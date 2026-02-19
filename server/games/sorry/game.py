@@ -10,7 +10,7 @@ from ...messages.localization import Localization
 from server.core.ui.keybinds import KeybindState
 from .bot import choose_move
 from .moves import SorryMove, apply_move, generate_legal_moves
-from .rules import Classic00390Rules
+from .rules import Classic00390Rules, SorryRulesProfile
 from .state import (
     SorryGameState,
     SorryPlayerState,
@@ -88,7 +88,7 @@ class SorryGame(Game):
         """Create a new Sorry player."""
         return SorryPlayer(id=player_id, name=name, is_bot=is_bot)
 
-    def get_rules_profile(self) -> Classic00390Rules:
+    def get_rules_profile(self) -> SorryRulesProfile:
         """Return active rules profile object."""
         return Classic00390Rules()
 
@@ -294,7 +294,7 @@ class SorryGame(Game):
         self.game_state.turn_number += 1
         self.game_state.turn_phase = "draw"
         self.game_state.current_card = None
-        if card_face == "2":
+        if card_face == "2" and self.get_rules_profile().card_two_grants_extra_turn():
             # Classic Sorry gives another turn on 2.
             self.announce_turn()
             self.rebuild_all_menus()

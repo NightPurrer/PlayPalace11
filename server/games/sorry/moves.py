@@ -393,23 +393,23 @@ def generate_legal_moves(
         return []
 
     moves: list[SorryMove] = []
-    if card_face in {"1", "2"}:
+
+    if rules.can_leave_start_with_card(card_face):
         moves.extend(_generate_start_moves(state, player_state))
-        moves.extend(_generate_forward_moves(player_state, int(card_face)))
-    elif card_face in {"3", "5", "8", "12"}:
-        moves.extend(_generate_forward_moves(player_state, int(card_face)))
-    elif card_face == "4":
-        moves.extend(_generate_backward_moves(player_state, 4))
-    elif card_face == "7":
-        moves.extend(_generate_forward_moves(player_state, 7))
+
+    for forward_steps in rules.forward_steps_for_card(card_face):
+        moves.extend(_generate_forward_moves(player_state, forward_steps))
+
+    for backward_steps in rules.backward_steps_for_card(card_face):
+        moves.extend(_generate_backward_moves(player_state, backward_steps))
+
+    if rules.allows_split_seven(card_face):
         moves.extend(_generate_split_seven_moves(player_state))
-    elif card_face == "10":
-        moves.extend(_generate_forward_moves(player_state, 10))
-        moves.extend(_generate_backward_moves(player_state, 1))
-    elif card_face == "11":
-        moves.extend(_generate_forward_moves(player_state, 11))
+
+    if rules.allows_swap(card_face):
         moves.extend(_generate_swap_moves(state, player_state))
-    elif card_face == "sorry":
+
+    if rules.allows_sorry(card_face):
         moves.extend(_generate_sorry_moves(state, player_state))
 
     return sorted(moves, key=lambda move: move.action_id)

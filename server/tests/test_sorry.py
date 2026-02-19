@@ -5,6 +5,7 @@ import random
 from server.core.users.test_user import MockUser
 from server.games.registry import GameRegistry
 from server.games.sorry.game import SorryGame, SorryOptions, SorryPlayer
+from server.games.sorry.rules import Classic00390Rules
 from server.games.sorry.state import (
     TRACK_LENGTH,
     build_initial_game_state,
@@ -15,6 +16,34 @@ from server.games.sorry.state import (
     get_start_track_for_seat,
     get_track_occupancy,
 )
+
+
+def test_classic_rules_policy_matches_existing_behavior() -> None:
+    """Classic policy methods should preserve current card semantics."""
+    rules = Classic00390Rules()
+
+    assert rules.profile_id == "classic_00390"
+    assert rules.pawns_per_player == 4
+    assert rules.card_two_grants_extra_turn() is True
+
+    assert rules.can_leave_start_with_card("1") is True
+    assert rules.can_leave_start_with_card("2") is True
+    assert rules.can_leave_start_with_card("3") is False
+
+    assert rules.forward_steps_for_card("1") == (1,)
+    assert rules.forward_steps_for_card("10") == (10,)
+    assert rules.forward_steps_for_card("sorry") == ()
+
+    assert rules.backward_steps_for_card("4") == (4,)
+    assert rules.backward_steps_for_card("10") == (1,)
+    assert rules.backward_steps_for_card("11") == ()
+
+    assert rules.allows_split_seven("7") is True
+    assert rules.allows_split_seven("8") is False
+    assert rules.allows_swap("11") is True
+    assert rules.allows_swap("12") is False
+    assert rules.allows_sorry("sorry") is True
+    assert rules.allows_sorry("1") is False
 
 
 def test_game_creation() -> None:

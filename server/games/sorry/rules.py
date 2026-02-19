@@ -9,9 +9,38 @@ class SorryRulesProfile(Protocol):
 
     profile_id: str
     display_name: str
+    pawns_per_player: int
 
     def card_faces(self) -> tuple[str, ...]:
         """Return supported card faces for this profile."""
+        ...
+
+    def can_leave_start_with_card(self, card_face: str) -> bool:
+        """Return whether this card can move a pawn from start."""
+        ...
+
+    def forward_steps_for_card(self, card_face: str) -> tuple[int, ...]:
+        """Return forward step options contributed by this card."""
+        ...
+
+    def backward_steps_for_card(self, card_face: str) -> tuple[int, ...]:
+        """Return backward step options contributed by this card."""
+        ...
+
+    def allows_split_seven(self, card_face: str) -> bool:
+        """Return whether this card allows split-seven move generation."""
+        ...
+
+    def allows_swap(self, card_face: str) -> bool:
+        """Return whether this card allows swap move generation."""
+        ...
+
+    def allows_sorry(self, card_face: str) -> bool:
+        """Return whether this card allows Sorry replacement moves."""
+        ...
+
+    def card_two_grants_extra_turn(self) -> bool:
+        """Return whether card 2 grants another turn."""
         ...
 
 
@@ -21,6 +50,7 @@ class Classic00390Rules:
 
     profile_id: str = "classic_00390"
     display_name: str = "Classic 00390"
+    pawns_per_player: int = 4
     _faces: tuple[str, ...] = (
         "1",
         "2",
@@ -37,3 +67,30 @@ class Classic00390Rules:
 
     def card_faces(self) -> tuple[str, ...]:
         return self._faces
+
+    def can_leave_start_with_card(self, card_face: str) -> bool:
+        return card_face in {"1", "2"}
+
+    def forward_steps_for_card(self, card_face: str) -> tuple[int, ...]:
+        if card_face in {"1", "2", "3", "5", "7", "8", "10", "11", "12"}:
+            return (int(card_face),)
+        return ()
+
+    def backward_steps_for_card(self, card_face: str) -> tuple[int, ...]:
+        if card_face == "4":
+            return (4,)
+        if card_face == "10":
+            return (1,)
+        return ()
+
+    def allows_split_seven(self, card_face: str) -> bool:
+        return card_face == "7"
+
+    def allows_swap(self, card_face: str) -> bool:
+        return card_face == "11"
+
+    def allows_sorry(self, card_face: str) -> bool:
+        return card_face == "sorry"
+
+    def card_two_grants_extra_turn(self) -> bool:
+        return True
