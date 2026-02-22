@@ -335,7 +335,7 @@ confirm-transfer-ownership = Вы уверены, что хотите перед
 transfer-ownership-announcement = { $player } теперь владелец сервера Play Palace!
 transfer-ownership-announcement-you = Вы теперь владелец сервера Play Palace!
 
-# Бан пользователей
+# User banning
 ban-user = Забанить пользователя
 unban-user = Разбанить пользователя
 no-users-to-ban = Нет пользователей для бана.
@@ -350,29 +350,48 @@ you-have-been-banned = Вы были забанены на этом сервер
     Причина:
 you-have-been-unbanned = Вы были разбанены на этом сервере.
     Причина:
-virtual-bots-guided-overview = Guided Tables
-virtual-bots-groups-overview = Bot Groups
-virtual-bots-profiles-overview = Profiles
-virtual-bots-guided-header = Guided tables: { $count } rule(s). Allocation: { $allocation }, fallback: { $fallback }, default profile: { $default_profile }.
-virtual-bots-guided-empty = No guided table rules are configured.
-virtual-bots-guided-status-active = active
-virtual-bots-guided-status-inactive = inactive
-virtual-bots-guided-table-linked = linked to table { $table_id } (host { $host }, players { $players }, humans { $humans })
-virtual-bots-guided-table-stale = table { $table_id } missing on server
-virtual-bots-guided-table-unassigned = no table is currently tracked
-virtual-bots-guided-next-change = next change in { $ticks } ticks
-virtual-bots-guided-no-schedule = no scheduling window
-virtual-bots-guided-warning = ⚠ underfilled
-virtual-bots-guided-line = { $table }: game { $game }, priority { $priority }, bots { $assigned } (min { $min_bots }, max { $max_bots }), waiting { $waiting }, unavailable { $unavailable }, status { $status }, profile { $profile }, groups { $groups }. { $table_state }. { $next_change } { $warning_text }
-virtual-bots-groups-header = Bot groups: { $count } tag(s), { $bots } configured bots.
-virtual-bots-groups-empty = No bot groups are defined.
-virtual-bots-groups-line = { $group }: profile { $profile }, bots { $total } (online { $online }, waiting { $waiting }, in-game { $in_game }, offline { $offline }), rules { $rules }.
-virtual-bots-groups-no-rules = none
-virtual-bots-no-profile = default
-virtual-bots-profile-inherit-default = inherits default profile
-virtual-bots-profiles-header = Profiles: { $count } defined (default: { $default_profile }).
-virtual-bots-profiles-empty = No profiles are defined.
-virtual-bots-profiles-line = { $profile } ({ $bot_count } bots) overrides: { $overrides }.
-virtual-bots-profiles-no-overrides = inherits base configuration
+ban-no-reason = Причина не указана.
+
+# Virtual bots (server owner only)
+virtual-bots = Виртуальные боты
+virtual-bots-fill = Заполнить сервер
+virtual-bots-clear = Очистить всех ботов
+virtual-bots-status = Статус
+virtual-bots-clear-confirm = Вы уверены, что хотите удалить всех виртуальных ботов? Это также закроет все столы, за которыми они находятся.
+virtual-bots-not-available = Виртуальные боты недоступны.
+virtual-bots-filled = Добавлено { $added } виртуальных ботов. Сейчас в сети: { $online }.
+virtual-bots-already-filled = Все виртуальные боты из конфигурации уже активны.
+virtual-bots-cleared = Удалено { $bots } виртуальных ботов и закрыто { $tables } { $tables ->
+    [one] стол
+    [few] стола
+   *[other] столов
+}.
+virtual-bot-table-closed = Стол закрыт администратором.
+virtual-bots-none-to-clear = Нет виртуальных ботов для удаления.
+virtual-bots-status-report = Виртуальные боты: всего { $total }, в сети { $online }, не в сети { $offline }, в игре { $in_game }.
+virtual-bots-guided-overview = Управляемые столы
+virtual-bots-groups-overview = Группы ботов
+virtual-bots-profiles-overview = Профили
+virtual-bots-guided-header = Управляемые столы: правил — { $count }. Распределение: { $allocation }, резерв: { $fallback }, профиль по умолчанию: { $default_profile }.
+virtual-bots-guided-empty = Правила управляемых столов не настроены.
+virtual-bots-guided-status-active = активен
+virtual-bots-guided-status-inactive = неактивен
+virtual-bots-guided-table-linked = привязан к столу { $table_id } (организатор: { $host }, игроков { $players }, людей { $humans })
+virtual-bots-guided-table-stale = стол { $table_id } отсутствует на сервере
+virtual-bots-guided-table-unassigned = стол в данный момент не отслеживается
+virtual-bots-guided-next-change = следующее изменение через { $ticks } тиков
+virtual-bots-guided-no-schedule = расписание не задано
+virtual-bots-guided-warning = ⚠ недобор
+virtual-bots-guided-line = { $table }: игра { $game }, приоритет { $priority }, ботов { $assigned } (мин { $min_bots }, макс { $max_bots }), в ожидании { $waiting }, недоступно { $unavailable }, статус { $status }, профиль { $profile }, группы { $groups }. { $table_state }. { $next_change } { $warning_text }
+virtual-bots-groups-header = Группы ботов: тегов — { $count }, настроено ботов — { $bots }.
+virtual-bots-groups-empty = Группы ботов не определены.
+virtual-bots-groups-line = { $group }: профиль { $profile }, ботов { $total } (в сети { $online }, ожидают { $waiting }, в игре { $in_game }, не в сети { $offline }), правила { $rules }.
+virtual-bots-groups-no-rules = нет
+virtual-bots-no-profile = по умолчанию
+virtual-bots-profile-inherit-default = наследует профиль по умолчанию
+virtual-bots-profiles-header = Профили: определено { $count } (по умолчанию: { $default_profile }).
+virtual-bots-profiles-empty = Профили не определены.
+virtual-bots-profiles-line = { $profile } (ботов: { $bot_count }) переопределения: { $overrides }.
+virtual-bots-profiles-no-overrides = наследует базовую конфигурацию
 
 localization-in-progress-try-again = Локализация ещё загружается. Пожалуйста, попробуйте снова через минуту.

@@ -21,7 +21,7 @@ pirates-turn = Ход игрока { $player }. Позиция: { $position }.
 pirates-move-left = Плыть влево
 pirates-move-right = Плыть вправо
 pirates-move-2-left = Проплыть 2 клетки влево
-			pirates-move-2-right = Проплыть 2 клетки вправо
+pirates-move-2-right = Проплыть 2 клетки вправо
 pirates-move-3-left = Проплыть 3 клетки влево
 pirates-move-3-right = Проплыть 3 клетки вправо
 

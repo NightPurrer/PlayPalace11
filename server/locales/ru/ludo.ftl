@@ -1,34 +1,38 @@
-game-name-ludo = Ludo
+game-name-ludo = Лудо
 
-ludo-roll-die = Roll die
-ludo-move-token = Move token
-ludo-check-board = View board status
-ludo-select-token = Select token to move:
+ludo-roll-die = Бросить кубик
+ludo-move-token = Передвинуть фишку
+ludo-check-board = Посмотреть состояние доски
+ludo-select-token = Выберите фишку для хода:
 
-ludo-roll = { $player } rolls a { $roll }.
-ludo-you-roll = You roll a { $roll }.
-ludo-no-moves = { $player } has no valid moves.
-ludo-you-no-moves = You have no valid moves.
-ludo-enter-board = { $player } ({ $color }) enters token { $token } onto the board.
-ludo-move-track = { $player } ({ $color }) moves token { $token } to position { $position }.
-ludo-enter-home = { $player } ({ $color }) moves token { $token } into the home column.
-ludo-home-finish = { $player } ({ $color }) token { $token } reaches home. ({ $finished }/4 finished)
-ludo-move-home = { $player } ({ $color }) moves token { $token } in home column ({ $position }/{ $total }).
-ludo-captures = { $player } ({ $color }) captures { $captured_player } ({ $captured_color }) token { $token }. Sent back to yard.
-ludo-extra-turn = { $player } rolled a 6. Extra turn.
-ludo-you-extra-turn = You rolled a 6. Extra turn.
-ludo-too-many-sixes = { $player } rolled { $count } sixes in a row. First moves undone. Turn ends.
-ludo-winner = { $player } ({ $color }) wins! All 4 tokens are home.
+ludo-roll = { $player } выбрасывает { $roll }.
+ludo-you-roll = Вы выбрасываете { $roll }.
+ludo-no-moves = У игрока { $player } нет доступных ходов.
+ludo-you-no-moves = У вас нет доступных ходов.
+ludo-enter-board = { $player } ({ $color }) выводит фишку { $token } на поле.
+ludo-move-track = { $player } ({ $color }) перемещает фишку { $token } на позицию { $position }.
+ludo-enter-home = { $player } ({ $color }) заводит фишку { $token } в «дом».
+ludo-home-finish = Фишка { $token } игрока { $player } ({ $color }) дошла до финиша. (Готово: { $finished }/4)
+ludo-move-home = { $player } ({ $color }) перемещает фишку { $token } в «доме» (позиция { $position }/{ $total }).
+ludo-captures = { $player } ({ $color }) сбивает фишку { $token } игрока { $captured_player } ({ $captured_color })! Она возвращается на базу.
+ludo-extra-turn = { $player } выбрасывает 6. Дополнительный ход!
+ludo-you-extra-turn = Вы выбросили 6. Дополнительный ход!
+ludo-too-many-sixes = { $player } выбрасывает { $count } { $count ->
+    [one] шестёрку
+    [few] шестёрки
+   *[other] шестёрок
+} подряд. Последние ходы отменяются, ход завершён.
+ludo-winner = { $player } ({ $color }) побеждает! Все 4 фишки в «доме».
 
-ludo-board-player = { $player } ({ $color }): { $finished }/4 finished
-ludo-token-yard = Token { $token } (yard)
-ludo-token-track = Token { $token } (position { $position })
-ludo-token-home = Token { $token } (home column { $position }/{ $total })
-ludo-token-finished = Token { $token } (finished)
-ludo-last-roll = Last roll: { $roll }
+ludo-board-player = { $player } ({ $color }): готово { $finished }/4
+ludo-token-yard = Фишка { $token } (на базе)
+ludo-token-track = Фишка { $token } (позиция { $position })
+ludo-token-home = Фишка { $token } (в «доме», { $position }/{ $total })
+ludo-token-finished = Фишка { $token } (финишировала)
+ludo-last-roll = Последний бросок: { $roll }
 
-ludo-set-max-sixes = Max consecutive sixes: { $max_consecutive_sixes }
-ludo-enter-max-sixes = Enter max consecutive sixes
-ludo-option-changed-max-sixes = Max consecutive sixes set to { $value }.
-ludo-set-safe-start-squares = Safe start squares: { $safe_start_squares }
-ludo-option-changed-safe-start-squares = Safe start squares set to { $value }.
+ludo-set-max-sixes = Макс. шестёрок подряд: { $max_consecutive_sixes }
+ludo-enter-max-sixes = Введите макс. количество шестёрок подряд
+ludo-option-changed-max-sixes = Максимальное количество шестёрок подряд установлено на { $value }.
+ludo-set-safe-start-squares = Безопасные стартовые клетки: { $safe_start_squares }
+ludo-option-changed-safe-start-squares = Безопасные стартовые клетки: { $value }.

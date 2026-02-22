@@ -1,28 +1,28 @@
 # Snakes and Ladders localization
 
-game-name-snakesandladders = Snakes and Ladders
-game-snakesandladders-desc = The classic race to 100! Climb ladders and avoid snakes.
-category-board-games = Board Games
+game-name-snakesandladders = Змеи и лестницы
+game-snakesandladders-desc = Классическая гонка до 100! Поднимайтесь по лестницам и избегайте змей.
+category-board-games = Настольные игры
 
 # Actions
-snakes-roll = Roll Dice
+snakes-roll = Бросить кубики
 
 # Game Status
-snakes-turn = { $player }'s turn. Square { $position }.
-snakes-roll-result = { $player } rolled a { $roll }.
-snakes-move = { $player } moved to square { $position }.
-snakes-ladder = { $player } climbed a ladder! Moved from { $start } to { $end }.
-snakes-snake = Oh no! { $player } was bitten by a snake! Slid down from { $start } to { $end }.
-snakes-bounce = { $player } passed 100 and bounced back to { $position }.
-snakes-win = { $player } wins!
+snakes-turn = Ход игрока { $player }. Клетка { $position }.
+snakes-roll-result = { $player } выбрасывает { $roll }.
+snakes-move = { $player } переходит на клетку { $position }.
+snakes-ladder = { $player } поднимается по лестнице! Переход с { $start } на { $end }.
+snakes-snake = О нет! Игрока { $player } укусила змея! Спуск с { $start } на { $end }.
+snakes-bounce = { $player } проходит мимо 100 и отскакивает назад на клетку { $position }.
+snakes-win = { $player } побеждает!
 
 # Check Positions
-check-positions = Check positions
-snakes-positions-header = Current Positions:
-snakes-position-entry = { $player }: Square { $position }
+check-positions = Проверить позиции
+snakes-positions-header = Текущие позиции:
+snakes-position-entry = { $player }: клетка { $position }
 
 # Status Check
-snakes-status-player = { $player } is at square { $position }.
+snakes-status-player = { $player } находится на клетке { $position }.
 
 # End Game
-snakes-end-score = { $rank }. { $player }: Square { $position }
+snakes-end-score = { $rank }. { $player }: клетка { $position }
