@@ -605,7 +605,7 @@ class YahtzeeGame(ActionGuardMixin, Game, DiceGameMixin):
         yahtzee_bonus = ytz_current.yahtzee_bonus_count * 100
         lines.append(
             Localization.get(
-                locale, "yahtzee-scoresheet-yahtzee-bonus", bonus=yahtzee_bonus
+                locale, "yahtzee-scoresheet-yahtzee-bonus", count=ytz_current.yahtzee_bonus_count, total=yahtzee_bonus
             )
         )
 
