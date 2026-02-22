@@ -1235,7 +1235,7 @@ class VirtualBotManager:
         game._table = table
         game.initialize_lobby(bot.name, user)
 
-        self._server._broadcast_table_created(bot.name, game_class.get_name())
+        self._server._broadcast_table_created(bot.name, state.config.game)
 
         bot.state = VirtualBotState.IN_GAME
         bot.table_id = table.table_id
@@ -1458,8 +1458,7 @@ class VirtualBotManager:
         game.initialize_lobby(bot.name, user)
 
         # Broadcast table creation to all approved users
-        game_name = game_class.get_name()
-        self._server._broadcast_table_created(bot.name, game_name)
+        self._server._broadcast_table_created(bot.name, game_type)
 
         # Update bot state
         bot.state = VirtualBotState.IN_GAME

@@ -11,8 +11,9 @@ from server.core.server import Server
 
 
 class DummyNetworkUser:
-    def __init__(self, approved=True):
+    def __init__(self, approved=True, locale="en"):
         self.approved = approved
+        self.locale = locale
         self.spoken = []
         self.sounds = []
         self._queue = []
@@ -84,7 +85,8 @@ def test_broadcast_helpers_respect_approval(server):
     server._broadcast_presence_l("user-online", "Bot", "online.ogg")
     server._broadcast_admin_announcement("Admin")
     server._broadcast_server_owner_announcement("Owner")
-    server._broadcast_table_created("Host", "GameName")
+    server._user_states = {"ok": {}, "pending": {}}
+    server._broadcast_table_created("Host", "farkle")
 
     # Only approved user should receive notifications
     assert len(approved.spoken) == 4

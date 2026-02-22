@@ -918,11 +918,19 @@ class Server(AdministrationMixin):
                 continue  # Don't send broadcasts to unapproved users
             user.speak_l("user-is-server-owner", buffer="activity", player=owner_name)
 
-    def _broadcast_table_created(self, host_name: str, game_name: str) -> None:
-        """Broadcast a table creation announcement to all approved online users."""
+    def _broadcast_table_created(self, host_name: str, game_type: str) -> None:
+        """Broadcast a table creation announcement to all approved online users not in a game."""
+        game_class = get_game_class(game_type)
+        if not game_class:
+            return
+        name_key = game_class.get_name_key()
         for username, user in self._users.items():
             if not user.approved:
-                continue  # Don't send broadcasts to unapproved users
+                continue
+            state = self._user_states.get(username, {})
+            if state.get("menu") == "in_game":
+                continue
+            game_name = Localization.get(user.locale, name_key)
             user.speak_l("table-created", buffer="activity", host=host_name, game=game_name)
             user.play_sound("table_created.ogg")
 
@@ -2124,8 +2132,7 @@ class Server(AdministrationMixin):
                 game.initialize_lobby(user.username, user)
 
                 # Broadcast table creation to all users
-                game_name = state.get("game_name", game_type)
-                self._broadcast_table_created(user.username, game_name)
+                self._broadcast_table_created(user.username, game_type)
 
                 min_players = game_class.get_min_players()
                 max_players = game_class.get_max_players()
