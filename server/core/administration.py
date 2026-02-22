@@ -820,6 +820,9 @@ class AdministrationMixin:
                 # Update the user's approved status so they can now interact
                 waiting_user.set_approved(True)
 
+                # Broadcast online presence now that the user is approved
+                self._broadcast_login_presence(waiting_user)
+
                 waiting_state = self._user_states.get(username, {})
                 if waiting_state.get("menu") == "main_menu":
                     # User is online and waiting - welcome them and show full main menu
