@@ -45,15 +45,23 @@ option-off = off
 # Option navigation
 option-back = Back
 option-min-selected = At least { $count } { $count ->
-    [one] option
-   *[other] options
+    [one] item
+   *[other] items
 } must be selected.
 option-max-selected = At most { $count } { $count ->
-    [one] option
-   *[other] options
+    [one] item
+   *[other] items
 } can be selected.
 option-select-all = Select all
 option-deselect-all = Deselect all
+option-selected-count = { $count } { $count ->
+    [one] item
+   *[other] items
+} selected.
+option-deselected-count = { $count } { $count ->
+    [one] item
+   *[other] items
+} deselected.
 
 # Status box
 status-box-closed = Status information closed.

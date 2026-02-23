@@ -960,7 +960,7 @@ class OptionsHandlerMixin:
     def _action_select_all_multiselect(self, player: "Player", action_id: str) -> None:
         """Select all choices in the current multi-select view.
 
-        Respects max_selected. Scoped to current group if inside one.
+        Scoped to current group if inside one. Announces how many were added.
         """
         option_name = action_id.removeprefix("mselectall_")
         meta = get_option_meta(type(self.options), option_name)
@@ -970,13 +970,19 @@ class OptionsHandlerMixin:
         current_list = list(getattr(self.options, option_name, []))
         choices = self._get_scoped_choices(player, option_name, meta)
 
+        added = 0
         for choice in choices:
             if choice not in current_list:
-                if meta.max_selected > 0 and len(current_list) >= meta.max_selected:
-                    break
                 current_list.append(choice)
+                added += 1
 
         setattr(self.options, option_name, current_list)
+
+        if added > 0:
+            user = self.get_user(player)
+            if user:
+                user.speak_l("option-selected-count", count=added)
+
         if hasattr(self.options, "update_options_labels"):
             self.options.update_options_labels(self)
         self.rebuild_all_menus()
@@ -984,7 +990,7 @@ class OptionsHandlerMixin:
     def _action_deselect_all_multiselect(self, player: "Player", action_id: str) -> None:
         """Deselect all choices in the current multi-select view.
 
-        Respects min_selected. Scoped to current group if inside one.
+        Scoped to current group if inside one. Announces how many were removed.
         """
         option_name = action_id.removeprefix("mdeselectall_")
         meta = get_option_meta(type(self.options), option_name)
@@ -994,13 +1000,19 @@ class OptionsHandlerMixin:
         current_list = list(getattr(self.options, option_name, []))
         choices = self._get_scoped_choices(player, option_name, meta)
 
+        removed = 0
         for choice in choices:
             if choice in current_list:
-                if len(current_list) <= meta.min_selected:
-                    break
                 current_list.remove(choice)
+                removed += 1
 
         setattr(self.options, option_name, current_list)
+
+        if removed > 0:
+            user = self.get_user(player)
+            if user:
+                user.speak_l("option-deselected-count", count=removed)
+
         if hasattr(self.options, "update_options_labels"):
             self.options.update_options_labels(self)
         self.rebuild_all_menus()
@@ -1079,20 +1091,8 @@ class OptionsHandlerMixin:
 
         current_list = list(getattr(self.options, option_name, []))
         if choice in current_list:
-            # Don't remove if at min_selected
-            if len(current_list) <= meta.min_selected:
-                user = self.get_user(player)
-                if user:
-                    user.speak_l("option-min-selected", count=meta.min_selected)
-                return
             current_list.remove(choice)
         else:
-            # Don't add if at max_selected
-            if meta.max_selected > 0 and len(current_list) >= meta.max_selected:
-                user = self.get_user(player)
-                if user:
-                    user.speak_l("option-max-selected", count=meta.max_selected)
-                return
             current_list.append(choice)
 
         setattr(self.options, option_name, current_list)
