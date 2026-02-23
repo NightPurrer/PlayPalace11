@@ -3,6 +3,10 @@
 
 # Game names
 game-name-ninetynine = Ninety Nine
+game-name-humanitycards = Cards Against Humanity
+
+# Game categories (shared)
+category-party-games = Party Games
 
 # Round and turn flow
 game-round-start = Round { $round }.
@@ -48,6 +52,8 @@ option-max-selected = At most { $count } { $count ->
     [one] option
    *[other] options
 } can be selected.
+option-select-all = Select all
+option-deselect-all = Deselect all
 
 # Status box
 status-box-closed = Status information closed.
