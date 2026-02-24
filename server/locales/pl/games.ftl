@@ -5,28 +5,28 @@
 game-name-ninetynine = Ninety Nine
 
 # Round and turn flow
-game-round-start = Round { $round }.
-game-round-end = Round { $round } complete.
-game-turn-start = { $player }'s turn.
+game-round-start = Runda { $round }.
+game-round-end = Runda { $round } zakończona.
+game-turn-start = Tura { $player }.
 game-your-turn = Twoja kolej.
-game-no-turn = No one's turn right now.
+game-no-turn = Obecnie brak czyjejkolwiek tury.
 
 # Score display
-game-scores-header = Current Scores:
+game-scores-header = Obecne statystyki:
 game-score-line = { $player }: { $score } points
-game-final-scores-header = Final Scores:
+game-final-scores-header = Finalne statystyki:
 
 # Win/loss
-game-winner = { $player } wins!
-game-winner-score = { $player } wins with { $score } points!
+game-winner = Wygrał { $player }!
+game-winner-score = { $player } wygrał osiągając { $score } punktów!
 game-tiebreaker = It's a tie! Tiebreaker round!
 game-tiebreaker-players = It's a tie between { $players }! Tiebreaker round!
-game-eliminated = { $player } has been eliminated with { $score } points.
+game-eliminated = { $player } został wyeliminowany z liczbą { $score } punktów.
 
 # Common options
-game-set-target-score = Target score: { $score }
-game-enter-target-score = Enter target score:
-game-option-changed-target = Target score set to { $score }.
+game-set-target-score = Maksymalna liczba punktów: { $score }
+game-enter-target-score = Podaj maksymalną liczbę punktów:
+game-option-changed-target = Maksymalna liczba punkót została ustawiona na { $score }.
 
 game-set-team-mode = Team mode: { $mode }
 game-select-team-mode = Select team mode
@@ -35,19 +35,19 @@ game-team-mode-individual = Individual
 game-team-mode-x-teams-of-y = { $num_teams } teams of { $team_size }
 
 # Boolean option values
-option-on = on
-option-off = off
+option-on = włączone
+option-off = wyłączone
 
 # Status box
 status-box-closed = Status information closed.
 
 # Game end
-game-leave = Leave game
+game-leave = opuść grę
 
 # Round timer
-round-timer-paused = { $player } has paused the game (press p to start the next round).
+round-timer-paused = { $player } wstrzymał grę. Naciśnij P, aby rozpocząć następną rundę.
 round-timer-resumed = Round timer resumed.
-round-timer-countdown = Next round in { $seconds }...
+round-timer-countdown = Następna runda za { $seconds }...
 
 # Dice games - keeping/releasing dice
 dice-keeping = Keeping { $value }.
