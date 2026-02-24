@@ -7,9 +7,9 @@ ludo-select-token = Wybierz pionek, który chcesz przesunąć:
 
 ludo-roll = { $player } wyrzucił { $roll }.
 ludo-you-roll = Wyrzuciłeś { $roll }.
-ludo-no-moves = { $player } nie ma możliwości ruchu.
+ludo-no-moves = { $player } nie może wykonać ruchu.
 ludo-you-no-moves = Nie możesz wykonać ruchu.
-ludo-enter-board = { $player } ({ $color }) położył pionek { $token } na planszy.
+ludo-enter-board = { $player } ({ $color }) wprowadził pionek { $token } na planszę.
 ludo-move-track = { $player } ({ $color }) przesunął pionek { $token } na pozycję { $position }.
 ludo-enter-home = { $player } ({ $color }) wprowadził pionek { $token } do domku.
 ludo-home-finish = { $color } pionek { $token } gracza { $player } dotarł do domku. ({ $finished } na 4 ukończył podróż)
@@ -23,11 +23,11 @@ ludo-winner = { $player } ({ $color }) wygrywa! Wszystkie 4 pionki znajdują si�
 ludo-board-player = { $player } ({ $color }): { $finished } na 4 w domku
 ludo-token-yard = pionek { $token } (na dziedzińcu)
 ludo-token-track = Pionek { $token } (na pozycji { $position })
-ludo-token-home = Pionek { $token } (home column { $position }/{ $total })
-ludo-token-finished = Pionek { $token } (ukończył)
+ludo-token-home = Pionek { $token } w domku (na pozycji { $position } z { $total })
+ludo-token-finished = Pionek { $token } (ukończył podróż)
 ludo-last-roll = Ostatni rzut: { $roll }
 
-ludo-set-max-sixes = Maksymalna liczba następujących szóstek: { $max_consecutive_sixes }
+ludo-set-max-sixes = Maksymalna liczba następujących po sobie szóstek: { $max_consecutive_sixes }
 ludo-enter-max-sixes = Podaj maksymalną liczbę następujących po sobie szóstek
 ludo-option-changed-max-sixes = Maksymalna liczba szóstek została ustawiona na { $value }.
 ludo-set-safe-start-squares = Bezpieczne pola startowe: { $safe_start_squares }
