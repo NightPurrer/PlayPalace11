@@ -353,3 +353,5 @@ virtual-bots-profiles-header = Profil: { $count } didefinisikan (default: { $def
 virtual-bots-profiles-empty = Tidak ada profil yang didefinisikan.
 virtual-bots-profiles-line = { $profile } ({ $bot_count } bot) override: { $overrides }.
 virtual-bots-profiles-no-overrides = mewarisi konfigurasi dasar
+
+localization-in-progress-try-again = Lokalisasi sedang diproses. Silakan coba lagi dalam satu menit.

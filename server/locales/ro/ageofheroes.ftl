@@ -245,39 +245,31 @@ ageofheroes-war-prepared = Forțele tale: { $armies } { $armies ->
 ageofheroes-war-roll-you = Tu obții { $roll }.
 ageofheroes-war-roll-other = { $player } obține { $roll }.
 ageofheroes-war-bonuses-you = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            [one] {"+1 de la fortăreață = { $total } total"}
-            [few] {"+{ $fortress } de la fortărețe = { $total } total"}
-            *[other] {"+{ $fortress } de la fortărețe = { $total } total"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        [one] +1 de la fortăreață = { $total } total
+        [few] +{ $fortress } de la fortărețe = { $total } total
+        *[other] +{ $fortress } de la fortărețe = { $total } total
     }
-    *[other] {
-        { $fortress ->
-            [0] {"+{ $general } de la general = { $total } total"}
-            [one] {"+{ $general } de la general, +1 de la fortăreață = { $total } total"}
-            [few] {"+{ $general } de la general, +{ $fortress } de la fortărețe = { $total } total"}
-            *[other] {"+{ $general } de la general, +{ $fortress } de la fortărețe = { $total } total"}
-        }
+    *[other] { $fortress ->
+        [0] +{ $general } de la general = { $total } total
+        [one] +{ $general } de la general, +1 de la fortăreață = { $total } total
+        [few] +{ $general } de la general, +{ $fortress } de la fortărețe = { $total } total
+        *[other] +{ $general } de la general, +{ $fortress } de la fortărețe = { $total } total
     }
 }
 ageofheroes-war-bonuses-other = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            [one] {"{ $player }: +1 de la fortăreață = { $total } total"}
-            [few] {"{ $player }: +{ $fortress } de la fortărețe = { $total } total"}
-            *[other] {"{ $player }: +{ $fortress } de la fortărețe = { $total } total"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        [one] { $player }: +1 de la fortăreață = { $total } total
+        [few] { $player }: +{ $fortress } de la fortărețe = { $total } total
+        *[other] { $player }: +{ $fortress } de la fortărețe = { $total } total
     }
-    *[other] {
-        { $fortress ->
-            [0] {"{ $player }: +{ $general } de la general = { $total } total"}
-            [one] {"{ $player }: +{ $general } de la general, +1 de la fortăreață = { $total } total"}
-            [few] {"{ $player }: +{ $general } de la general, +{ $fortress } de la fortărețe = { $total } total"}
-            *[other] {"{ $player }: +{ $general } de la general, +{ $fortress } de la fortărețe = { $total } total"}
-        }
+    *[other] { $fortress ->
+        [0] { $player }: +{ $general } de la general = { $total } total
+        [one] { $player }: +{ $general } de la general, +1 de la fortăreață = { $total } total
+        [few] { $player }: +{ $general } de la general, +{ $fortress } de la fortărețe = { $total } total
+        *[other] { $player }: +{ $general } de la general, +{ $fortress } de la fortărețe = { $total } total
     }
 }
 

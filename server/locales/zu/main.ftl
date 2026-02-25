@@ -353,3 +353,5 @@ virtual-bots-profiles-header = Amaphrofayili: { $count } achazwe (okuzenzakalela
 virtual-bots-profiles-empty = Akukho maphrofayili achazwe.
 virtual-bots-profiles-line = { $profile } (ama-bots angu-{ $bot_count }) kweqiwe: { $overrides }.
 virtual-bots-profiles-no-overrides = idla ifa ukucushwa okuyisisekelo
+
+localization-in-progress-try-again = Ukuhumusha kusaqhubeka. Sicela uzame futhi emzuzwini.

@@ -7,6 +7,7 @@ import logging
 import os
 import shutil
 import sys
+import threading
 import time
 from collections import deque
 from datetime import datetime, timezone
@@ -14,6 +15,7 @@ from getpass import getpass
 from pathlib import Path
 
 import json
+import websockets
 from typing import Any
 
 try:
@@ -23,6 +25,7 @@ except ModuleNotFoundError:  # pragma: no cover - Python <3.11 fallback when ava
 
 from pydantic import ValidationError
 
+from .config_paths import get_default_config_path, get_example_config_path, ensure_default_config_dir
 from .state import ModeSnapshot, ServerLifecycleState, ServerMode
 from .tick import TickScheduler, load_server_config
 from .administration import AdministrationMixin
@@ -30,10 +33,10 @@ from .virtual_bots import VirtualBotManager
 from ..network.websocket_server import WebSocketServer, ClientConnection
 from ..persistence.database import Database
 from ..auth.auth import AuthManager, AuthResult
-from ..tables.manager import TableManager
-from ..users.network_user import NetworkUser
-from ..users.base import MenuItem, EscapeBehavior, TrustLevel
-from ..users.preferences import UserPreferences, DiceKeepingStyle
+from .tables.manager import TableManager
+from .users.network_user import NetworkUser
+from .users.base import MenuItem, EscapeBehavior, TrustLevel
+from .users.preferences import UserPreferences, DiceKeepingStyle
 from ..games.registry import GameRegistry, get_game_class
 from ..messages.localization import Localization
 from ..network.packet_models import CLIENT_TO_SERVER_PACKET_ADAPTER
@@ -42,6 +45,7 @@ from ..network.packet_models import CLIENT_TO_SERVER_PACKET_ADAPTER
 VERSION = "11.0.0"
 BOOTSTRAP_WARNING_ENV = "PLAYPALACE_SUPPRESS_BOOTSTRAP_WARNING"
 PACKET_LOGGER = logging.getLogger("playpalace.packets")
+LOG = logging.getLogger("playpalace.server")
 
 DEFAULT_USERNAME_MIN_LENGTH = 3
 DEFAULT_USERNAME_MAX_LENGTH = 32
@@ -86,7 +90,15 @@ def _coerce_bool(value: Any, default: bool) -> bool:
 
 # Default paths based on module location
 _MODULE_DIR = Path(__file__).parent.parent
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_VAR_SERVER_DIR = _REPO_ROOT / "var" / "server"
 _DEFAULT_LOCALES_DIR = _MODULE_DIR / "locales"
+
+
+def _ensure_var_server_dir() -> Path:
+    """Ensure the repo-local var directory exists for server artifacts."""
+    _VAR_SERVER_DIR.mkdir(parents=True, exist_ok=True)
+    return _VAR_SERVER_DIR
 
 
 class Server(AdministrationMixin):
@@ -126,10 +138,13 @@ class Server(AdministrationMixin):
         self._default_locale = "en"
 
         if db_path == "playpalace.db":
-            db_path = str(_MODULE_DIR / "playpalace.db")
+            db_path_obj = _ensure_var_server_dir() / "playpalace.db"
+        else:
+            db_path_obj = Path(db_path)
+            db_path_obj.parent.mkdir(parents=True, exist_ok=True)
 
         # Initialize components
-        self._db = Database(db_path)
+        self._db = Database(db_path_obj)
         self._auth: AuthManager | None = None
         self._tables = TableManager()
         self._tables._server = self  # Enable callbacks from TableManager
@@ -150,7 +165,7 @@ class Server(AdministrationMixin):
         self._password_min_length = DEFAULT_PASSWORD_MIN_LENGTH
         self._password_max_length = DEFAULT_PASSWORD_MAX_LENGTH
         self._ws_max_message_size = DEFAULT_WS_MAX_MESSAGE_BYTES
-        self._config_path = Path(config_path) if config_path else _MODULE_DIR / "config.toml"
+        self._config_path = Path(config_path) if config_path else get_default_config_path()
         self._allow_insecure_ws = False
         self._preload_locales = preload_locales
         self._login_ip_limit = DEFAULT_LOGIN_ATTEMPTS_PER_MINUTE
@@ -259,6 +274,16 @@ class Server(AdministrationMixin):
 
         protocol = "wss" if self._ssl_cert else "ws"
         print(f"Server running on {protocol}://{self.host}:{self.port}")
+        if self.host == "127.0.0.1":
+            # Guidance message only; not a bind default.
+            print(
+                "Bind IP is 127.0.0.1, use 0.0.0.0 to allow connections on all interfaces."
+            )  # nosec B104
+        elif self.host == "0.0.0.0":  # nosec B104
+            # Guidance message only; not a bind default.
+            print(
+                "Bind IP is 0.0.0.0, use 127.0.0.1 to limit to local connections."
+            )  # nosec B104
         self._start_localization_warmup()
         self._lifecycle.resolve_gate(STARTUP_GATE_ID)
 
@@ -551,7 +576,6 @@ class Server(AdministrationMixin):
             return
         if self._localization_warmup_task:
             return
-        self._ensure_localization_gate()
         loop = asyncio.get_running_loop()
         self._localization_warmup_task = loop.create_task(self._warm_locales_async())
         print(
@@ -559,11 +583,21 @@ class Server(AdministrationMixin):
             "(pass --preload-locales to block startup until finished)."
         )
 
+    def _is_localization_warmup_active(self) -> bool:
+        """Return whether non-blocking localization warmup is still running."""
+        task = self._localization_warmup_task
+        return task is not None and not task.done()
+
+    @staticmethod
+    def _notify_localization_in_progress(user: NetworkUser) -> None:
+        """Tell the user localization is still warming up."""
+        user.speak_l("localization-in-progress-try-again", buffer="misc")
+
     async def _warm_locales_async(self) -> None:
         """Compile all locale bundles without blocking startup."""
         logger = logging.getLogger("playpalace")
         try:
-            await asyncio.to_thread(Localization.preload_bundles)
+            await self._run_localization_warmup_in_daemon_thread()
             self._lifecycle.resolve_gate(LOCALIZATION_GATE_ID)
             print("Localization bundles compiled.")
         except SystemExit:
@@ -578,6 +612,37 @@ class Server(AdministrationMixin):
             logger.exception("Localization preload failed")
             self._lifecycle.enter_maintenance(message="Localization preload failed. Check server logs.")
             await self._disconnect_clients_for_status(self._lifecycle.snapshot())
+
+    async def _run_localization_warmup_in_daemon_thread(self) -> None:
+        """Run localization warmup in a daemon thread so shutdown isn't blocked."""
+        loop = asyncio.get_running_loop()
+        done: asyncio.Future[None] = loop.create_future()
+
+        def _finish_ok() -> None:
+            if not done.done():
+                done.set_result(None)
+
+        def _finish_err(exc: BaseException) -> None:
+            if not done.done():
+                done.set_exception(exc)
+
+        def _worker() -> None:
+            try:
+                Localization.preload_bundles()
+            except BaseException as exc:  # pragma: no cover - exercised via awaiter
+                with contextlib.suppress(RuntimeError):
+                    loop.call_soon_threadsafe(_finish_err, exc)
+            else:
+                with contextlib.suppress(RuntimeError):
+                    loop.call_soon_threadsafe(_finish_ok)
+
+        thread = threading.Thread(
+            target=_worker,
+            daemon=True,
+            name="playpalace-localization-warmup",
+        )
+        thread.start()
+        await done
 
     def _ensure_localization_gate(self) -> None:
         """Register the localization gate exactly once."""
@@ -687,7 +752,7 @@ class Server(AdministrationMixin):
 
     def _load_tables(self) -> None:
         """Load tables from database and restore their games."""
-        from ..users.bot import Bot
+        from .users.bot import Bot
 
         tables = self._db.load_all_tables()
         for table in tables:
@@ -763,8 +828,8 @@ class Server(AdministrationMixin):
                     "return_to_login": True,
                     "message": Localization.get(user.locale, "already-logged-in"),
                 })
-            except Exception:
-                pass
+            except (OSError, RuntimeError, websockets.exceptions.ConnectionClosed) as exc:
+                LOG.debug("Failed to notify replaced session: %s", exc)
             with contextlib.suppress(Exception):
                 await old_client.close()
         new_client.username = user.username
@@ -853,11 +918,19 @@ class Server(AdministrationMixin):
                 continue  # Don't send broadcasts to unapproved users
             user.speak_l("user-is-server-owner", buffer="activity", player=owner_name)
 
-    def _broadcast_table_created(self, host_name: str, game_name: str) -> None:
-        """Broadcast a table creation announcement to all approved online users."""
+    def _broadcast_table_created(self, host_name: str, game_type: str) -> None:
+        """Broadcast a table creation announcement to all approved online users not in a game."""
+        game_class = get_game_class(game_type)
+        if not game_class:
+            return
+        name_key = game_class.get_name_key()
         for username, user in self._users.items():
             if not user.approved:
-                continue  # Don't send broadcasts to unapproved users
+                continue
+            state = self._user_states.get(username, {})
+            if state.get("menu") == "in_game":
+                continue
+            game_name = Localization.get(user.locale, name_key)
             user.speak_l("table-created", buffer="activity", host=host_name, game=game_name)
             user.play_sound("table_created.ogg")
 
@@ -923,36 +996,106 @@ class Server(AdministrationMixin):
         if not user_record:
             await self._send_credential_error(client, "Account not found.")
             return
-        locale = user_record.locale if user_record else "en"
-        user_uuid = user_record.uuid if user_record else None
-        trust_level = user_record.trust_level if user_record else TrustLevel.USER
-        is_approved = user_record.approved if user_record else False
-        preferences = UserPreferences()
-        if user_record and user_record.preferences_json:
+        preferences = self._load_user_preferences(user_record)
+        user, is_new_login = await self._attach_or_update_user(
+            client, username, user_record, preferences
+        )
+
+        await self._send_login_success(
+            client,
+            username,
+            session_token=session_token,
+            session_expires_at=session_expires_at,
+            refresh_token=refresh_token,
+            refresh_expires_at=refresh_expires_at,
+            success_type=success_type,
+        )
+
+        # Send game list
+        await self._send_game_list(client)
+
+        # Check if user is banned
+        if await self._handle_banned_login(user):
+            return
+
+        # Check if user is approved
+        if self._handle_unapproved_login(user):
+            return
+
+        # Broadcast online announcement (only for approved, non-banned users) once per login
+        if is_new_login:
+            self._broadcast_login_presence(user)
+
+        # Notify admin of pending account approvals (excluding banned users)
+        if user.trust_level.value >= TrustLevel.ADMIN.value:
+            self._notify_pending_account_requests(user)
+
+        # Check if user is in a table
+        if not self._restore_login_table(user, username):
+            self._show_main_menu(user)
+
+    def _load_user_preferences(self, user_record: "AuthUserRecord") -> UserPreferences:
+        """Load stored preferences, falling back to defaults."""
+        if user_record.preferences_json:
             try:
                 prefs_data = json.loads(user_record.preferences_json)
-                preferences = UserPreferences.from_dict(prefs_data)
+                return UserPreferences.from_dict(prefs_data)
             except (json.JSONDecodeError, KeyError):
-                pass  # Use defaults on error
+                pass
+        return UserPreferences()
+
+    async def _attach_or_update_user(
+        self,
+        client: ClientConnection,
+        username: str,
+        user_record: "AuthUserRecord",
+        preferences: UserPreferences,
+    ) -> tuple[NetworkUser, bool]:
+        """Attach a connection to an existing user or create a new one."""
+        locale = user_record.locale or "en"
+        user_uuid = user_record.uuid
+        trust_level = user_record.trust_level or TrustLevel.USER
+        is_approved = user_record.approved
+
         existing_user = self._users.get(username)
         if existing_user:
             await self._handoff_existing_session(existing_user, client)
-            user = existing_user
-            user.set_locale(locale)
-            user.set_preferences(preferences)
-            user.set_trust_level(trust_level)
-            user.set_approved(is_approved)
-        else:
-            client.username = username
-            client.authenticated = True
-            user = NetworkUser(
-                username, locale, client, uuid=user_uuid, preferences=preferences,
-                trust_level=trust_level, approved=is_approved
-            )
-            self._users[username] = user
-        is_new_login = existing_user is None
+            existing_user.set_locale(locale)
+            existing_user.set_preferences(preferences)
+            existing_user.set_trust_level(trust_level)
+            existing_user.set_approved(is_approved)
+            existing_user.set_client_type(client.client_type)
+            existing_user.set_platform(client.platform)
+            return existing_user, False
 
-        # Send success response
+        client.username = username
+        client.authenticated = True
+        user = NetworkUser(
+            username,
+            locale,
+            client,
+            uuid=user_uuid,
+            preferences=preferences,
+            trust_level=trust_level,
+            approved=is_approved,
+        )
+        user.set_client_type(client.client_type)
+        user.set_platform(client.platform)
+        self._users[username] = user
+        return user, True
+
+    async def _send_login_success(
+        self,
+        client: ClientConnection,
+        username: str,
+        *,
+        session_token: str,
+        session_expires_at: int,
+        refresh_token: str,
+        refresh_expires_at: int,
+        success_type: str,
+    ) -> None:
+        """Send the login/refresh success packet."""
         payload = {
             "username": username,
             "session_token": session_token,
@@ -967,82 +1110,82 @@ class Server(AdministrationMixin):
         await client.send(payload)
         print(f"Client authorized: {username}@{client.address}")
 
-        # Send game list
-        await self._send_game_list(client)
+    async def _handle_banned_login(self, user: NetworkUser) -> bool:
+        """Handle disconnecting banned users."""
+        if user.trust_level != TrustLevel.BANNED:
+            return False
+        ban_message = Localization.get(user.locale, "account-banned")
+        user.play_sound("accountban.ogg")
+        user.speak_l("account-banned", buffer="activity")
+        for msg in user.get_queued_messages():
+            await user.connection.send(msg)
+        await user.connection.send({
+            "type": "disconnect",
+            "reconnect": False,
+            "show_message": True,
+            "message": ban_message,
+        })
+        return True
 
-        # Check if user is banned
-        if user.trust_level == TrustLevel.BANNED:
-            ban_message = Localization.get(user.locale, "account-banned")
-            user.play_sound("accountban.ogg")
-            user.speak_l("account-banned", buffer="activity")
-            for msg in user.get_queued_messages():
-                await user.connection.send(msg)
-            await user.connection.send({
-                "type": "disconnect",
-                "reconnect": False,
-                "show_message": True,
-                "message": ban_message,
-            })
+    def _handle_unapproved_login(self, user: NetworkUser) -> bool:
+        """Route unapproved users to the limited main menu."""
+        if user.approved:
+            return False
+        user.speak_l("waiting-for-approval", buffer="activity")
+        self._show_main_menu(user)
+        return True
+
+    def _broadcast_login_presence(self, user: NetworkUser) -> None:
+        """Broadcast login presence and role announcements."""
+        online_sound = (
+            "onlineadmin.ogg"
+            if user.trust_level.value >= TrustLevel.ADMIN.value
+            else "online.ogg"
+        )
+        self._broadcast_presence_l("user-online", user.username, online_sound)
+
+        if user.trust_level.value >= TrustLevel.SERVER_OWNER.value:
+            self._broadcast_server_owner_announcement(user.username)
+        elif user.trust_level.value >= TrustLevel.ADMIN.value:
+            self._broadcast_admin_announcement(user.username)
+
+    def _notify_pending_account_requests(self, user: NetworkUser) -> None:
+        """Notify admins about pending account approvals."""
+        pending_users = self._db.get_pending_users(exclude_banned=True)
+        if not pending_users:
             return
+        user.speak_l("account-request", buffer="activity")
+        user.play_sound("accountrequest.ogg")
 
-        # Check if user is approved
-        if not user.approved:
-            # User needs approval - show limited main menu
-            user.speak_l("waiting-for-approval", buffer="activity")
-            self._show_main_menu(user)
-            return
-
-        # Broadcast online announcement (only for approved, non-banned users) once per login
-        if is_new_login:
-            online_sound = "onlineadmin.ogg" if trust_level.value >= TrustLevel.ADMIN.value else "online.ogg"
-            self._broadcast_presence_l("user-online", username, online_sound)
-
-            # If user is server owner, announce that; otherwise if admin, announce that
-            if trust_level.value >= TrustLevel.SERVER_OWNER.value:
-                self._broadcast_server_owner_announcement(username)
-            elif trust_level.value >= TrustLevel.ADMIN.value:
-                self._broadcast_admin_announcement(username)
-
-        # Notify admin of pending account approvals (excluding banned users)
-        if trust_level.value >= TrustLevel.ADMIN.value:
-            pending_users = self._db.get_pending_users(exclude_banned=True)
-            if pending_users:
-                user.speak_l("account-request", buffer="activity")
-                user.play_sound("accountrequest.ogg")
-
-        # Check if user is in a table
+    def _restore_login_table(self, user: NetworkUser, username: str) -> bool:
+        """Attempt to restore a user into their existing table."""
         table = self._tables.find_user_table(username)
+        if not (table and table.game):
+            return False
 
-        if table and table.game:
-            # Rejoin table - use same approach as _restore_saved_table
-            game = table.game
+        game = table.game
+        table.attach_user(username, user)
+        table.add_member(username, user, as_spectator=False)
+        player = game.get_player_by_id(user.uuid)
+        if not player:
+            return True
 
-            # Attach user to table and game
-            table.attach_user(username, user)
-            table.add_member(username, user, as_spectator=False)
-            player = game.get_player_by_id(user.uuid)
-            if player:
-                was_bot = player.is_bot
-                if was_bot:
-                    player.is_bot = False
-                game.attach_user(player.id, user)
-                if was_bot:
-                    game.broadcast_l("player-took-over", player=user.username)
-                    game.broadcast_sound("join.ogg")
-                    game.rebuild_all_menus()
+        was_bot = player.is_bot
+        if was_bot:
+            player.is_bot = False
+        game.attach_user(player.id, user)
+        if was_bot:
+            game.broadcast_l("player-took-over", player=user.username)
+            game.broadcast_sound("join.ogg")
+            game.rebuild_all_menus()
 
-                # Set user state so menu selections are handled correctly
-                self._user_states[username] = {
-                    "menu": "in_game",
-                    "table_id": table.table_id,
-                }
-
-                # Rebuild menu for this player
-                game.rebuild_player_menu(player)
-                self._queue_transcript_replay(user, game, player.id)
-        else:
-            # Show main menu
-            self._show_main_menu(user)
+        self._user_states[username] = {
+            "menu": "in_game",
+            "table_id": table.table_id,
+        }
+        game.rebuild_player_menu(player)
+        self._queue_transcript_replay(user, game, player.id)
+        return True
 
     async def _handle_authorize(self, client: ClientConnection, packet: dict) -> None:
         """Authorize a client and attach a NetworkUser if successful.
@@ -1055,6 +1198,8 @@ class Server(AdministrationMixin):
         password_raw = packet.get("password", "")
         session_token = packet.get("session_token")
         locale = packet.get("locale") or self._default_locale
+        client.client_type = packet.get("client_type") or ""
+        client.platform = packet.get("platform") or ""
 
         if session_token:
             token_username = self._auth.validate_session(session_token)
@@ -1185,6 +1330,8 @@ class Server(AdministrationMixin):
         """Refresh an access session using a refresh token."""
         refresh_token = packet.get("refresh_token", "")
         username_hint = packet.get("username", "")
+        client.client_type = packet.get("client_type") or ""
+        client.platform = packet.get("platform") or ""
         client_ip = self._get_client_ip(client)
         throttle_message = self._check_refresh_rate_limit(client_ip)
         if throttle_message:
@@ -1251,8 +1398,16 @@ class Server(AdministrationMixin):
             }
         )
 
-    def _show_main_menu(self, user: NetworkUser) -> None:
+    def _show_main_menu(self, user: NetworkUser, *, reset_history: bool = False) -> None:
         """Show the main menu to a user."""
+        if reset_history:
+            # Fresh navigation tree (used when returning from active game flows).
+            current_menus = getattr(user, "_current_menus", None)
+            if isinstance(current_menus, dict):
+                for menu_id in list(current_menus.keys()):
+                    if menu_id != "main_menu":
+                        current_menus.pop(menu_id, None)
+
         items = []
         if user.approved:
             # Full menu for approved users
@@ -1292,6 +1447,7 @@ class Server(AdministrationMixin):
             items,
             multiletter=True,
             escape_behavior=EscapeBehavior.SELECT_LAST,
+            position=1 if reset_history else None,
         )
         user.play_music("mainmus.ogg")
         user.stop_ambience()
@@ -1454,8 +1610,16 @@ class Server(AdministrationMixin):
 
     def _show_options_menu(self, user: NetworkUser) -> None:
         """Show options menu."""
-        languages = Localization.get_available_languages(user.locale, fallback= user.locale)
-        current_lang = languages.get(user.locale, user.locale)
+        if self._is_localization_warmup_active():
+            lang_key = f"language-{user.locale}"
+            current_lang = Localization.get(user.locale, lang_key)
+            if current_lang == lang_key:
+                current_lang = user.locale
+        else:
+            languages = Localization.get_available_languages(
+                user.locale, fallback=user.locale
+            )
+            current_lang = languages.get(user.locale, user.locale)
         prefs = user.preferences
 
         # Turn sound option
@@ -1503,22 +1667,36 @@ class Server(AdministrationMixin):
             ),
             MenuItem(text=Localization.get(user.locale, "back"), id="back"),
         ]
-        user.show_menu(
-            "options_menu",
-            items,
-            multiletter=True,
-            escape_behavior=EscapeBehavior.SELECT_LAST,
-        )
+        current_menu = self._user_states.get(user.username, {}).get("menu")
+        current_menus = getattr(user, "_current_menus", {})
+        if current_menu == "options_menu" and "options_menu" in current_menus:
+            user.update_menu("options_menu", items)
+        else:
+            user.show_menu(
+                "options_menu",
+                items,
+                multiletter=True,
+                escape_behavior=EscapeBehavior.SELECT_LAST,
+            )
+            user.play_music("settingsmus.ogg")
         self._user_states[user.username] = {"menu": "options_menu"}
 
     def _show_language_menu(self, user: NetworkUser) -> None:
         """Show language selection menu."""
+        if self._is_localization_warmup_active():
+            self._notify_localization_in_progress(user)
+            self._show_options_menu(user)
+            return
+
         # Get languages in their native names and in user's locale for comparison
-        languages = Localization.get_available_languages(fallback = user.locale)
-        localized_languages = Localization.get_available_languages(user.locale, fallback= user.locale)
+        languages = Localization.get_available_languages(fallback=user.locale)
+        localized_languages = Localization.get_available_languages(
+            user.locale, fallback=user.locale
+        )
 
         items = []
-        for lang_code, lang_name in languages.items():
+        selected_position = 1
+        for index, (lang_code, lang_name) in enumerate(languages.items(), start=1):
             prefix = "* " if lang_code == user.locale else ""
             localized_name = localized_languages.get(lang_code, lang_name)
             # Show localized name first, then native name in parentheses if different
@@ -1527,13 +1705,17 @@ class Server(AdministrationMixin):
             else:
                 display = f"{prefix}{lang_name}"
             items.append(MenuItem(text=display, id=f"lang_{lang_code}"))
+            if lang_code == user.locale:
+                selected_position = index
         items.append(MenuItem(text=Localization.get(user.locale, "back"), id="back"))
         user.show_menu(
             "language_menu",
             items,
             multiletter=True,
             escape_behavior=EscapeBehavior.SELECT_LAST,
+            position=selected_position,
         )
+        user.play_music("settingsmus.ogg")
         self._user_states[user.username] = {"menu": "language_menu"}
 
     def _show_saved_tables_menu(self, user: NetworkUser) -> None:
@@ -1597,6 +1779,7 @@ class Server(AdministrationMixin):
 
         state = self._user_states.get(username, {})
         current_menu = state.get("menu")
+        self._remember_menu_position(user, current_menu, packet)
 
         # Check if user is in a table - delegate all events to game
         table = self._tables.find_user_table(username)
@@ -1608,78 +1791,127 @@ class Server(AdministrationMixin):
                 game_user = table.game._users.get(user.uuid)
                 if game_user is not user:
                     table.remove_member(username)
-                    self._show_main_menu(user)
+                    self._show_main_menu(user, reset_history=True)
             return
 
-        # Handle menu selections based on current menu
-        if current_menu == "main_menu":
-            await self._handle_main_menu_selection(user, selection_id)
-        elif current_menu == "categories_menu":
-            await self._handle_categories_selection(user, selection_id, state)
-        elif current_menu == "games_menu":
-            await self._handle_games_selection(user, selection_id, state)
-        elif current_menu == "tables_menu":
-            await self._handle_tables_selection(user, selection_id, state)
-        elif current_menu == "active_tables_menu":
-            await self._handle_active_tables_selection(user, selection_id)
-        elif current_menu == "join_menu":
-            await self._handle_join_selection(user, selection_id, state)
-        elif current_menu == "options_menu":
-            await self._handle_options_selection(user, selection_id)
-        elif current_menu == "language_menu":
-            await self._handle_language_selection(user, selection_id)
-        elif current_menu == "dice_keeping_style_menu":
-            await self._handle_dice_keeping_style_selection(user, selection_id)
-        elif current_menu == "saved_tables_menu":
-            await self._handle_saved_tables_selection(user, selection_id, state)
-        elif current_menu == "saved_table_actions_menu":
-            await self._handle_saved_table_actions_selection(user, selection_id, state)
-        elif current_menu == "leaderboards_menu":
-            await self._handle_leaderboards_selection(user, selection_id, state)
-        elif current_menu == "leaderboard_types_menu":
-            await self._handle_leaderboard_types_selection(user, selection_id, state)
-        elif current_menu == "game_leaderboard":
-            await self._handle_game_leaderboard_selection(user, selection_id, state)
-        elif current_menu == "my_stats_menu":
-            await self._handle_my_stats_selection(user, selection_id, state)
-        elif current_menu == "my_game_stats":
-            await self._handle_my_game_stats_selection(user, selection_id, state)
-        elif current_menu == "online_users":
-            self._restore_previous_menu(user, state)
-        elif current_menu == "admin_menu":
-            await self._handle_admin_menu_selection(user, selection_id)
-        elif current_menu == "account_approval_menu":
-            await self._handle_account_approval_selection(user, selection_id)
-        elif current_menu == "pending_user_actions_menu":
-            await self._handle_pending_user_actions_selection(user, selection_id, state)
-        elif current_menu == "promote_admin_menu":
-            await self._handle_promote_admin_selection(user, selection_id)
-        elif current_menu == "demote_admin_menu":
-            await self._handle_demote_admin_selection(user, selection_id)
-        elif current_menu == "promote_confirm_menu":
-            await self._handle_promote_confirm_selection(user, selection_id, state)
-        elif current_menu == "demote_confirm_menu":
-            await self._handle_demote_confirm_selection(user, selection_id, state)
-        elif current_menu == "broadcast_choice_menu":
-            await self._handle_broadcast_choice_selection(user, selection_id, state)
-        elif current_menu == "transfer_ownership_menu":
-            await self._handle_transfer_ownership_selection(user, selection_id)
-        elif current_menu == "transfer_ownership_confirm_menu":
-            await self._handle_transfer_ownership_confirm_selection(user, selection_id, state)
-        elif current_menu == "transfer_broadcast_choice_menu":
-            await self._handle_transfer_broadcast_choice_selection(user, selection_id, state)
-        elif current_menu == "ban_user_menu":
-            await self._handle_ban_user_selection(user, selection_id)
-        elif current_menu == "unban_user_menu":
-            await self._handle_unban_user_selection(user, selection_id)
-        elif current_menu == "ban_confirm_menu":
-            await self._handle_ban_confirm_selection(user, selection_id, state)
-        elif current_menu == "unban_confirm_menu":
-            await self._handle_unban_confirm_selection(user, selection_id, state)
-        elif current_menu == "virtual_bots_menu":
-            await self._handle_virtual_bots_selection(user, selection_id)
-        elif current_menu == "virtual_bots_clear_confirm_menu":
-            await self._handle_virtual_bots_clear_confirm_selection(user, selection_id)
+        await self._dispatch_menu_selection(user, selection_id, state, current_menu)
+        self._prune_menu_history_after_dispatch(
+            user=user,
+            previous_menu=current_menu,
+            selection_id=selection_id,
+            previous_state=state,
+        )
+
+    def _prune_menu_history_after_dispatch(
+        self,
+        *,
+        user: NetworkUser,
+        previous_menu: str | None,
+        selection_id: str,
+        previous_state: dict,
+    ) -> None:
+        """Prune menu history for back-style navigation.
+
+        Keeps position memory scoped to the current navigation path by dropping
+        menus that were exited with a back action.
+        """
+        if not previous_menu:
+            return
+        new_state = self._user_states.get(user.username, {})
+        new_menu = new_state.get("menu")
+        if new_menu == previous_menu:
+            return
+        if selection_id != "back" and previous_menu != "online_users":
+            return
+        current_menus = getattr(user, "_current_menus", None)
+        if isinstance(current_menus, dict):
+            current_menus.pop(previous_menu, None)
+
+    def _remember_menu_position(
+        self, user: NetworkUser, current_menu: str | None, packet: dict
+    ) -> None:
+        """Store the user's last selected position for the active menu."""
+        if not current_menu:
+            return
+        current_menus = getattr(user, "_current_menus", {})
+        menu_state = current_menus.get(current_menu)
+        if not menu_state:
+            return
+
+        selection = packet.get("selection")
+        if isinstance(selection, int) and selection > 0:
+            menu_state["position"] = selection
+            return
+
+        selection_id = packet.get("selection_id")
+        if not selection_id:
+            return
+        items = menu_state.get("items", [])
+        for index, item in enumerate(items, start=1):
+            if isinstance(item, dict) and item.get("id") == selection_id:
+                menu_state["position"] = index
+                return
+
+    async def _dispatch_menu_selection(
+        self,
+        user: NetworkUser,
+        selection_id: str,
+        state: dict,
+        current_menu: str | None,
+    ) -> None:
+        """Dispatch menu selections based on current menu context."""
+        handlers: dict[str, tuple[callable, tuple]] = {
+            "main_menu": (self._handle_main_menu_selection, (user, selection_id)),
+            "logout_confirm_menu": (self._handle_logout_confirm_selection, (user, selection_id)),
+            "categories_menu": (self._handle_categories_selection, (user, selection_id, state)),
+            "games_menu": (self._handle_games_selection, (user, selection_id, state)),
+            "tables_menu": (self._handle_tables_selection, (user, selection_id, state)),
+            "active_tables_menu": (self._handle_active_tables_selection, (user, selection_id)),
+            "join_menu": (self._handle_join_selection, (user, selection_id, state)),
+            "options_menu": (self._handle_options_selection, (user, selection_id)),
+            "language_menu": (self._handle_language_selection, (user, selection_id)),
+            "dice_keeping_style_menu": (self._handle_dice_keeping_style_selection, (user, selection_id)),
+            "saved_tables_menu": (self._handle_saved_tables_selection, (user, selection_id, state)),
+            "saved_table_actions_menu": (self._handle_saved_table_actions_selection, (user, selection_id, state)),
+            "leaderboards_menu": (self._handle_leaderboards_selection, (user, selection_id, state)),
+            "leaderboard_types_menu": (self._handle_leaderboard_types_selection, (user, selection_id, state)),
+            "game_leaderboard": (self._handle_game_leaderboard_selection, (user, selection_id, state)),
+            "my_stats_menu": (self._handle_my_stats_selection, (user, selection_id, state)),
+            "my_game_stats": (self._handle_my_game_stats_selection, (user, selection_id, state)),
+            "online_users": (self._restore_previous_menu, (user, state)),
+            "admin_menu": (self._handle_admin_menu_selection, (user, selection_id)),
+            "account_approval_menu": (self._handle_account_approval_selection, (user, selection_id)),
+            "pending_user_actions_menu": (self._handle_pending_user_actions_selection, (user, selection_id, state)),
+            "promote_admin_menu": (self._handle_promote_admin_selection, (user, selection_id)),
+            "demote_admin_menu": (self._handle_demote_admin_selection, (user, selection_id)),
+            "promote_confirm_menu": (self._handle_promote_confirm_selection, (user, selection_id, state)),
+            "demote_confirm_menu": (self._handle_demote_confirm_selection, (user, selection_id, state)),
+            "broadcast_choice_menu": (self._handle_broadcast_choice_selection, (user, selection_id, state)),
+            "transfer_ownership_menu": (self._handle_transfer_ownership_selection, (user, selection_id)),
+            "transfer_ownership_confirm_menu": (
+                self._handle_transfer_ownership_confirm_selection,
+                (user, selection_id, state),
+            ),
+            "transfer_broadcast_choice_menu": (
+                self._handle_transfer_broadcast_choice_selection,
+                (user, selection_id, state),
+            ),
+            "ban_user_menu": (self._handle_ban_user_selection, (user, selection_id)),
+            "unban_user_menu": (self._handle_unban_user_selection, (user, selection_id)),
+            "ban_confirm_menu": (self._handle_ban_confirm_selection, (user, selection_id, state)),
+            "unban_confirm_menu": (self._handle_unban_confirm_selection, (user, selection_id, state)),
+            "virtual_bots_menu": (self._handle_virtual_bots_selection, (user, selection_id)),
+            "virtual_bots_clear_confirm_menu": (self._handle_virtual_bots_clear_confirm_selection, (user, selection_id)),
+        }
+        if not current_menu:
+            return
+        handler_entry = handlers.get(current_menu)
+        if not handler_entry:
+            return
+        func, args = handler_entry
+        result = func(*args)
+        if asyncio.iscoroutine(result):
+            await result
 
     def _ensure_user_approved(self, user: NetworkUser) -> bool:
         """Return True if user is approved or admin/server owner; otherwise show approval notice."""
@@ -1726,8 +1958,32 @@ class Server(AdministrationMixin):
             if user.trust_level.value >= TrustLevel.ADMIN.value:
                 self._show_admin_menu(user)
         elif selection_id == "logout":
+            self._show_logout_confirm_menu(user)
+
+    def _show_logout_confirm_menu(self, user: NetworkUser) -> None:
+        """Show confirmation menu for logging out."""
+        user.speak_l("confirm-logout", buffer="activity")
+        items = [
+            MenuItem(text=Localization.get(user.locale, "confirm-yes"), id="yes"),
+            MenuItem(text=Localization.get(user.locale, "confirm-no"), id="no"),
+        ]
+        user.show_menu(
+            "logout_confirm_menu",
+            items,
+            multiletter=True,
+            escape_behavior=EscapeBehavior.SELECT_LAST,
+        )
+        self._user_states[user.username] = {"menu": "logout_confirm_menu"}
+
+    async def _handle_logout_confirm_selection(
+        self, user: NetworkUser, selection_id: str
+    ) -> None:
+        """Handle logout confirmation menu selection."""
+        if selection_id == "yes":
             user.speak_l("goodbye", buffer="activity")
             await user.connection.send({"type": "disconnect", "reconnect": False})
+        else:
+            self._show_main_menu(user)
 
     async def _handle_options_selection(
         self, user: NetworkUser, selection_id: str
@@ -1739,17 +1995,27 @@ class Server(AdministrationMixin):
             selection_id: Selected menu item id.
         """
         if selection_id == "language":
-            self._show_language_menu(user)
+            if self._is_localization_warmup_active():
+                self._notify_localization_in_progress(user)
+                self._show_options_menu(user)
+            else:
+                self._show_language_menu(user)
         elif selection_id == "turn_sound":
             # Toggle turn sound
             prefs = user.preferences
             prefs.play_turn_sound = not prefs.play_turn_sound
+            user.play_sound(
+                "checkbox_list_on.wav" if prefs.play_turn_sound else "checkbox_list_off.wav"
+            )
             self._save_user_preferences(user)
             self._show_options_menu(user)
         elif selection_id == "clear_kept":
             # Toggle clear kept on roll
             prefs = user.preferences
             prefs.clear_kept_on_roll = not prefs.clear_kept_on_roll
+            user.play_sound(
+                "checkbox_list_on.wav" if prefs.clear_kept_on_roll else "checkbox_list_off.wav"
+            )
             self._save_user_preferences(user)
             self._show_options_menu(user)
         elif selection_id == "dice_keeping_style":
@@ -1761,17 +2027,22 @@ class Server(AdministrationMixin):
         """Show dice keeping style selection menu."""
         items = []
         current_style = user.preferences.dice_keeping_style
-        for style, name_key in self.DICE_KEEPING_STYLES.items():
+        selected_position = 1
+        for index, (style, name_key) in enumerate(self.DICE_KEEPING_STYLES.items(), start=1):
             prefix = "* " if style == current_style else ""
             name = Localization.get(user.locale, name_key)
             items.append(MenuItem(text=f"{prefix}{name}", id=f"style_{style.value}"))
+            if style == current_style:
+                selected_position = index
         items.append(MenuItem(text=Localization.get(user.locale, "back"), id="back"))
         user.show_menu(
             "dice_keeping_style_menu",
             items,
             multiletter=True,
             escape_behavior=EscapeBehavior.SELECT_LAST,
+            position=selected_position,
         )
+        user.play_music("settingsmus.ogg")
         self._user_states[user.username] = {"menu": "dice_keeping_style_menu"}
 
     async def _handle_dice_keeping_style_selection(
@@ -1815,8 +2086,12 @@ class Server(AdministrationMixin):
             selection_id: Selected language id.
         """
         if selection_id.startswith("lang_"):
+            if self._is_localization_warmup_active():
+                self._notify_localization_in_progress(user)
+                self._show_options_menu(user)
+                return
             lang_code = selection_id[5:]  # Remove "lang_" prefix
-            languages = Localization.get_available_languages(fallback= user.locale)
+            languages = Localization.get_available_languages(fallback=user.locale)
             if lang_code in languages:
                 user.set_locale(lang_code)
                 self._db.update_user_locale(user.username, lang_code)
@@ -1882,8 +2157,7 @@ class Server(AdministrationMixin):
                 game.initialize_lobby(user.username, user)
 
                 # Broadcast table creation to all users
-                game_name = state.get("game_name", game_type)
-                self._broadcast_table_created(user.username, game_name)
+                self._broadcast_table_created(user.username, game_type)
 
                 min_players = game_class.get_min_players()
                 max_players = game_class.get_max_players()
@@ -2123,7 +2397,7 @@ class Server(AdministrationMixin):
             save_id: Saved table id.
         """
         import json
-        from ..users.bot import Bot
+        from .users.bot import Bot
 
         record = self._db.get_saved_table(save_id)
         if not record:
@@ -3073,81 +3347,124 @@ class Server(AdministrationMixin):
             items: Menu item list to append to.
         """
         for config in game_class.get_leaderboard_types():
-            lb_id = config["id"]
-            path = config.get("path")
-            numerator_path = config.get("numerator")
-            denominator_path = config.get("denominator")
-            aggregate = config.get("aggregate", "sum")
-            decimals = config.get("decimals", 0)
+            custom_stat = self._build_custom_stat(user, config, game_results)
+            if not custom_stat:
+                continue
+            lb_id, text = custom_stat
+            items.append(MenuItem(text=text, id=f"custom_{lb_id}"))
 
-            # Extract values for this player from all game results
-            values = []
-            num_values = []
-            denom_values = []
+    def _build_custom_stat(
+        self, user: NetworkUser, config: dict, game_results: list
+    ) -> tuple[str, str] | None:
+        """Build a custom stat string from leaderboard config."""
+        lb_id = config["id"]
+        aggregate = config.get("aggregate", "sum")
+        decimals = config.get("decimals", 0)
+        values, num_values, denom_values = self._collect_custom_stat_values(
+            user, config, game_results
+        )
 
-            for result in game_results:
-                # Check if player participated in this game
-                player_name = None
-                for p in result.player_results:
-                    if p.player_id == user.uuid:
-                        player_name = p.player_name
-                        break
+        final_value = self._aggregate_custom_stat(
+            values, num_values, denom_values, aggregate
+        )
+        if final_value is None:
+            return None
 
-                if not player_name:
-                    continue
+        formatted_value = self._format_custom_stat_value(final_value, decimals)
+        text = self._format_custom_stat_text(user, lb_id, formatted_value)
+        return lb_id, text
 
-                custom_data = result.custom_data
+    def _collect_custom_stat_values(
+        self, user: NetworkUser, config: dict, game_results: list
+    ) -> tuple[list[float], list[float], list[float]]:
+        """Extract raw custom stat values for a user across game results."""
+        path = config.get("path")
+        numerator_path = config.get("numerator")
+        denominator_path = config.get("denominator")
 
-                if path:
-                    # Simple path extraction
-                    resolved_path = path.replace("{player_name}", player_name)
-                    resolved_path = resolved_path.replace("{player_id}", user.uuid)
-                    value = self._extract_path_value(custom_data, resolved_path)
-                    if value is not None:
-                        values.append(value)
-                elif numerator_path and denominator_path:
-                    # Ratio calculation
-                    num_path = numerator_path.replace("{player_name}", player_name)
-                    denom_path = denominator_path.replace("{player_name}", player_name)
-                    num_val = self._extract_path_value(custom_data, num_path)
-                    denom_val = self._extract_path_value(custom_data, denom_path)
-                    if num_val is not None and denom_val is not None:
-                        num_values.append(num_val)
-                        denom_values.append(denom_val)
+        values: list[float] = []
+        num_values: list[float] = []
+        denom_values: list[float] = []
 
-            # Calculate aggregated value
-            final_value = None
-            if values:
-                if aggregate == "sum":
-                    final_value = sum(values)
-                elif aggregate == "max":
-                    final_value = max(values)
-                elif aggregate == "avg":
-                    final_value = sum(values) / len(values)
-            elif num_values and denom_values:
-                total_num = sum(num_values)
-                total_denom = sum(denom_values)
-                if total_denom > 0:
-                    final_value = total_num / total_denom
+        for result in game_results:
+            player_name = self._find_player_name(result, user.uuid)
+            if not player_name:
+                continue
 
-            if final_value is not None:
-                # Format the value
-                if decimals > 0:
-                    formatted_value = f"{final_value:.{decimals}f}"
-                else:
-                    formatted_value = str(round(final_value))
+            custom_data = result.custom_data
+            if path:
+                resolved_path = self._resolve_stat_path(path, player_name, user.uuid)
+                value = self._extract_path_value(custom_data, resolved_path)
+                if value is not None:
+                    values.append(value)
+            elif numerator_path and denominator_path:
+                num_path = self._resolve_stat_path(numerator_path, player_name, user.uuid)
+                denom_path = self._resolve_stat_path(denominator_path, player_name, user.uuid)
+                num_val = self._extract_path_value(custom_data, num_path)
+                denom_val = self._extract_path_value(custom_data, denom_path)
+                if num_val is not None and denom_val is not None:
+                    num_values.append(num_val)
+                    denom_values.append(denom_val)
 
-                # Get localization key
-                loc_key = f"my-stats-{lb_id.replace('_', '-')}"
-                # Try game-specific key first, fall back to generic
-                text = Localization.get(user.locale, loc_key, value=formatted_value)
-                if text == loc_key:
-                    # Key not found, use leaderboard type name
-                    type_key = f"leaderboard-type-{lb_id.replace('_', '-')}"
-                    type_name = Localization.get(user.locale, type_key)
-                    text = f"{type_name}: {formatted_value}"
+        return values, num_values, denom_values
 
-                items.append(MenuItem(text=text, id=f"custom_{lb_id}"))
+    def _find_player_name(self, result, player_id: str) -> str | None:
+        """Find the player name for a given player id in a result."""
+        for p in result.player_results:
+            if p.player_id == player_id:
+                return p.player_name
+        return None
+
+    def _resolve_stat_path(self, path: str, player_name: str, player_id: str) -> str:
+        """Substitute player tokens in stat paths."""
+        return (
+            path.replace("{player_name}", player_name)
+            .replace("{player_id}", player_id)
+        )
+
+    def _aggregate_custom_stat(
+        self,
+        values: list[float],
+        num_values: list[float],
+        denom_values: list[float],
+        aggregate: str,
+    ) -> float | None:
+        """Aggregate raw stat values based on config rules."""
+        if values:
+            if aggregate == "sum":
+                return sum(values)
+            if aggregate == "max":
+                return max(values)
+            if aggregate == "avg":
+                return sum(values) / len(values)
+            return None
+
+        if num_values and denom_values:
+            total_num = sum(num_values)
+            total_denom = sum(denom_values)
+            if total_denom > 0:
+                return total_num / total_denom
+
+        return None
+
+    def _format_custom_stat_value(self, value: float, decimals: int) -> str:
+        """Format a custom stat value for display."""
+        if decimals > 0:
+            return f"{value:.{decimals}f}"
+        return str(round(value))
+
+    def _format_custom_stat_text(
+        self, user: NetworkUser, lb_id: str, formatted_value: str
+    ) -> str:
+        """Build the localized text for a custom stat."""
+        loc_key = f"my-stats-{lb_id.replace('_', '-')}"
+        text = Localization.get(user.locale, loc_key, value=formatted_value)
+        if text != loc_key:
+            return text
+
+        type_key = f"leaderboard-type-{lb_id.replace('_', '-')}"
+        type_name = Localization.get(user.locale, type_key)
+        return f"{type_name}: {formatted_value}"
 
     def _extract_path_value(self, data: dict, path: str) -> float | None:
         """Extract a value from nested dict using dot-notation path.
@@ -3213,7 +3530,7 @@ class Server(AdministrationMixin):
             if not player.is_bot:
                 player_user = self._users.get(player.name)
                 if player_user:
-                    self._show_main_menu(player_user)
+                    self._show_main_menu(player_user, reset_history=True)
 
     def on_game_result(self, result) -> None:
         """Handle game result persistence.
@@ -3317,7 +3634,7 @@ class Server(AdministrationMixin):
                 game_user = table.game._users.get(user.uuid)
                 if game_user is not user:
                     table.remove_member(username)
-                    self._show_main_menu(user)
+                    self._show_main_menu(user, reset_history=True)
 
     async def _handle_editbox(self, client: ClientConnection, packet: dict) -> None:
         """Handle editbox submissions.
@@ -3363,7 +3680,7 @@ class Server(AdministrationMixin):
                 game_user = table.game._users.get(user.uuid)
                 if game_user is not user:
                     table.remove_member(username)
-                    self._show_main_menu(user)
+                    self._show_main_menu(user, reset_history=True)
 
     async def _handle_chat(self, client: ClientConnection, packet: dict) -> None:
         """Handle chat message."""
@@ -3408,28 +3725,60 @@ class Server(AdministrationMixin):
         return sorted(self._users.keys(), key=str.lower)
 
     def _format_online_users_lines(self, user: NetworkUser) -> list[str]:
-        """Format online users with game names for menu display."""
+        """Format online users with detailed info for menu display.
+
+        Format: ``Username (Xh) - Status, Language LangName, ClientType (Platform)``
+        All labels are localized to the requesting *user*'s locale.
+        """
         lines: list[str] = []
         for username in self._get_online_usernames():
             online_user = self._users.get(username)
-            # Check if user is waiting for approval
+
+            # Time online
+            if online_user and hasattr(online_user, "format_time_online"):
+                time_str = online_user.format_time_online()
+            else:
+                time_str = ""
+
+            # Status (game or waiting for approval)
             if online_user and not online_user.approved:
                 status = Localization.get(user.locale, "online-user-waiting-approval")
-                lines.append(f"{username}: {status}")
-                continue
-
-            table = self._tables.find_user_table(username)
-            if table:
-                game_class = get_game_class(table.game_type)
-                game_name = (
-                    Localization.get(user.locale, game_class.get_name_key())
-                    if game_class
-                    else table.game_type
-                )
-                lines.append(f"{username}: {game_name}")
             else:
-                status = Localization.get(user.locale, "online-user-not-in-game")
-                lines.append(f"{username}: {status}")
+                table = self._tables.find_user_table(username)
+                if table:
+                    game_class = get_game_class(table.game_type)
+                    status = (
+                        Localization.get(user.locale, game_class.get_name_key())
+                        if game_class
+                        else table.game_type
+                    )
+                else:
+                    status = Localization.get(user.locale, "online-user-not-in-game")
+
+            # Build detail parts after status
+            parts = [status]
+
+            # Language
+            if online_user:
+                lang_label = Localization.get(user.locale, "language")
+                lang_name = Localization.get(user.locale, f"language-{online_user.locale}")
+                parts.append(f"{lang_label} {lang_name}")
+
+            # Client type and platform
+            client_type = getattr(online_user, "client_type", "") if online_user else ""
+            platform_str = getattr(online_user, "platform", "") if online_user else ""
+            if client_type:
+                if platform_str:
+                    parts.append(f"{client_type} ({platform_str})")
+                else:
+                    parts.append(client_type)
+
+            detail = ", ".join(parts)
+            if time_str:
+                line = f"{username} ({time_str}) - {detail}"
+            else:
+                line = f"{username} - {detail}"
+            lines.append(line)
         if not lines:
             lines.append(Localization.get(user.locale, "online-users-none"))
         return lines
@@ -3454,11 +3803,14 @@ class Server(AdministrationMixin):
             escape_behavior=EscapeBehavior.SELECT_LAST,
             position=0,
         )
+        previous_music = getattr(user, "_current_music", None)
+        user.play_music("playersmus.ogg")
         self._user_states[user.username] = {
             "menu": "online_users",
             "return_menu_id": previous_menu_id,
             "return_menu": previous_menu,
             "return_state": dict(current_state),
+            "return_music": dict(previous_music) if isinstance(previous_music, dict) else None,
         }
 
     def _restore_previous_menu(self, user: NetworkUser, state: dict) -> None:
@@ -3478,6 +3830,11 @@ class Server(AdministrationMixin):
             grid_enabled=previous_menu.get("grid_enabled", False),
             grid_width=previous_menu.get("grid_width", 1),
         )
+        return_music = state.get("return_music")
+        if isinstance(return_music, dict):
+            music_name = return_music.get("name")
+            if isinstance(music_name, str) and music_name:
+                user.play_music(music_name, looping=bool(return_music.get("looping", True)))
         restored_state = dict(state.get("return_state", {}))
         restored_state["menu"] = previous_menu_id
         self._user_states[user.username] = restored_state
@@ -3528,7 +3885,7 @@ class Server(AdministrationMixin):
 
 
 async def run_server(
-    host: str = "::",
+    host: str | None = None,
     port: int = 8000,
     ssl_cert: str | Path | None = None,
     ssl_key: str | Path | None = None,
@@ -3543,157 +3900,21 @@ async def run_server(
         ssl_key: Path to SSL private key file (for WSS support)
         preload_locales: Whether to block on localization compilation.
     """
-    logging.basicConfig(
-        filename="errors.log",
-        level=logging.ERROR,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
+    _configure_logging()
+    _install_exception_handlers(asyncio.get_running_loop())
 
-    def _log_uncaught(exc_type, exc, tb):
-        """Log uncaught exceptions while skipping shutdown interrupts."""
-        if exc_type in (KeyboardInterrupt, asyncio.CancelledError):
-            return
-        logging.getLogger("playpalace").exception(
-            "Uncaught exception", exc_info=(exc_type, exc, tb)
-        )
+    config_path = get_default_config_path()
+    example_path = get_example_config_path()
+    db_path = _ensure_var_server_dir() / "playpalace.db"
 
-    sys.excepthook = _log_uncaught
-    loop = asyncio.get_running_loop()
-
-    def _asyncio_exception_handler(loop, context):
-        """Log asyncio exceptions with consistent context details."""
-        exc = context.get("exception")
-        if isinstance(exc, asyncio.CancelledError):
-            return
-        if exc:
-            logging.getLogger("playpalace").exception(
-                "Asyncio exception", exc_info=exc
-            )
-        else:
-            logging.getLogger("playpalace").error(
-                "Asyncio error: %s", context.get("message")
-            )
-
-    loop.set_exception_handler(_asyncio_exception_handler)
-
-    config_path = _MODULE_DIR / "config.toml"
-    example_path = _MODULE_DIR / "config.example.toml"
-    db_path = _MODULE_DIR / "playpalace.db"
-
-    if not config_path.exists():
-        if not example_path.exists():
-            print(
-                f"ERROR: Missing configuration template '{example_path}'.",
-                file=sys.stderr,
-            )
-            raise SystemExit(1)
-        try:
-            shutil.copyfile(example_path, config_path)
-        except OSError as exc:
-            print(
-                f"ERROR: Failed to create '{config_path}' from template: {exc}",
-                file=sys.stderr,
-            )
-            raise SystemExit(1) from exc
-        print(f"Created '{config_path}' from '{example_path}'.")
-
-        print(
-            "Review server/config.toml before running in production. "
-            "TLS is required unless you explicitly allow insecure mode.\n"
-            "Run the server with:\n"
-            "  uv run python main.py --ssl-cert <cert> --ssl-key <key>\n"
-            "or set [network].allow_insecure_ws=true for local development."
-        )
+    if _ensure_config_file(config_path, example_path):
         return
 
-    db_created = False
-    needs_owner = False
-    if not db_path.exists():
-        db_created = True
-        needs_owner = True
-    else:
-        try:
-            database = Database(str(db_path))
-            database.connect()
-            user_count = database.get_user_count()
-            owner = database.get_server_owner()
-            needs_owner = user_count == 0 or owner is None
-            database.close()
-        except Exception as exc:
-            print(f"ERROR: Failed to open database '{db_path}': {exc}", file=sys.stderr)
-            raise SystemExit(1) from exc
-
+    db_created, needs_owner = _inspect_database(db_path)
     if needs_owner:
-        from server.cli import bootstrap_owner
+        _ensure_server_owner(db_path, config_path, db_created)
 
-        if db_created:
-            print(f"Creating database at '{db_path}'.")
-        else:
-            print("No server owner found in the database. Creating one now.")
-
-        if not sys.stdin.isatty():
-            print(
-                "ERROR: Cannot prompt for a server owner in a non-interactive session. "
-                "Run `uv run python -m server.cli bootstrap-owner --username <name>` "
-                "to create the initial owner.",
-                file=sys.stderr,
-            )
-            raise SystemExit(1)
-
-        min_user_len = DEFAULT_USERNAME_MIN_LENGTH
-        max_user_len = DEFAULT_USERNAME_MAX_LENGTH
-        min_pass_len = DEFAULT_PASSWORD_MIN_LENGTH
-        max_pass_len = DEFAULT_PASSWORD_MAX_LENGTH
-        try:
-            with open(config_path, "rb") as f:
-                data = tomllib.load(f)
-            auth_cfg = data.get("auth")
-            if isinstance(auth_cfg, dict):
-                min_user_len = int(auth_cfg.get("username_min_length", min_user_len))
-                max_user_len = int(auth_cfg.get("username_max_length", max_user_len))
-                min_pass_len = int(auth_cfg.get("password_min_length", min_pass_len))
-                max_pass_len = int(auth_cfg.get("password_max_length", max_pass_len))
-        except Exception:
-            pass
-
-        while True:
-            username = input(f"Server owner username ({min_user_len}-{max_user_len} chars): ").strip()
-            if not username:
-                print("Username cannot be empty.")
-                continue
-            if not (min_user_len <= len(username) <= max_user_len):
-                print(
-                    f"Username must be between {min_user_len} and {max_user_len} characters."
-                )
-                continue
-            break
-        while True:
-            password = getpass(f"Server owner password ({min_pass_len}-{max_pass_len} chars): ")
-            if not password:
-                print("Password cannot be empty.")
-                continue
-            if not (min_pass_len <= len(password) <= max_pass_len):
-                print(
-                    f"Password must be between {min_pass_len} and {max_pass_len} characters."
-                )
-                continue
-            confirm = getpass("Confirm password: ")
-            if password != confirm:
-                print("Passwords do not match. Try again.")
-                continue
-            break
-
-        try:
-            bootstrap_owner(
-                db_path=str(db_path),
-                username=username,
-                password=password,
-                quiet=True,
-            )
-            print(f"Created server owner '{username}'.")
-        except RuntimeError as exc:
-            print(f"ERROR: {exc}", file=sys.stderr)
-            raise SystemExit(1) from exc
+    host = _resolve_bind_host(host, config_path)
 
     print(f"Starting PlayPalace v{VERSION} server...")
     server = Server(
@@ -3714,3 +3935,187 @@ async def run_server(
         pass
     finally:
         await server.stop()
+
+
+def _configure_logging() -> None:
+    """Configure server error logging."""
+    log_dir = _ensure_var_server_dir()
+    logging.basicConfig(
+        filename=str(log_dir / "errors.log"),
+        level=logging.ERROR,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+
+
+def _install_exception_handlers(loop: asyncio.AbstractEventLoop) -> None:
+    """Install top-level exception handlers for the event loop."""
+    def _log_uncaught(exc_type, exc, tb):
+        """Log uncaught exceptions while skipping shutdown interrupts."""
+        if exc_type in (KeyboardInterrupt, asyncio.CancelledError):
+            return
+        logging.getLogger("playpalace").exception(
+            "Uncaught exception", exc_info=(exc_type, exc, tb)
+        )
+
+    def _asyncio_exception_handler(loop, context):
+        """Log asyncio exceptions with consistent context details."""
+        exc = context.get("exception")
+        if isinstance(exc, asyncio.CancelledError):
+            return
+        if exc:
+            logging.getLogger("playpalace").exception(
+                "Asyncio exception", exc_info=exc
+            )
+        else:
+            logging.getLogger("playpalace").error(
+                "Asyncio error: %s", context.get("message")
+            )
+
+    sys.excepthook = _log_uncaught
+    loop.set_exception_handler(_asyncio_exception_handler)
+
+
+def _ensure_config_file(config_path: Path, example_path: Path) -> bool:
+    """Ensure a server config exists; return True if created and exit needed."""
+    if config_path.exists():
+        return False
+    if not example_path.exists():
+        print(
+            f"ERROR: Missing configuration template '{example_path}'.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    try:
+        ensure_default_config_dir()
+        shutil.copyfile(example_path, config_path)
+    except OSError as exc:
+        print(
+            f"ERROR: Failed to create '{config_path}' from template: {exc}",
+            file=sys.stderr,
+        )
+        raise SystemExit(1) from exc
+    print(f"Created '{config_path}' from '{example_path}'.")
+    print(
+        "Review the generated configuration before running in production. "
+        "TLS is required unless you explicitly allow insecure mode.\n"
+        "Edit the file and run the server with:\n"
+        "  uv run python main.py --ssl-cert <cert> --ssl-key <key>\n"
+        "or set [network].allow_insecure_ws=true for local development."
+    )
+    return True
+
+
+def _inspect_database(db_path: Path) -> tuple[bool, bool]:
+    """Check if the database exists and whether an owner is required."""
+    if not db_path.exists():
+        return True, True
+
+    try:
+        database = Database(str(db_path))
+        database.connect()
+        user_count = database.get_user_count()
+        owner = database.get_server_owner()
+        database.close()
+        return False, user_count == 0 or owner is None
+    except Exception as exc:
+        print(f"ERROR: Failed to open database '{db_path}': {exc}", file=sys.stderr)
+        raise SystemExit(1) from exc
+
+
+def _ensure_server_owner(db_path: Path, config_path: Path, db_created: bool) -> None:
+    """Create the initial server owner if required."""
+    from server.cli import bootstrap_owner
+
+    if db_created:
+        print(f"Creating database at '{db_path}'.")
+    else:
+        print("No server owner found in the database. Creating one now.")
+
+    if not sys.stdin.isatty():
+        print(
+            "ERROR: Cannot prompt for a server owner in a non-interactive session. "
+            "Run `uv run python -m server.cli bootstrap-owner --username <name>` "
+            "to create the initial owner.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+
+    min_user_len, max_user_len, min_pass_len, max_pass_len = _load_auth_limits(
+        config_path
+    )
+
+    username = _prompt_username(min_user_len, max_user_len)
+    password = _prompt_password(min_pass_len, max_pass_len)
+
+    try:
+        bootstrap_owner(
+            db_path=str(db_path),
+            username=username,
+            password=password,
+            quiet=True,
+        )
+        print(f"Created server owner '{username}'.")
+    except RuntimeError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        raise SystemExit(1) from exc
+
+
+def _load_auth_limits(config_path: Path) -> tuple[int, int, int, int]:
+    """Load auth length limits from config, falling back to defaults."""
+    min_user_len = DEFAULT_USERNAME_MIN_LENGTH
+    max_user_len = DEFAULT_USERNAME_MAX_LENGTH
+    min_pass_len = DEFAULT_PASSWORD_MIN_LENGTH
+    max_pass_len = DEFAULT_PASSWORD_MAX_LENGTH
+    try:
+        with open(config_path, "rb") as f:
+            data = tomllib.load(f)
+        auth_cfg = data.get("auth")
+        if isinstance(auth_cfg, dict):
+            min_user_len = int(auth_cfg.get("username_min_length", min_user_len))
+            max_user_len = int(auth_cfg.get("username_max_length", max_user_len))
+            min_pass_len = int(auth_cfg.get("password_min_length", min_pass_len))
+            max_pass_len = int(auth_cfg.get("password_max_length", max_pass_len))
+    except (OSError, tomllib.TOMLDecodeError, TypeError, ValueError) as exc:
+        LOG.debug("Failed to load auth limits from config: %s", exc)
+    return min_user_len, max_user_len, min_pass_len, max_pass_len
+
+
+def _prompt_username(min_len: int, max_len: int) -> str:
+    """Prompt for a valid server owner username."""
+    while True:
+        username = input(f"Server owner username ({min_len}-{max_len} chars): ").strip()
+        if not username:
+            print("Username cannot be empty.")
+            continue
+        if not (min_len <= len(username) <= max_len):
+            print(f"Username must be between {min_len} and {max_len} characters.")
+            continue
+        return username
+
+
+def _prompt_password(min_len: int, max_len: int) -> str:
+    """Prompt for a valid server owner password."""
+    while True:
+        password = getpass(f"Server owner password ({min_len}-{max_len} chars): ")
+        if not password:
+            print("Password cannot be empty.")
+            continue
+        if not (min_len <= len(password) <= max_len):
+            print(f"Password must be between {min_len} and {max_len} characters.")
+            continue
+        confirm = getpass("Confirm password: ")
+        if password != confirm:
+            print("Passwords do not match. Try again.")
+            continue
+        return password
+
+
+def _resolve_bind_host(host: str | None, config_path: Path) -> str:
+    """Resolve bind host from config when none provided."""
+    if host is not None:
+        return host
+    server_config = load_server_config(config_path)
+    bind_ip = server_config.get("bind_ip")
+    if isinstance(bind_ip, str) and bind_ip.strip():
+        return bind_ip.strip()
+    return "127.0.0.1"

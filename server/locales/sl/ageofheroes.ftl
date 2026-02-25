@@ -257,43 +257,35 @@ ageofheroes-war-prepared = Tvoje sile: { $armies } { $armies ->
 ageofheroes-war-roll-you = Ti vržeš { $roll }.
 ageofheroes-war-roll-other = { $player } vrže { $roll }.
 ageofheroes-war-bonuses-you = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            [one] {"+1 iz trdnjave = { $total } skupaj"}
-            [two] {"+{ $fortress } iz trdnjav = { $total } skupaj"}
-            [few] {"+{ $fortress } iz trdnjav = { $total } skupaj"}
-            *[other] {"+{ $fortress } iz trdnjav = { $total } skupaj"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        [one] +1 iz trdnjave = { $total } skupaj
+        [two] +{ $fortress } iz trdnjav = { $total } skupaj
+        [few] +{ $fortress } iz trdnjav = { $total } skupaj
+        *[other] +{ $fortress } iz trdnjav = { $total } skupaj
     }
-    *[other] {
-        { $fortress ->
-            [0] {"+{ $general } iz generala = { $total } skupaj"}
-            [one] {"+{ $general } iz generala, +1 iz trdnjave = { $total } skupaj"}
-            [two] {"+{ $general } iz generala, +{ $fortress } iz trdnjav = { $total } skupaj"}
-            [few] {"+{ $general } iz generala, +{ $fortress } iz trdnjav = { $total } skupaj"}
-            *[other] {"+{ $general } iz generala, +{ $fortress } iz trdnjav = { $total } skupaj"}
-        }
+    *[other] { $fortress ->
+        [0] +{ $general } iz generala = { $total } skupaj
+        [one] +{ $general } iz generala, +1 iz trdnjave = { $total } skupaj
+        [two] +{ $general } iz generala, +{ $fortress } iz trdnjav = { $total } skupaj
+        [few] +{ $general } iz generala, +{ $fortress } iz trdnjav = { $total } skupaj
+        *[other] +{ $general } iz generala, +{ $fortress } iz trdnjav = { $total } skupaj
     }
 }
 ageofheroes-war-bonuses-other = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            [one] {"{ $player }: +1 iz trdnjave = { $total } skupaj"}
-            [two] {"{ $player }: +{ $fortress } iz trdnjav = { $total } skupaj"}
-            [few] {"{ $player }: +{ $fortress } iz trdnjav = { $total } skupaj"}
-            *[other] {"{ $player }: +{ $fortress } iz trdnjav = { $total } skupaj"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        [one] { $player }: +1 iz trdnjave = { $total } skupaj
+        [two] { $player }: +{ $fortress } iz trdnjav = { $total } skupaj
+        [few] { $player }: +{ $fortress } iz trdnjav = { $total } skupaj
+        *[other] { $player }: +{ $fortress } iz trdnjav = { $total } skupaj
     }
-    *[other] {
-        { $fortress ->
-            [0] {"{ $player }: +{ $general } iz generala = { $total } skupaj"}
-            [one] {"{ $player }: +{ $general } iz generala, +1 iz trdnjave = { $total } skupaj"}
-            [two] {"{ $player }: +{ $general } iz generala, +{ $fortress } iz trdnjav = { $total } skupaj"}
-            [few] {"{ $player }: +{ $general } iz generala, +{ $fortress } iz trdnjav = { $total } skupaj"}
-            *[other] {"{ $player }: +{ $general } iz generala, +{ $fortress } iz trdnjav = { $total } skupaj"}
-        }
+    *[other] { $fortress ->
+        [0] { $player }: +{ $general } iz generala = { $total } skupaj
+        [one] { $player }: +{ $general } iz generala, +1 iz trdnjave = { $total } skupaj
+        [two] { $player }: +{ $general } iz generala, +{ $fortress } iz trdnjav = { $total } skupaj
+        [few] { $player }: +{ $general } iz generala, +{ $fortress } iz trdnjav = { $total } skupaj
+        *[other] { $player }: +{ $general } iz generala, +{ $fortress } iz trdnjav = { $total } skupaj
     }
 }
 

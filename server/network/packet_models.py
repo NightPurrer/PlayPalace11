@@ -47,6 +47,8 @@ class AuthorizePacket(BasePacket):
     major: int | None = None
     minor: int | None = None
     patch: int | None = None
+    client_type: str | None = None
+    platform: str | None = None
 
     @model_validator(mode="after")
     def _ensure_credentials(self) -> "AuthorizePacket":
@@ -68,6 +70,8 @@ class RefreshSessionPacket(BasePacket):
     type: Literal["refresh_session"] = "refresh_session"
     refresh_token: str
     username: str | None = None
+    client_type: str | None = None
+    platform: str | None = None
 
 
 class MenuSelectionPacket(BasePacket):

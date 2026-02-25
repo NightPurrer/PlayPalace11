@@ -245,39 +245,31 @@ ageofheroes-war-prepared = Vaše snage: { $armies } { $armies ->
 ageofheroes-war-roll-you = Vi bacate { $roll }.
 ageofheroes-war-roll-other = { $player } baca { $roll }.
 ageofheroes-war-bonuses-you = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            [one] {"+1 od tvrđave = { $total } ukupno"}
-            [few] {"+{ $fortress } od tvrđava = { $total } ukupno"}
-            *[other] {"+{ $fortress } od tvrđava = { $total } ukupno"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        [one] +1 od tvrđave = { $total } ukupno
+        [few] +{ $fortress } od tvrđava = { $total } ukupno
+        *[other] +{ $fortress } od tvrđava = { $total } ukupno
     }
-    *[other] {
-        { $fortress ->
-            [0] {"+{ $general } od generala = { $total } ukupno"}
-            [one] {"+{ $general } od generala, +1 od tvrđave = { $total } ukupno"}
-            [few] {"+{ $general } od generala, +{ $fortress } od tvrđava = { $total } ukupno"}
-            *[other] {"+{ $general } od generala, +{ $fortress } od tvrđava = { $total } ukupno"}
-        }
+    *[other] { $fortress ->
+        [0] +{ $general } od generala = { $total } ukupno
+        [one] +{ $general } od generala, +1 od tvrđave = { $total } ukupno
+        [few] +{ $general } od generala, +{ $fortress } od tvrđava = { $total } ukupno
+        *[other] +{ $general } od generala, +{ $fortress } od tvrđava = { $total } ukupno
     }
 }
 ageofheroes-war-bonuses-other = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            [one] {"{ $player }: +1 od tvrđave = { $total } ukupno"}
-            [few] {"{ $player }: +{ $fortress } od tvrđava = { $total } ukupno"}
-            *[other] {"{ $player }: +{ $fortress } od tvrđava = { $total } ukupno"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        [one] { $player }: +1 od tvrđave = { $total } ukupno
+        [few] { $player }: +{ $fortress } od tvrđava = { $total } ukupno
+        *[other] { $player }: +{ $fortress } od tvrđava = { $total } ukupno
     }
-    *[other] {
-        { $fortress ->
-            [0] {"{ $player }: +{ $general } od generala = { $total } ukupno"}
-            [one] {"{ $player }: +{ $general } od generala, +1 od tvrđave = { $total } ukupno"}
-            [few] {"{ $player }: +{ $general } od generala, +{ $fortress } od tvrđava = { $total } ukupno"}
-            *[other] {"{ $player }: +{ $general } od generala, +{ $fortress } od tvrđava = { $total } ukupno"}
-        }
+    *[other] { $fortress ->
+        [0] { $player }: +{ $general } od generala = { $total } ukupno
+        [one] { $player }: +{ $general } od generala, +1 od tvrđave = { $total } ukupno
+        [few] { $player }: +{ $general } od generala, +{ $fortress } od tvrđava = { $total } ukupno
+        *[other] { $player }: +{ $general } od generala, +{ $fortress } od tvrđava = { $total } ukupno
     }
 }
 

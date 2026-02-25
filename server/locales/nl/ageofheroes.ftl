@@ -233,35 +233,27 @@ ageofheroes-war-prepared = Je troepen: { $armies } { $armies ->
 ageofheroes-war-roll-you = Je gooit { $roll }.
 ageofheroes-war-roll-other = { $player } gooit { $roll }.
 ageofheroes-war-bonuses-you = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            [1] {"+1 van fort = { $total } totaal"}
-            *[other] {"+{ $fortress } van forten = { $total } totaal"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        [1] +1 van fort = { $total } totaal
+        *[other] +{ $fortress } van forten = { $total } totaal
     }
-    *[other] {
-        { $fortress ->
-            [0] {"+{ $general } van generaal = { $total } totaal"}
-            [1] {"+{ $general } van generaal, +1 van fort = { $total } totaal"}
-            *[other] {"+{ $general } van generaal, +{ $fortress } van forten = { $total } totaal"}
-        }
+    *[other] { $fortress ->
+        [0] +{ $general } van generaal = { $total } totaal
+        [1] +{ $general } van generaal, +1 van fort = { $total } totaal
+        *[other] +{ $general } van generaal, +{ $fortress } van forten = { $total } totaal
     }
 }
 ageofheroes-war-bonuses-other = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            [1] {"{ $player }: +1 van fort = { $total } totaal"}
-            *[other] {"{ $player }: +{ $fortress } van forten = { $total } totaal"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        [1] { $player }: +1 van fort = { $total } totaal
+        *[other] { $player }: +{ $fortress } van forten = { $total } totaal
     }
-    *[other] {
-        { $fortress ->
-            [0] {"{ $player }: +{ $general } van generaal = { $total } totaal"}
-            [1] {"{ $player }: +{ $general } van generaal, +1 van fort = { $total } totaal"}
-            *[other] {"{ $player }: +{ $general } van generaal, +{ $fortress } van forten = { $total } totaal"}
-        }
+    *[other] { $fortress ->
+        [0] { $player }: +{ $general } van generaal = { $total } totaal
+        [1] { $player }: +{ $general } van generaal, +1 van fort = { $total } totaal
+        *[other] { $player }: +{ $general } van generaal, +{ $fortress } van forten = { $total } totaal
     }
 }
 

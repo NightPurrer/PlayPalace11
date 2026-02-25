@@ -3,8 +3,8 @@ from pathlib import Path
 import pytest
 
 from server.core.server import Server
-from server.tables.manager import TableManager
-from server.users.test_user import MockUser
+from server.core.tables.manager import TableManager
+from server.core.users.test_user import MockUser
 from server.messages.localization import Localization
 
 # Ensure games are registered for name lookups.
@@ -58,5 +58,22 @@ def test_online_users_menu_formats_game_names() -> None:
     server._show_online_users_menu(viewer)
 
     texts = _menu_texts(viewer, "online_users")
-    assert "Bob: Crazy Eights" in texts
-    assert "Alice: Not in game" in texts
+    bob_line = next(t for t in texts if t.startswith("Bob "))
+    alice_line = next(t for t in texts if t.startswith("Alice "))
+    assert "Crazy Eights" in bob_line
+    assert "Not in game" in alice_line
+    assert "Language English" in bob_line
+    assert "Language English" in alice_line
+
+
+def test_online_users_menu_plays_players_music() -> None:
+    server = _make_server()
+    viewer = MockUser("Viewer")
+    server._users = {"Viewer": viewer}
+
+    server._show_online_users_menu(viewer)
+
+    assert any(
+        message.type == "play_music" and message.data.get("name") == "playersmus.ogg"
+        for message in viewer.messages
+    )

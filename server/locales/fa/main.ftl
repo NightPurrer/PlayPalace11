@@ -353,3 +353,5 @@ virtual-bots-profiles-header = پروفایل‌ها: { $count } تعریف‌ش
 virtual-bots-profiles-empty = هیچ پروفایلی تعریف نشده است.
 virtual-bots-profiles-line = { $profile } ({ $bot_count } ربات) بازنویسی‌ها: { $overrides }.
 virtual-bots-profiles-no-overrides = ارث‌بری پیکربندی پایه
+
+localization-in-progress-try-again = بومی‌سازی در حال انجام است. لطفاً یک دقیقه دیگر دوباره تلاش کنید.

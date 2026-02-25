@@ -1,0 +1,8 @@
+# Converting games from v10 to v11
+In the root of the project is a folder labeled "v10_server". This contains games from the previous existing project. This folder's only purpose is strictly to help ai coding agents convert games from the old system to the new one, thus nothing in this folder should ever be modified or used when creating new games from scratch that did not previous exist in v10.
+When converting games, do not strictly follow the original format from v10. Instead use the docs/design/plans folder to convert it with newer and more appropriate structures and ideas. Look at existing games from the v11 project "server/games" folder as examples to ensure the game is converted properly. Notable mentions include crazy 8s, mile by mile, farkle, and ludo.
+After reading this file and confirming the "v10_server" directory exists, ask the user what game from v10 they wish to port over to v11, and any changes that they want to make, such as new options, major changes, or suggestions that you think would be useful for a better gameplay experience.
+
+## V10_server path not found
+Only certain users have access to the source code of v10. If this folder is not found in the root of this project, alert the user that this file is only intended for those who have the source code of v10. Tell the user that if they do have it, put the server folder from v10 in the root of this project labeled as "v10_server".
+Do not attempt to search any other directories for the path. If the user doesn't have it, nothing should be done. You can suggest using the v11 development guide for making brand new games, found at "docs/design/plans/game_development_guide.md", but no action should be taken.

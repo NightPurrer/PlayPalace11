@@ -1,4 +1,4 @@
-# Messages for Left Right Center (English)
+# Messages for Left Right Center
 
 # Game name
 game-name-leftrightcenter = Влево, вправо, в центр

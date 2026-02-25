@@ -1,0 +1,1 @@
+since skills and targets need to be in nested menus, we will make each skill and each target a dynamic action (a la scopa). We will track what menu the game is in, then use the `is_enabled()` function on each action to confine it to its own menu.

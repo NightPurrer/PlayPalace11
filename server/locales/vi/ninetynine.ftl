@@ -51,6 +51,10 @@ ninetynine-no-valid-cards = { $player } không có lá bài nào để tổng đ
 # Trạng thái - cho phím C
 ninetynine-current-count = Tổng điểm là { $count }.
 
+# Kiểm tra bài - cho phím H
+ninetynine-hand-cards = Bài trên tay: { $cards }.
+ninetynine-hand-empty = Bạn không có bài.
+
 # Lựa chọn cho quân Át
 ninetynine-ace-choice = Dùng Át là +1 hay +11?
 ninetynine-ace-add-eleven = Cộng 11

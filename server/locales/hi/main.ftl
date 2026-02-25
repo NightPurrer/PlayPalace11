@@ -353,3 +353,5 @@ virtual-bots-profiles-header = प्रोफाइल: { $count } परिभ
 virtual-bots-profiles-empty = कोई प्रोफाइल परिभाषित नहीं हैं।
 virtual-bots-profiles-line = { $profile } ({ $bot_count } बॉट) ओवरराइड: { $overrides }।
 virtual-bots-profiles-no-overrides = आधार कॉन्फ़िगरेशन विरासत में मिलता है
+
+localization-in-progress-try-again = स्थानीयकरण जारी है। कृपया एक मिनट बाद फिर प्रयास करें।

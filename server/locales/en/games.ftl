@@ -3,6 +3,10 @@
 
 # Game names
 game-name-ninetynine = Ninety Nine
+game-name-humanitycards = Cards Against Humanity
+
+# Game categories (shared)
+category-party-games = Party Games
 
 # Round and turn flow
 game-round-start = Round { $round }.
@@ -38,6 +42,27 @@ game-team-mode-x-teams-of-y = { $num_teams } teams of { $team_size }
 option-on = on
 option-off = off
 
+# Option navigation
+option-back = Back
+option-min-selected = At least { $count } { $count ->
+    [one] item
+   *[other] items
+} must be selected.
+option-max-selected = At most { $count } { $count ->
+    [one] item
+   *[other] items
+} can be selected.
+option-select-all = Select all
+option-deselect-all = Deselect all
+option-selected-count = { $count } { $count ->
+    [one] item
+   *[other] items
+} selected.
+option-deselected-count = { $count } { $count ->
+    [one] item
+   *[other] items
+} deselected.
+
 # Status box
 status-box-closed = Status information closed.
 
@@ -62,6 +87,21 @@ game-player-deals = { $player } deals out the cards.
 # Card names
 card-name = { $rank } of { $suit }
 no-cards = No cards
+
+# Colors
+color-black = black
+color-blue = blue
+color-brown = brown
+color-gray = gray
+color-green = green
+color-indigo = indigo
+color-orange = orange
+color-pink = pink
+color-purple = purple
+color-red = red
+color-violet = violet
+color-white = white
+color-yellow = yellow
 
 # Suit names
 suit-diamonds = diamonds
@@ -96,6 +136,20 @@ rank-queen = queen
 rank-queen-plural = queens
 rank-king = king
 rank-king-plural = kings
+rank-joker = joker
+rank-joker-plural = jokers
+
+# Shapes
+shape-circle = circle
+shape-cone = cone
+shape-cylinder = cylinder
+shape-hexagon = hexagon
+shape-oval = oval
+shape-pentagon = pentagon
+shape-prism = prism
+shape-rectangle = rectangle
+shape-square = square
+shape-triangle = triangle
 
 # Poker hand descriptions
 poker-high-card-with = { $high } high, with { $rest }

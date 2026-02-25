@@ -8,6 +8,7 @@ game-name-ninetynine = Девяносто девять
 game-round-start = Раунд { $round }.
 game-round-end = Раунд { $round } завершён.
 game-turn-start = Ход игрока { $player }.
+game-your-turn = Ваш ход.
 game-no-turn = Сейчас никто не ходит.
 
 # Score display
@@ -41,7 +42,7 @@ game-option-changed-target = Конечный счёт установлен на
 
 game-set-team-mode = Командный режим: { $mode }
 game-select-team-mode = Выберите командный режим
-game-option-changed-team = Командный режим изменён на: { $mode }.
+game-option-changed-team = Командный режим изменён на { $mode }.
 game-team-mode-individual = Индивидуальный
 game-team-mode-x-teams-of-y = { $num_teams } { $num_teams ->
     [one] команда
@@ -56,6 +57,17 @@ game-team-mode-x-teams-of-y = { $num_teams } { $num_teams ->
 # Boolean option values
 option-on = вкл.
 option-off = выкл.
+option-back = Назад
+option-min-selected = Нужно выбрать как минимум { $count } { $count ->
+    [one] вариант
+    [few] варианта
+   *[other] вариантов
+}.
+option-max-selected = Можно выбрать не более { $count } { $count ->
+    [one] варианта
+    [few] вариантов
+   *[other] вариантов
+}.
 
 # Status box
 status-box-closed = Информационное окно закрыто.
@@ -90,31 +102,31 @@ suit-spades = пик
 
 # Rank names
 rank-ace = Туз
-rank-ace-plural = Тузы
+rank-ace-plural = Тузов
 rank-two = Двойка
-rank-two-plural = Двойки
+rank-two-plural = Двоек
 rank-three = Тройка
-rank-three-plural = Тройки
+rank-three-plural = Троек
 rank-four = Четвёрка
-rank-four-plural = Четвёрки
+rank-four-plural = Четвёрок
 rank-five = Пятёрка
-rank-five-plural = Пятёрки
+rank-five-plural = Пятёрок
 rank-six = Шестёрка
-rank-six-plural = Шестёрки
+rank-six-plural = Шестёрок
 rank-seven = Семёрка
-rank-seven-plural = Семёрки
+rank-seven-plural = Семёрок
 rank-eight = Восьмёрка
-rank-eight-plural = Восьмёрки
+rank-eight-plural = Восьмёрок
 rank-nine = Девятка
-rank-nine-plural = Девятки
+rank-nine-plural = Девяток
 rank-ten = Десятка
-rank-ten-plural = Десятки
+rank-ten-plural = Десяток
 rank-jack = Валет
-rank-jack-plural = Валеты
+rank-jack-plural = Валетов
 rank-queen = Дама
-rank-queen-plural = Дамы
+rank-queen-plural = Дам
 rank-king = Король
-rank-king-plural = Короли
+rank-king-plural = Королей
 
 # Poker hand descriptions
 poker-high-card-with = Старшая карта { $high }, кикер { $rest }

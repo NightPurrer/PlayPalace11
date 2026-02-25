@@ -341,3 +341,5 @@ virtual-bots-profiles-header = プロファイル: { $count }個定義済み(デ
 virtual-bots-profiles-empty = プロファイルは定義されていません。
 virtual-bots-profiles-line = { $profile }({ $bot_count }個のボット)オーバーライド: { $overrides }。
 virtual-bots-profiles-no-overrides = ベース設定を継承
+
+localization-in-progress-try-again = ローカライズ処理中です。1分後にもう一度お試しください。

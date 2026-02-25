@@ -353,3 +353,5 @@ virtual-bots-profiles-header = Profili: { $count } definiti (predefinito: { $def
 virtual-bots-profiles-empty = Nessun profilo definito.
 virtual-bots-profiles-line = { $profile } ({ $bot_count } bot) sostituzioni: { $overrides }.
 virtual-bots-profiles-no-overrides = eredita configurazione base
+
+localization-in-progress-try-again = La localizzazione è in corso. Riprova tra un minuto.

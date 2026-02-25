@@ -12,9 +12,9 @@ from ...game_utils.options import IntOption, MenuOption, option_field
 from ...game_utils.bot_helper import BotHelper
 from ...game_utils.poker_timer import PokerTurnTimer
 from ...messages.localization import Localization
-from ...ui.keybinds import KeybindState
-from ...users.bot import Bot
-from ...users.base import User
+from server.core.ui.keybinds import KeybindState
+from server.core.users.bot import Bot
+from server.core.users.base import User
 from datetime import datetime
 from .bot import bot_think
 
@@ -242,6 +242,7 @@ class CrazyEightsGame(Game):
                 handler="_action_choose_suit",
                 is_enabled="_is_suit_choice_enabled",
                 is_hidden="_is_suit_choice_hidden",
+                get_label="_get_suit_choice_label",
                 show_in_actions_menu=False,
             )
         )
@@ -252,6 +253,7 @@ class CrazyEightsGame(Game):
                 handler="_action_choose_suit",
                 is_enabled="_is_suit_choice_enabled",
                 is_hidden="_is_suit_choice_hidden",
+                get_label="_get_suit_choice_label",
                 show_in_actions_menu=False,
             )
         )
@@ -262,6 +264,7 @@ class CrazyEightsGame(Game):
                 handler="_action_choose_suit",
                 is_enabled="_is_suit_choice_enabled",
                 is_hidden="_is_suit_choice_hidden",
+                get_label="_get_suit_choice_label",
                 show_in_actions_menu=False,
             )
         )
@@ -272,6 +275,7 @@ class CrazyEightsGame(Game):
                 handler="_action_choose_suit",
                 is_enabled="_is_suit_choice_enabled",
                 is_hidden="_is_suit_choice_hidden",
+                get_label="_get_suit_choice_label",
                 show_in_actions_menu=False,
             )
         )
@@ -729,14 +733,14 @@ class CrazyEightsGame(Game):
         deck_count = self.deck.size()
         if deck_count > 0:
             parts.append(Localization.get(locale, "crazyeights-deck-count", count=deck_count))
-        
+
         if parts:
             text = ", ".join(parts)
         elif self.players:
             text = Localization.get(locale, "crazyeights-no-hands")
         else:
             text = Localization.get(locale, "crazyeights-no-players")
-        
+
         user.speak(text)
 
     def _action_check_turn_timer(self, player: Player, action_id: str) -> None:
@@ -867,6 +871,17 @@ class CrazyEightsGame(Game):
         if self._is_turn_action_enabled(player) is not None:
             return self._is_turn_action_enabled(player)
         return None
+
+    def _get_suit_choice_label(self, player: Player, action_id: str) -> str:
+        locale = self._player_locale(player)
+        suit = self._suit_from_action(action_id)
+        if suit is None:
+            return ""
+        suit_name = self._suit_name(suit, locale)
+        if not isinstance(player, CrazyEightsPlayer):
+            return suit_name
+        suit_count = sum(1 for card in player.hand if card.suit == suit)
+        return f"{suit_name} {suit_count}"
 
     def _is_check_enabled(self, player: Player) -> str | None:
         if self.status == "waiting":
@@ -1117,7 +1132,7 @@ class CrazyEightsGame(Game):
 
     def _end_round(self, winner: CrazyEightsPlayer, last_card: Card | None) -> None:
         self._stop_turn_loop()
-        
+
         # Calculate scores before clearing hands
         points_from: list[tuple[CrazyEightsPlayer, int]] = []
         total = 0
@@ -1143,7 +1158,7 @@ class CrazyEightsGame(Game):
         for p in self.players:
             if isinstance(p, CrazyEightsPlayer):
                 p.hand = []
-        
+
         self.rebuild_all_menus()
 
         if winner.score >= self.options.winning_score:
@@ -1242,12 +1257,12 @@ class CrazyEightsGame(Game):
                 continue
             card_text = self.format_card(card, user.locale)
             one_card_text = Localization.get(user.locale, 'crazyeights-one-card') if len(player.hand) == 1 else ""
-            
+
             if p.id == player.id:
                 msg = Localization.get(user.locale, "crazyeights-you-play", card=card_text)
             else:
                 msg = Localization.get(user.locale, "crazyeights-player-plays", player=player.name, card=card_text)
-            
+
             if one_card_text:
                 user.speak(f"{msg} {one_card_text}", buffer="table")
             else:

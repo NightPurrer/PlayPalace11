@@ -439,3 +439,5 @@ virtual-bots-profiles-line = { $profile } ({ $bot_count } { $bot_count ->
    *[other] بوت
 }) التجاوزات: { $overrides }.
 virtual-bots-profiles-no-overrides = يرث الإعدادات الأساسية
+
+localization-in-progress-try-again = جارٍ إعداد الترجمة. يُرجى المحاولة مرة أخرى بعد دقيقة.

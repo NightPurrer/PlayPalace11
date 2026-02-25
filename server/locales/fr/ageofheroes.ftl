@@ -243,35 +243,27 @@ ageofheroes-war-prepared = Vos forces : { $armies } { $armies ->
 ageofheroes-war-roll-you = Vous obtenez { $roll }.
 ageofheroes-war-roll-other = { $player } obtient { $roll }.
 ageofheroes-war-bonuses-you = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            [1] {"+1 de forteresse = { $total } total"}
-            *[other] {"+{ $fortress } de forteresses = { $total } total"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        [1] +1 de forteresse = { $total } total
+        *[other] +{ $fortress } de forteresses = { $total } total
     }
-    *[other] {
-        { $fortress ->
-            [0] {"+{ $general } de général = { $total } total"}
-            [1] {"+{ $general } de général, +1 de forteresse = { $total } total"}
-            *[other] {"+{ $general } de général, +{ $fortress } de forteresses = { $total } total"}
-        }
+    *[other] { $fortress ->
+        [0] +{ $general } de général = { $total } total
+        [1] +{ $general } de général, +1 de forteresse = { $total } total
+        *[other] +{ $general } de général, +{ $fortress } de forteresses = { $total } total
     }
 }
 ageofheroes-war-bonuses-other = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            [1] {"{ $player } : +1 de forteresse = { $total } total"}
-            *[other] {"{ $player } : +{ $fortress } de forteresses = { $total } total"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        [1] { $player } : +1 de forteresse = { $total } total
+        *[other] { $player } : +{ $fortress } de forteresses = { $total } total
     }
-    *[other] {
-        { $fortress ->
-            [0] {"{ $player } : +{ $general } de général = { $total } total"}
-            [1] {"{ $player } : +{ $general } de général, +1 de forteresse = { $total } total"}
-            *[other] {"{ $player } : +{ $general } de général, +{ $fortress } de forteresses = { $total } total"}
-        }
+    *[other] { $fortress ->
+        [0] { $player } : +{ $general } de général = { $total } total
+        [1] { $player } : +{ $general } de général, +1 de forteresse = { $total } total
+        *[other] { $player } : +{ $general } de général, +{ $fortress } de forteresses = { $total } total
     }
 }
 

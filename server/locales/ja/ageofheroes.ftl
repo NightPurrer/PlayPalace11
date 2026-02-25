@@ -200,31 +200,23 @@ ageofheroes-war-prepared = あなたの部隊: { $armies }個の軍隊{ $general
 ageofheroes-war-roll-you = あなたは{ $roll }をロールしました。
 ageofheroes-war-roll-other = { $player }は{ $roll }をロールしました。
 ageofheroes-war-bonuses-you = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            *[other] {"+{ $fortress }要塞ボーナス = 合計{ $total }"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        *[other] +{ $fortress }要塞ボーナス = 合計{ $total }
     }
-    *[other] {
-        { $fortress ->
-            [0] {"+{ $general }将軍ボーナス = 合計{ $total }"}
-            *[other] {"+{ $general }将軍ボーナス、+{ $fortress }要塞ボーナス = 合計{ $total }"}
-        }
+    *[other] { $fortress ->
+        [0] +{ $general }将軍ボーナス = 合計{ $total }
+        *[other] +{ $general }将軍ボーナス、+{ $fortress }要塞ボーナス = 合計{ $total }
     }
 }
 ageofheroes-war-bonuses-other = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            *[other] {"{ $player }: +{ $fortress }要塞ボーナス = 合計{ $total }"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        *[other] { $player }: +{ $fortress }要塞ボーナス = 合計{ $total }
     }
-    *[other] {
-        { $fortress ->
-            [0] {"{ $player }: +{ $general }将軍ボーナス = 合計{ $total }"}
-            *[other] {"{ $player }: +{ $general }将軍ボーナス、+{ $fortress }要塞ボーナス = 合計{ $total }"}
-        }
+    *[other] { $fortress ->
+        [0] { $player }: +{ $general }将軍ボーナス = 合計{ $total }
+        *[other] { $player }: +{ $general }将軍ボーナス、+{ $fortress }要塞ボーナス = 合計{ $total }
     }
 }
 

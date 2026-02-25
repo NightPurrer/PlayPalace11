@@ -233,35 +233,27 @@ ageofheroes-war-prepared = Ваші сили: { $armies } { $armies ->
 ageofheroes-war-roll-you = Ви кидаєте { $roll }.
 ageofheroes-war-roll-other = { $player } кидає { $roll }.
 ageofheroes-war-bonuses-you = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            [1] {"+1 від фортеці = { $total } всього"}
-            *[other] {"+{ $fortress } від фортець = { $total } всього"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        [1] +1 від фортеці = { $total } всього
+        *[other] +{ $fortress } від фортець = { $total } всього
     }
-    *[other] {
-        { $fortress ->
-            [0] {"+{ $general } від генерала = { $total } всього"}
-            [1] {"+{ $general } від генерала, +1 від фортеці = { $total } всього"}
-            *[other] {"+{ $general } від генерала, +{ $fortress } від фортець = { $total } всього"}
-        }
+    *[other] { $fortress ->
+        [0] +{ $general } від генерала = { $total } всього
+        [1] +{ $general } від генерала, +1 від фортеці = { $total } всього
+        *[other] +{ $general } від генерала, +{ $fortress } від фортець = { $total } всього
     }
 }
 ageofheroes-war-bonuses-other = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            [1] {"{ $player }: +1 від фортеці = { $total } всього"}
-            *[other] {"{ $player }: +{ $fortress } від фортець = { $total } всього"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        [1] { $player }: +1 від фортеці = { $total } всього
+        *[other] { $player }: +{ $fortress } від фортець = { $total } всього
     }
-    *[other] {
-        { $fortress ->
-            [0] {"{ $player }: +{ $general } від генерала = { $total } всього"}
-            [1] {"{ $player }: +{ $general } від генерала, +1 від фортеці = { $total } всього"}
-            *[other] {"{ $player }: +{ $general } від генерала, +{ $fortress } від фортець = { $total } всього"}
-        }
+    *[other] { $fortress ->
+        [0] { $player }: +{ $general } від генерала = { $total } всього
+        [1] { $player }: +{ $general } від генерала, +1 від фортеці = { $total } всього
+        *[other] { $player }: +{ $general } від генерала, +{ $fortress } від фортець = { $total } всього
     }
 }
 

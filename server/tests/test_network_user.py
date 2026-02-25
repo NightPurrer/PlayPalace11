@@ -1,8 +1,8 @@
 """Tests for the NetworkUser implementation."""
 
-from server.users.base import EscapeBehavior, MenuItem, TrustLevel
-from server.users.network_user import NetworkUser
-from server.users.preferences import UserPreferences
+from server.core.users.base import EscapeBehavior, MenuItem, TrustLevel
+from server.core.users.network_user import NetworkUser
+from server.core.users.preferences import UserPreferences
 
 
 class DummyConnection:
@@ -55,6 +55,31 @@ def test_network_user_show_and_update_menu_tracks_state():
     packet = drain_messages(user)[0]
     assert packet["items"] == []
     assert "lobby" not in user._current_menus
+
+
+def test_network_user_show_menu_reuses_previous_position_when_not_specified():
+    user = NetworkUser(
+        username="alice",
+        locale="en",
+        connection=DummyConnection(),
+        uuid="test-uuid",
+        trust_level=TrustLevel.USER,
+        preferences=UserPreferences(),
+        approved=True,
+    )
+
+    user.show_menu("options_menu", [MenuItem(text="One", id="one")], position=1)
+    drain_messages(user)
+
+    user.show_menu(
+        "options_menu",
+        [
+            MenuItem(text="One", id="one"),
+            MenuItem(text="Two", id="two"),
+        ],
+    )
+    packet = drain_messages(user)[0]
+    assert packet["position"] == 0  # 1-based stored -> 0-based packet
 
 
 def test_network_user_audio_and_clear_ui_packets():

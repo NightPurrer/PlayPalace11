@@ -858,6 +858,7 @@ def finish_war_battle(game: AgeOfHeroesGame) -> None:
 
     # Save attacker/defender info BEFORE applying outcome (which resets war state)
     winner = get_battle_winner(game)
+    had_rounds = war.battle_in_progress
 
     attacker_name = None
     defender_name = None
@@ -870,8 +871,10 @@ def finish_war_battle(game: AgeOfHeroesGame) -> None:
     # Apply war outcome (this may reset war state)
     apply_war_outcome(game)
 
-    # Announce battle end summary
-    if attacker_name and defender_name:
+    # Announce battle end summary only when no rounds were fought
+    # (immediate end due to 0 armies). When rounds were fought, the
+    # per-round messages already announce the outcome.
+    if not had_rounds and attacker_name and defender_name:
         if winner == "attacker":
             game.broadcast_l(
                 "ageofheroes-battle-victory-attacker",

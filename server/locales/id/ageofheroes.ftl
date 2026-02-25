@@ -233,35 +233,27 @@ ageofheroes-war-prepared = Pasukan Anda: { $armies } { $armies ->
 ageofheroes-war-roll-you = Anda melempar { $roll }.
 ageofheroes-war-roll-other = { $player } melempar { $roll }.
 ageofheroes-war-bonuses-you = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            [1] {"+1 dari benteng = { $total } total"}
-            *[other] {"+{ $fortress } dari benteng = { $total } total"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        [1] +1 dari benteng = { $total } total
+        *[other] +{ $fortress } dari benteng = { $total } total
     }
-    *[other] {
-        { $fortress ->
-            [0] {"+{ $general } dari jenderal = { $total } total"}
-            [1] {"+{ $general } dari jenderal, +1 dari benteng = { $total } total"}
-            *[other] {"+{ $general } dari jenderal, +{ $fortress } dari benteng = { $total } total"}
-        }
+    *[other] { $fortress ->
+        [0] +{ $general } dari jenderal = { $total } total
+        [1] +{ $general } dari jenderal, +1 dari benteng = { $total } total
+        *[other] +{ $general } dari jenderal, +{ $fortress } dari benteng = { $total } total
     }
 }
 ageofheroes-war-bonuses-other = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            [1] {"{ $player }: +1 dari benteng = { $total } total"}
-            *[other] {"{ $player }: +{ $fortress } dari benteng = { $total } total"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        [1] { $player }: +1 dari benteng = { $total } total
+        *[other] { $player }: +{ $fortress } dari benteng = { $total } total
     }
-    *[other] {
-        { $fortress ->
-            [0] {"{ $player }: +{ $general } dari jenderal = { $total } total"}
-            [1] {"{ $player }: +{ $general } dari jenderal, +1 dari benteng = { $total } total"}
-            *[other] {"{ $player }: +{ $general } dari jenderal, +{ $fortress } dari benteng = { $total } total"}
-        }
+    *[other] { $fortress ->
+        [0] { $player }: +{ $general } dari jenderal = { $total } total
+        [1] { $player }: +{ $general } dari jenderal, +1 dari benteng = { $total } total
+        *[other] { $player }: +{ $general } dari jenderal, +{ $fortress } dari benteng = { $total } total
     }
 }
 

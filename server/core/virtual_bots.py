@@ -6,6 +6,8 @@ from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from .config_paths import get_default_config_path
+
 if TYPE_CHECKING:
     from .server import Server
 
@@ -179,8 +181,7 @@ class VirtualBotManager:
     def load_config(self, path: str | Path | None = None) -> None:
         """Load bot configuration from config.toml."""
         if path is None:
-            # Default to server/config.toml
-            path = Path(__file__).parent.parent / "config.toml"
+            path = get_default_config_path()
 
         path = Path(path)
         if not path.exists():
@@ -401,7 +402,7 @@ class VirtualBotManager:
 
     def _validate_guided_tables(self) -> None:
         """Validate guided table rules against available games and bot counts."""
-        from ..games.registry import GameRegistry
+        from server.games.registry import GameRegistry
 
         available_games = {cls.get_type() for cls in GameRegistry.get_all()}
         for state in self._guided_tables.values():
@@ -628,7 +629,7 @@ class VirtualBotManager:
 
     def _restore_bot_user(self, bot: VirtualBot) -> None:
         """Restore a VirtualUser for a bot that was online."""
-        from ..users.virtual_user import VirtualUser
+        from .users.virtual_user import VirtualUser
 
         # Check if user already exists (e.g., from table loading for IN_GAME bots)
         existing_user = self._server._users.get(bot.name)
@@ -646,7 +647,7 @@ class VirtualBotManager:
             else:
                 # Username taken by a real user - mark bot as offline
                 bot.state = VirtualBotState.OFFLINE
-                bot.cooldown_ticks = random.randint(200, 400)
+                bot.cooldown_ticks = random.randint(200, 400)  # nosec B311
                 return
 
         # Create virtual user and add to server
@@ -711,7 +712,7 @@ class VirtualBotManager:
                 )
                 min_offline = self._get_config_value(bot, "min_offline_ticks")
                 max_offline = self._get_config_value(bot, "max_offline_ticks")
-                cooldown = random.randint(min_offline, max_offline)
+                cooldown = random.randint(min_offline, max_offline)  # nosec B311
                 bot.cooldown_ticks = cooldown
                 self._bots[name] = bot
             added += 1
@@ -789,7 +790,18 @@ class VirtualBotManager:
 
     def get_admin_snapshot(self) -> dict[str, Any]:
         """Collect structured debug info for admin tooling."""
-        config_summary = {
+        config_summary = self._build_admin_config_summary()
+        profile_usage = self._build_admin_profile_usage()
+        return {
+            "config": config_summary,
+            "profiles": self._build_admin_profiles_snapshot(profile_usage),
+            "groups": self._build_admin_groups_snapshot(),
+            "guided_tables": self._build_admin_guided_snapshot(),
+        }
+
+    def _build_admin_config_summary(self) -> dict[str, Any]:
+        """Summarize configuration values for admin tooling."""
+        return {
             "allocation_mode": self._config.allocation_mode.value,
             "fallback_behavior": self._config.fallback_behavior.value,
             "default_profile": self._config.default_profile,
@@ -798,10 +810,17 @@ class VirtualBotManager:
             "tick_counter": self._tick_counter,
         }
 
+    def _build_admin_profile_usage(self) -> dict[str, int]:
+        """Count how many bots use each profile."""
         profile_usage: dict[str, int] = {}
-        for bot_name, profile in self._bot_profiles_map.items():
+        for _bot_name, profile in self._bot_profiles_map.items():
             profile_usage[profile] = profile_usage.get(profile, 0) + 1
+        return profile_usage
 
+    def _build_admin_profiles_snapshot(
+        self, profile_usage: dict[str, int]
+    ) -> list[dict[str, Any]]:
+        """Build snapshot data for configured profiles."""
         profiles_snapshot = []
         for name in sorted(self._profiles.keys()):
             profile = self._profiles[name]
@@ -836,28 +855,14 @@ class VirtualBotManager:
                     "bot_count": profile_usage.get(name, 0),
                 }
             )
+        return profiles_snapshot
 
+    def _build_admin_groups_snapshot(self) -> list[dict[str, Any]]:
+        """Build snapshot data for bot groups."""
         groups_snapshot = []
         for group_name in sorted(self._bot_groups.keys()):
             group = self._bot_groups[group_name]
-            counts = {"total": 0, "online": 0, "waiting": 0, "in_game": 0, "offline": 0}
-            assigned_rules: set[str] = set()
-            for bot_name in group.bots:
-                counts["total"] += 1
-                bot = self._bots.get(bot_name)
-                if bot:
-                    if bot.target_rule:
-                        assigned_rules.add(bot.target_rule)
-                    if bot.state == VirtualBotState.IN_GAME or bot.state == VirtualBotState.LEAVING_GAME:
-                        counts["in_game"] += 1
-                    elif bot.state == VirtualBotState.WAITING_FOR_TABLE:
-                        counts["waiting"] += 1
-                    elif bot.state == VirtualBotState.ONLINE_IDLE:
-                        counts["online"] += 1
-                    else:
-                        counts["offline"] += 1
-                else:
-                    counts["offline"] += 1
+            counts, assigned_rules = self._summarize_bot_group(group.bots)
             groups_snapshot.append(
                 {
                     "name": group_name,
@@ -867,78 +872,110 @@ class VirtualBotManager:
                     "assigned_rules": sorted(assigned_rules),
                 }
             )
+        return groups_snapshot
 
-        guided_snapshot = []
-        for state in self._iter_guided_states():
-            config = state.config
-            assigned = len(state.assigned_bots)
-            seated = self._count_rule_bots(state)
-            waiting = 0
-            unavailable = 0
-            for name in state.assigned_bots:
-                bot = self._bots.get(name)
-                if not bot:
-                    unavailable += 1
-                    continue
-                if bot.table_id == state.table_id and bot.state in (
-                    VirtualBotState.IN_GAME,
-                    VirtualBotState.LEAVING_GAME,
-                ):
-                    continue
-                if bot.state == VirtualBotState.OFFLINE:
-                    unavailable += 1
-                else:
-                    waiting += 1
-            active = self._rule_is_active(state)
-            ticks_until_next = self._ticks_until_next_change(state)
-            table_state = "unassigned"
-            table_id = state.table_id
-            human_players = 0
-            total_players = 0
-            host = None
-            if state.table_id:
-                table = self._server._tables.get_table(state.table_id)
-                if table and table.game:
-                    table_state = "linked"
-                    host = table.game.host
-                    total_players = len(table.game.players)
-                    human_players = len(
-                        [player for player in table.game.players if player.name not in self._bots]
-                    )
-                else:
-                    table_state = "stale"
-            guided_snapshot.append(
-                {
-                    "name": config.name,
-                    "game": config.game,
-                    "priority": config.priority,
-                    "min_bots": config.min_bots,
-                    "max_bots": config.max_bots if config.max_bots > 0 else None,
-                    "assigned_bots": assigned,
-                    "seated_bots": seated,
-                    "waiting_bots": waiting,
-                    "bot_groups": list(config.bot_groups),
-                    "profile": config.profile,
-                    "active": active,
-                    "table_state": table_state,
-                    "table_id": table_id,
-                    "human_players": human_players,
-                    "total_players": total_players,
-                    "host": host,
-                    "cycle_ticks": config.cycle_ticks,
-                    "active_window": config.active_window,
-                    "ticks_until_next_change": ticks_until_next,
-                    "warning": state.warned_shortage or (assigned < config.min_bots),
-                    "unavailable_bots": unavailable,
-                }
-            )
+    def _summarize_bot_group(
+        self, bot_names: list[str]
+    ) -> tuple[dict[str, int], set[str]]:
+        """Count bot states and assigned rules for a group."""
+        counts = {"total": 0, "online": 0, "waiting": 0, "in_game": 0, "offline": 0}
+        assigned_rules: set[str] = set()
+        for bot_name in bot_names:
+            counts["total"] += 1
+            bot = self._bots.get(bot_name)
+            if not bot:
+                counts["offline"] += 1
+                continue
+            if bot.target_rule:
+                assigned_rules.add(bot.target_rule)
+            if bot.state in (VirtualBotState.IN_GAME, VirtualBotState.LEAVING_GAME):
+                counts["in_game"] += 1
+            elif bot.state == VirtualBotState.WAITING_FOR_TABLE:
+                counts["waiting"] += 1
+            elif bot.state == VirtualBotState.ONLINE_IDLE:
+                counts["online"] += 1
+            else:
+                counts["offline"] += 1
+        return counts, assigned_rules
+
+    def _build_admin_guided_snapshot(self) -> list[dict[str, Any]]:
+        """Build snapshot data for guided table rules."""
+        return [
+            self._build_guided_state_snapshot(state)
+            for state in self._iter_guided_states()
+        ]
+
+    def _build_guided_state_snapshot(self, state: "GuidedTableRuleState") -> dict[str, Any]:
+        """Build a snapshot for a single guided rule state."""
+        config = state.config
+        assigned = len(state.assigned_bots)
+        seated = self._count_rule_bots(state)
+        waiting, unavailable = self._count_guided_availability(state)
+        active = self._rule_is_active(state)
+        ticks_until_next = self._ticks_until_next_change(state)
+        table_state, host, total_players, human_players = self._describe_guided_table(state)
 
         return {
-            "config": config_summary,
-            "profiles": profiles_snapshot,
-            "groups": groups_snapshot,
-            "guided_tables": guided_snapshot,
+            "name": config.name,
+            "game": config.game,
+            "priority": config.priority,
+            "min_bots": config.min_bots,
+            "max_bots": config.max_bots if config.max_bots > 0 else None,
+            "assigned_bots": assigned,
+            "seated_bots": seated,
+            "waiting_bots": waiting,
+            "bot_groups": list(config.bot_groups),
+            "profile": config.profile,
+            "active": active,
+            "table_state": table_state,
+            "table_id": state.table_id,
+            "human_players": human_players,
+            "total_players": total_players,
+            "host": host,
+            "cycle_ticks": config.cycle_ticks,
+            "active_window": config.active_window,
+            "ticks_until_next_change": ticks_until_next,
+            "warning": state.warned_shortage or (assigned < config.min_bots),
+            "unavailable_bots": unavailable,
         }
+
+    def _count_guided_availability(
+        self, state: "GuidedTableRuleState"
+    ) -> tuple[int, int]:
+        """Count guided bots waiting vs unavailable for a rule."""
+        waiting = 0
+        unavailable = 0
+        for name in state.assigned_bots:
+            bot = self._bots.get(name)
+            if not bot:
+                unavailable += 1
+                continue
+            if bot.table_id == state.table_id and bot.state in (
+                VirtualBotState.IN_GAME,
+                VirtualBotState.LEAVING_GAME,
+            ):
+                continue
+            if bot.state == VirtualBotState.OFFLINE:
+                unavailable += 1
+            else:
+                waiting += 1
+        return waiting, unavailable
+
+    def _describe_guided_table(
+        self, state: "GuidedTableRuleState"
+    ) -> tuple[str, str | None, int, int]:
+        """Describe the guided table link and player counts."""
+        if not state.table_id:
+            return "unassigned", None, 0, 0
+
+        table = self._server._tables.get_table(state.table_id)
+        if not table or not table.game:
+            return "stale", None, 0, 0
+
+        human_players = len(
+            [player for player in table.game.players if player.name not in self._bots]
+        )
+        return "linked", table.game.host, len(table.game.players), human_players
 
     def on_tick(self) -> None:
         """Process bot decisions each server tick."""
@@ -972,7 +1009,7 @@ class VirtualBotManager:
             and not bot.target_rule
         ):
             # Stay offline until a guided assignment needs this bot
-            bot.cooldown_ticks = random.randint(
+            bot.cooldown_ticks = random.randint(  # nosec B311
                 self._get_config_value(bot, "min_offline_ticks"),
                 self._get_config_value(bot, "max_offline_ticks"),
             )
@@ -998,23 +1035,23 @@ class VirtualBotManager:
         if (
             bot.online_ticks >= self._get_config_value(bot, "min_online_ticks")
             and bot.online_ticks >= bot.target_online_ticks
-            and random.random() < self._get_config_value(bot, "go_offline_chance")
+            and random.random() < self._get_config_value(bot, "go_offline_chance")  # nosec B311
         ):
             self._take_bot_offline(bot)
             return
 
         # Try to join an existing game
-        if random.random() < self._get_config_value(bot, "join_game_chance"):
+        if random.random() < self._get_config_value(bot, "join_game_chance"):  # nosec B311
             if self._try_join_game(bot):
                 return
 
         # Try to create a new game
-        if random.random() < self._get_config_value(bot, "create_game_chance"):
+        if random.random() < self._get_config_value(bot, "create_game_chance"):  # nosec B311
             if self._try_create_game(bot):
                 return
 
         # Set next think delay
-        bot.think_ticks = random.randint(
+        bot.think_ticks = random.randint(  # nosec B311
             self._get_config_value(bot, "min_idle_ticks"),
             self._get_config_value(bot, "max_idle_ticks"),
         )
@@ -1060,7 +1097,7 @@ class VirtualBotManager:
             # Log off after a short delay (2-5 seconds)
             bot.logout_after_game = False  # Reset flag
             bot.state = VirtualBotState.ONLINE_IDLE
-            bot.cooldown_ticks = random.randint(
+            bot.cooldown_ticks = random.randint(  # nosec B311
                 self._get_config_value(bot, "logout_after_game_min_ticks"),
                 self._get_config_value(bot, "logout_after_game_max_ticks"),
             )
@@ -1070,7 +1107,7 @@ class VirtualBotManager:
             self._take_bot_offline(bot)
         else:
             bot.state = VirtualBotState.ONLINE_IDLE
-            bot.think_ticks = random.randint(
+            bot.think_ticks = random.randint(  # nosec B311
                 self._get_config_value(bot, "min_idle_ticks"),
                 self._get_config_value(bot, "max_idle_ticks"),
             )
@@ -1138,7 +1175,7 @@ class VirtualBotManager:
         wait_min = self._get_config_value(bot, "waiting_min_ticks")
         wait_max = self._get_config_value(bot, "waiting_max_ticks")
         bot.state = VirtualBotState.WAITING_FOR_TABLE
-        bot.cooldown_ticks = random.randint(wait_min, wait_max)
+        bot.cooldown_ticks = random.randint(wait_min, wait_max)  # nosec B311
         bot.think_ticks = 0
 
     def _count_rule_bots(self, state: GuidedTableState, exclude: str | None = None) -> int:
@@ -1180,7 +1217,7 @@ class VirtualBotManager:
 
     def _create_guided_table(self, bot: VirtualBot, state: GuidedTableState) -> bool:
         """Create a guided table and seat the bot as host."""
-        from ..games.registry import GameRegistry
+        from server.games.registry import GameRegistry
 
         user = self._server._users.get(bot.name)
         if not user:
@@ -1198,7 +1235,7 @@ class VirtualBotManager:
         game._table = table
         game.initialize_lobby(bot.name, user)
 
-        self._server._broadcast_table_created(bot.name, game_class.get_name())
+        self._server._broadcast_table_created(bot.name, state.config.game)
 
         bot.state = VirtualBotState.IN_GAME
         bot.table_id = table.table_id
@@ -1236,12 +1273,12 @@ class VirtualBotManager:
 
     def _bring_bot_online(self, bot: VirtualBot) -> None:
         """Bring a bot online."""
-        from ..users.virtual_user import VirtualUser
+        from .users.virtual_user import VirtualUser
 
         # Check if username is already taken by a real user
         if bot.name in self._server._users:
             # Reschedule for later
-            bot.cooldown_ticks = random.randint(200, 400)
+            bot.cooldown_ticks = random.randint(200, 400)  # nosec B311
             return
 
         # Create virtual user and add to server
@@ -1252,11 +1289,11 @@ class VirtualBotManager:
         # Set up bot state
         bot.state = VirtualBotState.ONLINE_IDLE
         bot.online_ticks = 0
-        bot.target_online_ticks = random.randint(
+        bot.target_online_ticks = random.randint(  # nosec B311
             self._get_config_value(bot, "min_online_ticks"),
             self._get_config_value(bot, "max_online_ticks"),
         )
-        bot.think_ticks = random.randint(
+        bot.think_ticks = random.randint(  # nosec B311
             self._get_config_value(bot, "min_idle_ticks"),
             self._get_config_value(bot, "max_idle_ticks"),
         )
@@ -1278,7 +1315,7 @@ class VirtualBotManager:
 
         # Set up offline state
         bot.state = VirtualBotState.OFFLINE
-        bot.cooldown_ticks = random.randint(
+        bot.cooldown_ticks = random.randint(  # nosec B311
             self._get_config_value(bot, "min_offline_ticks"),
             self._get_config_value(bot, "max_offline_ticks"),
         )
@@ -1308,11 +1345,11 @@ class VirtualBotManager:
     def _start_leaving_game(self, bot: VirtualBot) -> None:
         """Start the leaving game process with a staggered delay."""
         bot.state = VirtualBotState.LEAVING_GAME
-        bot.cooldown_ticks = random.randint(
+        bot.cooldown_ticks = random.randint(  # nosec B311
             0, self._get_config_value(bot, "leave_game_delay_ticks")
         )
         # Decide if this bot will log off after the game
-        bot.logout_after_game = random.random() < self._get_config_value(
+        bot.logout_after_game = random.random() < self._get_config_value(  # nosec B311
             bot, "logout_after_game_chance"
         )
 
@@ -1324,7 +1361,7 @@ class VirtualBotManager:
             return False
 
         # Pick a random table
-        table = random.choice(tables)
+        table = random.choice(tables)  # nosec B311
         game = table.game
         if not game:
             return False
@@ -1383,7 +1420,7 @@ class VirtualBotManager:
 
     def _get_available_game_types(self) -> list:
         """Get game classes that bots can still create tables for."""
-        from ..games.registry import GameRegistry
+        from server.games.registry import GameRegistry
 
         available = []
         for game_class in GameRegistry.get_all():
@@ -1404,7 +1441,7 @@ class VirtualBotManager:
             return False
 
         # Pick a random available game type
-        game_class = random.choice(available_game_classes)
+        game_class = random.choice(available_game_classes)  # nosec B311
         game_type = game_class.get_type()
 
         user = self._server._users.get(bot.name)
@@ -1421,8 +1458,7 @@ class VirtualBotManager:
         game.initialize_lobby(bot.name, user)
 
         # Broadcast table creation to all approved users
-        game_name = game_class.get_name()
-        self._server._broadcast_table_created(bot.name, game_name)
+        self._server._broadcast_table_created(bot.name, game_type)
 
         # Update bot state
         bot.state = VirtualBotState.IN_GAME

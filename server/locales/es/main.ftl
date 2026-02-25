@@ -353,3 +353,5 @@ virtual-bots-profiles-header = Perfiles: { $count } definidos (predeterminado: {
 virtual-bots-profiles-empty = No hay perfiles definidos.
 virtual-bots-profiles-line = { $profile } ({ $bot_count } bots) anulaciones: { $overrides }.
 virtual-bots-profiles-no-overrides = hereda configuración base
+
+localization-in-progress-try-again = La localización está en progreso. Vuelve a intentarlo en un minuto.

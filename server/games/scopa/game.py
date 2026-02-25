@@ -31,7 +31,7 @@ from ...game_utils.options import (
 from ...game_utils.teams import TeamManager
 from ...game_utils.round_timer import RoundTransitionTimer
 from ...messages.localization import Localization
-from ...ui.keybinds import KeybindState
+from server.core.ui.keybinds import KeybindState
 
 # Modular components
 from .capture import find_captures, select_best_capture, get_capture_hint
@@ -502,7 +502,7 @@ class ScopaGame(Game):
                     msg_kwargs["cards"] = read_cards(cards, user.locale)
                 if card is not None:
                     msg_kwargs["card"] = card_name(card, user.locale)
-                user.speak_l(message_id, **msg_kwargs)
+                user.speak_l(message_id, buffer="table", **msg_kwargs)
 
     def _create_deck(self) -> None:
         """Create and shuffle the deck."""
@@ -648,7 +648,11 @@ class ScopaGame(Game):
             # Personal message for player
             user = self.get_user(player)
             if user:
-                user.speak_l("scopa-you-put-down", card=card_name(card, user.locale))
+                user.speak_l(
+                    "scopa-you-put-down",
+                    card=card_name(card, user.locale),
+                    buffer="table",
+                )
 
             # Broadcast to others
             self._broadcast_cards_l(

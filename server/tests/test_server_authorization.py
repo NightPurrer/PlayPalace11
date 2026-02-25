@@ -9,8 +9,8 @@ import pytest
 
 from server.core.server import Server, DEFAULT_WS_MAX_MESSAGE_BYTES
 from server.auth.auth import AuthResult
-from server.users.base import TrustLevel
-from server.tables.table import Table
+from server.core.users.base import TrustLevel
+from server.core.tables.table import Table
 from server.games.base import Player
 
 
@@ -22,6 +22,8 @@ class DummyClient:
         self.address = address
         self.closed = False
         self.replaced = False
+        self.client_type = ""
+        self.platform = ""
 
     async def send(self, payload):
         self.sent.append(payload)
@@ -37,11 +39,11 @@ class DummyAuth:
         self.calls = {"authenticate": [], "register": []}
         self.user_record = user_record
 
-    def authenticate(self, username, password):
+    def authenticate(self, username, password, **kwargs):
         self.calls["authenticate"].append((username, password))
         return self.authenticate_result
 
-    def register(self, username, password):
+    def register(self, username, password, **kwargs):
         self.calls["register"].append((username, password))
         return self.register_result
 
@@ -101,12 +103,12 @@ async def test_authorize_registers_and_waits_for_approval(monkeypatch, server):
     server._show_main_menu = fake_show_main_menu
 
     client = DummyClient()
-    packet = {"username": "newbie", "password": "pw"}
+    packet = {"username": "newbie", "password": "validpass"}
 
     await server._handle_authorize(client, packet)
 
-    assert auth.calls["authenticate"] == [("newbie", "pw")]
-    assert auth.calls["register"] == [("newbie", "pw")]
+    assert auth.calls["authenticate"] == [("newbie", "validpass")]
+    assert auth.calls["register"] == [("newbie", "validpass")]
     assert notifications == [("account-request", "accountrequest.ogg")]
     assert client.authenticated and client.username == "newbie"
     assert sent_game_list == ["newbie"]
@@ -149,7 +151,7 @@ async def test_authorize_existing_admin_announces(monkeypatch, server):
     server._send_game_list = fake_send_game_list
 
     client = DummyClient()
-    packet = {"username": "admin", "password": "pw"}
+    packet = {"username": "admin", "password": "validpass"}
 
     await server._handle_authorize(client, packet)
 
@@ -172,7 +174,7 @@ async def test_register_requires_username_and_password(server):
         f"Username must be between {server._username_min_length} and {server._username_max_length} characters."
     )
     assert client.sent == [
-        {"type": "speak", "text": expected}
+        {"type": "speak", "text": expected, "buffer": "activity"}
     ]
 
 
@@ -186,13 +188,14 @@ async def test_register_success_notifies_admins(server):
     server._notify_admins = lambda msg, sound: notifications.append((msg, sound))
 
     client = DummyClient()
-    await server._handle_register(client, {"username": "fresh", "password": "pw"})
+    await server._handle_register(client, {"username": "fresh", "password": "validpass"})
 
     assert client.sent[-1] == {
         "type": "speak",
-        "text": "Registration successful! You can now log in with your credentials.",
+        "text": "Registration successful! Your account is waiting for approval.",
+        "buffer": "activity",
     }
-    assert auth.calls["register"] == [("fresh", "pw")]
+    assert auth.calls["register"] == [("fresh", "validpass")]
     assert notifications == [("account-request", "accountrequest.ogg")]
 
 
@@ -204,13 +207,14 @@ async def test_register_rejects_duplicate_username(server):
     server._auth = auth
 
     client = DummyClient()
-    await server._handle_register(client, {"username": "taken", "password": "pw"})
+    await server._handle_register(client, {"username": "taken", "password": "validpass"})
 
     assert client.sent[-1] == {
         "type": "speak",
         "text": "Username already taken. Please choose a different username.",
+        "buffer": "activity",
     }
-    assert auth.calls["register"] == [("taken", "pw")]
+    assert auth.calls["register"] == [("taken", "validpass")]
 
 
 @pytest.mark.asyncio
@@ -280,7 +284,7 @@ async def test_authorize_handoffs_existing_session(monkeypatch, server):
 
 @pytest.mark.asyncio
 async def test_authorize_rejoin_replays_transcript(monkeypatch, server):
-    from server.users.test_user import MockUser
+    from server.core.users.test_user import MockUser
 
     record = SimpleNamespace(
         username="player",
@@ -444,12 +448,25 @@ async def test_refresh_session_success(server):
     server._send_game_list = fake_send_game_list
 
     client = DummyClient()
-    await server._handle_refresh_session(client, {"refresh_token": "refresh-token", "username": "alice"})
+    await server._handle_refresh_session(
+        client,
+        {
+            "refresh_token": "refresh-token",
+            "username": "alice",
+            "client_type": "Desktop",
+            "platform": "Windows 11",
+        },
+    )
 
     assert client.authenticated is True
     assert client.username == "alice"
     assert any(p.get("type") == "refresh_session_success" for p in client.sent)
     assert sent_game_list == ["alice"]
+    assert client.client_type == "Desktop"
+    assert client.platform == "Windows 11"
+    user = server._users["alice"]
+    assert user.client_type == "Desktop"
+    assert user.platform == "Windows 11"
 
 
 @pytest.mark.asyncio

@@ -201,31 +201,23 @@ ageofheroes-war-prepared = 당신의 병력: { $armies }개 군대{ $generals ->
 ageofheroes-war-roll-you = 당신은 { $roll }을(를) 굴렸습니다.
 ageofheroes-war-roll-other = { $player }이(가) { $roll }을(를) 굴렸습니다.
 ageofheroes-war-bonuses-you = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            *[other] {"요새에서 +{ $fortress } = 총 { $total }"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        *[other] 요새에서 +{ $fortress } = 총 { $total }
     }
-    *[other] {
-        { $fortress ->
-            [0] {"장군에서 +{ $general } = 총 { $total }"}
-            *[other] {"장군에서 +{ $general }, 요새에서 +{ $fortress } = 총 { $total }"}
-        }
+    *[other] { $fortress ->
+        [0] 장군에서 +{ $general } = 총 { $total }
+        *[other] 장군에서 +{ $general }, 요새에서 +{ $fortress } = 총 { $total }
     }
 }
 ageofheroes-war-bonuses-other = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            *[other] {"{ $player }: 요새에서 +{ $fortress } = 총 { $total }"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        *[other] { $player }: 요새에서 +{ $fortress } = 총 { $total }
     }
-    *[other] {
-        { $fortress ->
-            [0] {"{ $player }: 장군에서 +{ $general } = 총 { $total }"}
-            *[other] {"{ $player }: 장군에서 +{ $general }, 요새에서 +{ $fortress } = 총 { $total }"}
-        }
+    *[other] { $fortress ->
+        [0] { $player }: 장군에서 +{ $general } = 총 { $total }
+        *[other] { $player }: 장군에서 +{ $general }, 요새에서 +{ $fortress } = 총 { $total }
     }
 }
 

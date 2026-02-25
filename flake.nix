@@ -13,8 +13,8 @@
       devShells = forAllSystems (system:
         let
           pkgs = import nixpkgs { inherit system; };
-          python = pkgs.python311;
-          pyPkgs = pkgs.python311Packages;
+          python = pkgs.python313;
+          pyPkgs = pkgs.python313Packages;
 
           pypiSrc = { pname, version, sha256, srcPname ? pname }:
             pkgs.fetchPypi {
@@ -144,8 +144,8 @@
                 echo ""
                 echo "Common commands:"
                 echo "  nix develop . --command bash"
-                echo "  ./run_server.sh"
-                echo "  ./run_client.sh"
+                echo "  ./scripts/run_server.sh"
+                echo "  ./scripts/run_client.sh"
                 ${extraHook}
               '';
             };

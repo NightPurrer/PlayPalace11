@@ -27,6 +27,8 @@ class ClientConnection:
     username: str | None = None
     authenticated: bool = False
     replaced: bool = False
+    client_type: str = ""
+    platform: str = ""
 
     async def send(self, packet: dict) -> None:
         """Send a packet to this client."""
@@ -47,8 +49,8 @@ class ClientConnection:
         """Close this connection."""
         try:
             await self.websocket.close()
-        except Exception:
-            pass
+        except (OSError, RuntimeError, websockets.exceptions.ConnectionClosed) as exc:
+            PACKET_LOGGER.debug("Failed to close websocket: %s", exc)
 
 
 class WebSocketServer:
@@ -128,7 +130,7 @@ class WebSocketServer:
                     file=sys.stderr,
                 )
             raise SystemExit(1) from exc
-        
+
         protocol = "wss" if self._ssl_context else "ws"
         print(f"WebSocket server started on {protocol}://{self.host}:{self.port}")
 

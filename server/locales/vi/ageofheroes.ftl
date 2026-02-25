@@ -233,35 +233,27 @@ ageofheroes-war-prepared = Lực lượng của bạn: { $armies } { $armies ->
 ageofheroes-war-roll-you = Bạn gieo được { $roll }.
 ageofheroes-war-roll-other = { $player } gieo được { $roll }.
 ageofheroes-war-bonuses-you = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            [1] {"+1 từ pháo đài = tổng { $total }"}
-           *[other] {"+{ $fortress } từ pháo đài = tổng { $total }"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        [1] +1 từ pháo đài = tổng { $total }
+        *[other] +{ $fortress } từ pháo đài = tổng { $total }
     }
-   *[other] {
-        { $fortress ->
-            [0] {"+{ $general } từ tướng = tổng { $total }"}
-            [1] {"+{ $general } từ tướng, +1 từ pháo đài = tổng { $total }"}
-           *[other] {"+{ $general } từ tướng, +{ $fortress } từ pháo đài = tổng { $total }"}
-        }
+    *[other] { $fortress ->
+        [0] +{ $general } từ tướng = tổng { $total }
+        [1] +{ $general } từ tướng, +1 từ pháo đài = tổng { $total }
+        *[other] +{ $general } từ tướng, +{ $fortress } từ pháo đài = tổng { $total }
     }
 }
 ageofheroes-war-bonuses-other = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            [1] {"{ $player }: +1 từ pháo đài = tổng { $total }"}
-           *[other] {"{ $player }: +{ $fortress } từ pháo đài = tổng { $total }"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        [1] { $player }: +1 từ pháo đài = tổng { $total }
+        *[other] { $player }: +{ $fortress } từ pháo đài = tổng { $total }
     }
-   *[other] {
-        { $fortress ->
-            [0] {"{ $player }: +{ $general } từ tướng = tổng { $total }"}
-            [1] {"{ $player }: +{ $general } từ tướng, +1 từ pháo đài = tổng { $total }"}
-           *[other] {"{ $player }: +{ $general } từ tướng, +{ $fortress } từ pháo đài = tổng { $total }"}
-        }
+    *[other] { $fortress ->
+        [0] { $player }: +{ $general } từ tướng = tổng { $total }
+        [1] { $player }: +{ $general } từ tướng, +1 từ pháo đài = tổng { $total }
+        *[other] { $player }: +{ $general } từ tướng, +{ $fortress } từ pháo đài = tổng { $total }
     }
 }
 

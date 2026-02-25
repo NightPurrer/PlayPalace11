@@ -12,8 +12,8 @@ from server.games.milebymile.game import (
     RaceState,
 )
 from server.games.milebymile.cards import HazardType, SafetyType
-from server.users.test_user import MockUser
-from server.users.bot import Bot
+from server.core.users.test_user import MockUser
+from server.core.users.bot import Bot
 
 
 class TestMileByMileGameUnit:
@@ -113,6 +113,7 @@ class TestRightOfWayBehavior:
         race_state.add_safety(SafetyType.RIGHT_OF_WAY)
 
         assert race_state.can_play_distance() is False
+
 
 
 class TestMileByMileSerialization:

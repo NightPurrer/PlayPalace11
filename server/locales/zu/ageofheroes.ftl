@@ -236,35 +236,27 @@ ageofheroes-war-prepared = Amabutho akho: { $armies } { $armies ->
 ageofheroes-war-roll-you = Wena uphonsa { $roll }.
 ageofheroes-war-roll-other = U-{ $player } uphonsa { $roll }.
 ageofheroes-war-bonuses-you = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            [1] {"+1 kusuka enqabeni = isamba esingu-{ $total }"}
-            *[other] {"+{ $fortress } kusuka ezinqabeni = isamba esingu-{ $total }"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        [1] +1 kusuka enqabeni = isamba esingu-{ $total }
+        *[other] +{ $fortress } kusuka ezinqabeni = isamba esingu-{ $total }
     }
-    *[other] {
-        { $fortress ->
-            [0] {"+{ $general } kusuka kumenzi = isamba esingu-{ $total }"}
-            [1] {"+{ $general } kusuka kumenzi, +1 kusuka enqabeni = isamba esingu-{ $total }"}
-            *[other] {"+{ $general } kusuka kumenzi, +{ $fortress } kusuka ezinqabeni = isamba esingu-{ $total }"}
-        }
+    *[other] { $fortress ->
+        [0] +{ $general } kusuka kumenzi = isamba esingu-{ $total }
+        [1] +{ $general } kusuka kumenzi, +1 kusuka enqabeni = isamba esingu-{ $total }
+        *[other] +{ $general } kusuka kumenzi, +{ $fortress } kusuka ezinqabeni = isamba esingu-{ $total }
     }
 }
 ageofheroes-war-bonuses-other = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            [1] {"{ $player }: +1 kusuka enqabeni = isamba esingu-{ $total }"}
-            *[other] {"{ $player }: +{ $fortress } kusuka ezinqabeni = isamba esingu-{ $total }"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        [1] { $player }: +1 kusuka enqabeni = isamba esingu-{ $total }
+        *[other] { $player }: +{ $fortress } kusuka ezinqabeni = isamba esingu-{ $total }
     }
-    *[other] {
-        { $fortress ->
-            [0] {"{ $player }: +{ $general } kusuka kumenzi = isamba esingu-{ $total }"}
-            [1] {"{ $player }: +{ $general } kusuka kumenzi, +1 kusuka enqabeni = isamba esingu-{ $total }"}
-            *[other] {"{ $player }: +{ $general } kusuka kumenzi, +{ $fortress } kusuka ezinqabeni = isamba esingu-{ $total }"}
-        }
+    *[other] { $fortress ->
+        [0] { $player }: +{ $general } kusuka kumenzi = isamba esingu-{ $total }
+        [1] { $player }: +{ $general } kusuka kumenzi, +1 kusuka enqabeni = isamba esingu-{ $total }
+        *[other] { $player }: +{ $general } kusuka kumenzi, +{ $fortress } kusuka ezinqabeni = isamba esingu-{ $total }
     }
 }
 

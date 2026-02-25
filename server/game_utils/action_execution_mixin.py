@@ -7,7 +7,7 @@ if TYPE_CHECKING:
 
 from .actions import Action, MenuInput, EditboxInput
 from .options import get_option_meta, MenuOption
-from ..users.base import MenuItem, EscapeBehavior
+from server.core.users.base import MenuItem, EscapeBehavior
 from ..messages.localization import Localization
 
 
@@ -42,10 +42,14 @@ class ActionExecutionMixin:
         resolved = self.resolve_action(player, action)
         if not resolved.enabled:
             # Speak the reason to the player unless it's a silent block.
-            if resolved.disabled_reason and resolved.disabled_reason != "action-not-available":
+            reason = resolved.disabled_reason
+            if reason and reason != "action-not-available":
                 user = self.get_user(player)
                 if user:
-                    user.speak_l(resolved.disabled_reason)
+                    if isinstance(reason, tuple):
+                        user.speak_l(reason[0], **reason[1])
+                    else:
+                        user.speak_l(reason)
             return
 
         # If action requires input and we don't have it yet

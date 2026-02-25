@@ -233,35 +233,27 @@ ageofheroes-war-prepared = Kuvvetlerin: { $armies } { $armies ->
 ageofheroes-war-roll-you = { $roll } atıyorsun.
 ageofheroes-war-roll-other = { $player } { $roll } atıyor.
 ageofheroes-war-bonuses-you = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            [one] {"+1 kaleden = { $total } toplam"}
-            *[other] {"+{ $fortress } kalelerden = { $total } toplam"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        [one] +1 kaleden = { $total } toplam
+        *[other] +{ $fortress } kalelerden = { $total } toplam
     }
-    *[other] {
-        { $fortress ->
-            [0] {"+{ $general } generalden = { $total } toplam"}
-            [one] {"+{ $general } generalden, +1 kaleden = { $total } toplam"}
-            *[other] {"+{ $general } generalden, +{ $fortress } kalelerden = { $total } toplam"}
-        }
+    *[other] { $fortress ->
+        [0] +{ $general } generalden = { $total } toplam
+        [one] +{ $general } generalden, +1 kaleden = { $total } toplam
+        *[other] +{ $general } generalden, +{ $fortress } kalelerden = { $total } toplam
     }
 }
 ageofheroes-war-bonuses-other = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            [one] {"{ $player }: +1 kaleden = { $total } toplam"}
-            *[other] {"{ $player }: +{ $fortress } kalelerden = { $total } toplam"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        [one] { $player }: +1 kaleden = { $total } toplam
+        *[other] { $player }: +{ $fortress } kalelerden = { $total } toplam
     }
-    *[other] {
-        { $fortress ->
-            [0] {"{ $player }: +{ $general } generalden = { $total } toplam"}
-            [one] {"{ $player }: +{ $general } generalden, +1 kaleden = { $total } toplam"}
-            *[other] {"{ $player }: +{ $general } generalden, +{ $fortress } kalelerden = { $total } toplam"}
-        }
+    *[other] { $fortress ->
+        [0] { $player }: +{ $general } generalden = { $total } toplam
+        [one] { $player }: +{ $general } generalden, +1 kaleden = { $total } toplam
+        *[other] { $player }: +{ $general } generalden, +{ $fortress } kalelerden = { $total } toplam
     }
 }
 

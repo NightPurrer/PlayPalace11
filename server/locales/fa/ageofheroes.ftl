@@ -233,35 +233,27 @@ ageofheroes-war-prepared = نیروهای شما: { $armies } { $armies ->
 ageofheroes-war-roll-you = شما { $roll } می‌اندازید.
 ageofheroes-war-roll-other = { $player } { $roll } می‌اندازد.
 ageofheroes-war-bonuses-you = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            [1] {"+۱ از دژ = { $total } مجموع"}
-            *[other] {"+{ $fortress } از دژها = { $total } مجموع"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        [1] +۱ از دژ = { $total } مجموع
+        *[other] +{ $fortress } از دژها = { $total } مجموع
     }
-    *[other] {
-        { $fortress ->
-            [0] {"+{ $general } از ژنرال = { $total } مجموع"}
-            [1] {"+{ $general } از ژنرال، +۱ از دژ = { $total } مجموع"}
-            *[other] {"+{ $general } از ژنرال، +{ $fortress } از دژها = { $total } مجموع"}
-        }
+    *[other] { $fortress ->
+        [0] +{ $general } از ژنرال = { $total } مجموع
+        [1] +{ $general } از ژنرال، +۱ از دژ = { $total } مجموع
+        *[other] +{ $general } از ژنرال، +{ $fortress } از دژها = { $total } مجموع
     }
 }
 ageofheroes-war-bonuses-other = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            [1] {"{ $player }: +۱ از دژ = { $total } مجموع"}
-            *[other] {"{ $player }: +{ $fortress } از دژها = { $total } مجموع"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        [1] { $player }: +۱ از دژ = { $total } مجموع
+        *[other] { $player }: +{ $fortress } از دژها = { $total } مجموع
     }
-    *[other] {
-        { $fortress ->
-            [0] {"{ $player }: +{ $general } از ژنرال = { $total } مجموع"}
-            [1] {"{ $player }: +{ $general } از ژنرال، +۱ از دژ = { $total } مجموع"}
-            *[other] {"{ $player }: +{ $general } از ژنرال، +{ $fortress } از دژها = { $total } مجموع"}
-        }
+    *[other] { $fortress ->
+        [0] { $player }: +{ $general } از ژنرال = { $total } مجموع
+        [1] { $player }: +{ $general } از ژنرال، +۱ از دژ = { $total } مجموع
+        *[other] { $player }: +{ $general } از ژنرال، +{ $fortress } از دژها = { $total } مجموع
     }
 }
 

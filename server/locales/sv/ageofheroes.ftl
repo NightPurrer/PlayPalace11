@@ -233,35 +233,27 @@ ageofheroes-war-prepared = Dina styrkor: { $armies } { $armies ->
 ageofheroes-war-roll-you = Du kastar { $roll }.
 ageofheroes-war-roll-other = { $player } kastar { $roll }.
 ageofheroes-war-bonuses-you = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            [one] {"+1 från fästning = { $total } totalt"}
-            *[other] {"+{ $fortress } från fästningar = { $total } totalt"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        [one] +1 från fästning = { $total } totalt
+        *[other] +{ $fortress } från fästningar = { $total } totalt
     }
-    *[other] {
-        { $fortress ->
-            [0] {"+{ $general } från general = { $total } totalt"}
-            [one] {"+{ $general } från general, +1 från fästning = { $total } totalt"}
-            *[other] {"+{ $general } från general, +{ $fortress } från fästningar = { $total } totalt"}
-        }
+    *[other] { $fortress ->
+        [0] +{ $general } från general = { $total } totalt
+        [one] +{ $general } från general, +1 från fästning = { $total } totalt
+        *[other] +{ $general } från general, +{ $fortress } från fästningar = { $total } totalt
     }
 }
 ageofheroes-war-bonuses-other = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            [one] {"{ $player }: +1 från fästning = { $total } totalt"}
-            *[other] {"{ $player }: +{ $fortress } från fästningar = { $total } totalt"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        [one] { $player }: +1 från fästning = { $total } totalt
+        *[other] { $player }: +{ $fortress } från fästningar = { $total } totalt
     }
-    *[other] {
-        { $fortress ->
-            [0] {"{ $player }: +{ $general } från general = { $total } totalt"}
-            [one] {"{ $player }: +{ $general } från general, +1 från fästning = { $total } totalt"}
-            *[other] {"{ $player }: +{ $general } från general, +{ $fortress } från fästningar = { $total } totalt"}
-        }
+    *[other] { $fortress ->
+        [0] { $player }: +{ $general } från general = { $total } totalt
+        [one] { $player }: +{ $general } från general, +1 från fästning = { $total } totalt
+        *[other] { $player }: +{ $general } från general, +{ $fortress } från fästningar = { $total } totalt
     }
 }
 

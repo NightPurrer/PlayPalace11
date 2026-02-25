@@ -3,8 +3,8 @@
 import functools
 from typing import TYPE_CHECKING
 
-from ..users.network_user import NetworkUser
-from ..users.base import MenuItem, EscapeBehavior, TrustLevel
+from .users.network_user import NetworkUser
+from .users.base import MenuItem, EscapeBehavior, TrustLevel
 from ..messages.localization import Localization
 
 if TYPE_CHECKING:
@@ -820,6 +820,9 @@ class AdministrationMixin:
                 # Update the user's approved status so they can now interact
                 waiting_user.set_approved(True)
 
+                # Broadcast online presence now that the user is approved
+                self._broadcast_login_presence(waiting_user)
+
                 waiting_state = self._user_states.get(username, {})
                 if waiting_state.get("menu") == "main_menu":
                     # User is online and waiting - welcome them and show full main menu
@@ -1109,7 +1112,7 @@ class AdministrationMixin:
 
         bots_cleared, tables_killed = self._virtual_bots.clear_bots()
         if bots_cleared > 0:
-            owner.speak_l( 
+            owner.speak_l(
                 "virtual-bots-cleared",
                 bots=bots_cleared,
                 tables=tables_killed,
@@ -1129,7 +1132,7 @@ class AdministrationMixin:
             return
 
         status = self._virtual_bots.get_status()
-        owner.speak_l( 
+        owner.speak_l(
             "virtual-bots-status-report",
             total=status["total"],
             online=status["online"],

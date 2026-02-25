@@ -257,43 +257,35 @@ ageofheroes-war-prepared = Tvoje sily: { $armies } { $armies ->
 ageofheroes-war-roll-you = Ty hádžeš { $roll }.
 ageofheroes-war-roll-other = { $player } hádže { $roll }.
 ageofheroes-war-bonuses-you = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            [one] {"+1 z pevnosti = { $total } celkom"}
-            [few] {"+{ $fortress } z pevností = { $total } celkom"}
-            [many] {"+{ $fortress } z pevností = { $total } celkom"}
-            *[other] {"+{ $fortress } z pevností = { $total } celkom"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        [one] +1 z pevnosti = { $total } celkom
+        [few] +{ $fortress } z pevností = { $total } celkom
+        [many] +{ $fortress } z pevností = { $total } celkom
+        *[other] +{ $fortress } z pevností = { $total } celkom
     }
-    *[other] {
-        { $fortress ->
-            [0] {"+{ $general } z generála = { $total } celkom"}
-            [one] {"+{ $general } z generála, +1 z pevnosti = { $total } celkom"}
-            [few] {"+{ $general } z generála, +{ $fortress } z pevností = { $total } celkom"}
-            [many] {"+{ $general } z generála, +{ $fortress } z pevností = { $total } celkom"}
-            *[other] {"+{ $general } z generála, +{ $fortress } z pevností = { $total } celkom"}
-        }
+    *[other] { $fortress ->
+        [0] +{ $general } z generála = { $total } celkom
+        [one] +{ $general } z generála, +1 z pevnosti = { $total } celkom
+        [few] +{ $general } z generála, +{ $fortress } z pevností = { $total } celkom
+        [many] +{ $general } z generála, +{ $fortress } z pevností = { $total } celkom
+        *[other] +{ $general } z generála, +{ $fortress } z pevností = { $total } celkom
     }
 }
 ageofheroes-war-bonuses-other = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            [one] {"{ $player }: +1 z pevnosti = { $total } celkom"}
-            [few] {"{ $player }: +{ $fortress } z pevností = { $total } celkom"}
-            [many] {"{ $player }: +{ $fortress } z pevností = { $total } celkom"}
-            *[other] {"{ $player }: +{ $fortress } z pevností = { $total } celkom"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        [one] { $player }: +1 z pevnosti = { $total } celkom
+        [few] { $player }: +{ $fortress } z pevností = { $total } celkom
+        [many] { $player }: +{ $fortress } z pevností = { $total } celkom
+        *[other] { $player }: +{ $fortress } z pevností = { $total } celkom
     }
-    *[other] {
-        { $fortress ->
-            [0] {"{ $player }: +{ $general } z generála = { $total } celkom"}
-            [one] {"{ $player }: +{ $general } z generála, +1 z pevnosti = { $total } celkom"}
-            [few] {"{ $player }: +{ $general } z generála, +{ $fortress } z pevností = { $total } celkom"}
-            [many] {"{ $player }: +{ $general } z generála, +{ $fortress } z pevností = { $total } celkom"}
-            *[other] {"{ $player }: +{ $general } z generála, +{ $fortress } z pevností = { $total } celkom"}
-        }
+    *[other] { $fortress ->
+        [0] { $player }: +{ $general } z generála = { $total } celkom
+        [one] { $player }: +{ $general } z generála, +1 z pevnosti = { $total } celkom
+        [few] { $player }: +{ $general } z generála, +{ $fortress } z pevností = { $total } celkom
+        [many] { $player }: +{ $general } z generála, +{ $fortress } z pevností = { $total } celkom
+        *[other] { $player }: +{ $general } z generála, +{ $fortress } z pevností = { $total } celkom
     }
 }
 

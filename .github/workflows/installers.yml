@@ -1,0 +1,179 @@
+name: Build Installers
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "clients/**"
+      - "server/**"
+      - "packaging/**"
+      - ".github/workflows/installers.yml"
+
+jobs:
+  linux-packages:
+    name: Linux Packaging Placeholders
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        run: python -m pip install --upgrade uv
+
+      - name: Install packaging toolchains and wxPython build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev rpm rpm2cpio rsync \
+            libgtk-3-dev libsdl2-dev libnotify-dev libsm-dev \
+            libgstreamer-gl1.0-0 freeglut3-dev pkg-config
+
+      - name: Sync client dependencies
+        run: |
+          cd clients/desktop
+          uv sync
+
+      - name: Sync server dependencies
+        run: |
+          cd server
+          uv sync
+
+      - name: Build Debian packages
+        run: |
+          ./packaging/installers/linux/scripts/build_deb.sh
+
+      - name: Upload Debian packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-deb
+          path: packaging/installers/dist/linux/deb
+
+      - name: Build RPM packages
+        run: |
+          ./packaging/installers/linux/scripts/build_rpm.sh
+
+      - name: Upload RPM packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-rpm
+          path: packaging/installers/dist/linux/rpm
+
+      - name: Test Debian packages (podman)
+        env:
+          PLAYPALACE_SIGNING_KEY_ID: ${{ secrets.PLAYPALACE_SIGNING_KEY_ID }}
+        run: |
+          ./packaging/installers/linux/scripts/test_deb.sh
+
+      - name: Test RPM packages (podman)
+        continue-on-error: true
+        env:
+          PLAYPALACE_SIGNING_KEY_ID: ${{ secrets.PLAYPALACE_SIGNING_KEY_ID }}
+        run: |
+          ./packaging/installers/linux/scripts/test_rpm.sh
+
+  arch-packages:
+    name: Arch Packages
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:base-devel
+    env:
+      UV_PYTHON: "3.13"
+      UV_PYTHON_INSTALL_DIR: /opt/uv/python
+      UV_CACHE_DIR: /opt/uv/cache
+    steps:
+      - name: Install dependencies
+        run: pacman -Syu --noconfirm git python python-pip rsync tar gtk3 sdl2 freeglut libnotify pkg-config sudo
+
+      - name: Create build user
+        run: |
+          useradd -m builder
+          echo 'builder ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up uv and Python 3.13
+        run: |
+          pip install --upgrade uv --break-system-packages
+          mkdir -p /opt/uv/python /opt/uv/cache
+          uv python install 3.13
+          chmod -R a+rwX /opt/uv
+          chown -R builder:builder "$GITHUB_WORKSPACE"
+
+      - name: Build Arch packages
+        run: runuser --preserve-environment -u builder -- ./packaging/installers/linux/scripts/build_arch.sh
+
+      - name: Test Arch packages
+        run: |
+          if command -v podman &>/dev/null; then
+            ./packaging/installers/linux/scripts/test_arch.sh
+          else
+            echo "Skipping smoke test: podman not available in container"
+          fi
+
+      - name: Upload Arch packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-arch
+          path: packaging/installers/dist/linux/arch
+
+  windows-msi:
+    name: Windows MSI
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        run: python -m pip install --upgrade uv
+
+      - name: Sync client dependencies
+        shell: pwsh
+        run: |
+          Set-Location clients/desktop
+          uv sync
+
+      - name: Build client executable
+        shell: pwsh
+        run: |
+          Set-Location clients/desktop
+          ./build.ps1
+
+      - name: Sync server dependencies
+        shell: pwsh
+        run: |
+          Set-Location server
+          uv sync
+
+      - name: Build server executable
+        shell: pwsh
+        run: |
+          Set-Location server
+          ./build.ps1
+
+      - name: Set up .NET for WiX
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Build MSI with WiX
+        shell: pwsh
+        run: |
+          dotnet build packaging/installers/windows/wix/PlayPalace.wixproj -c Release
+
+      - name: Upload MSI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-msi
+          path: packaging/installers/windows/wix/bin/**/*.msi

@@ -154,3 +154,12 @@ milebymile-between-races = Дождитесь начала следующей г
 
 # Validation errors
 milebymile-error-karma-needs-three-teams = Для правила кармы требуется как минимум 3 отдельных машины или команды.
+
+milebymile-you-play-safety-with-effect = Вы играете { $card }. { $effect }
+milebymile-player-plays-safety-with-effect = { $player } играет { $card }. { $effect }
+milebymile-you-play-dirty-trick-with-effect = Вы играете { $card } как подлый трюк. { $effect }
+milebymile-player-plays-dirty-trick-with-effect = { $player } играет { $card } как подлый трюк. { $effect }
+milebymile-safety-effect-extra-tank = Теперь вы защищены от слива бензина.
+milebymile-safety-effect-puncture-proof = Теперь вы защищены от прокола колёс.
+milebymile-safety-effect-driving-ace = Теперь вы защищены от аварий.
+milebymile-safety-effect-right-of-way = Теперь вы защищены от остановки и ограничения скорости.

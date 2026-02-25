@@ -51,7 +51,11 @@ ninetynine-player-draws = { $player } берёт карту.
 ninetynine-no-valid-cards = У игрока { $player } нет карт, которые не превысили бы порог в 99 очков!
 
 # Status - for C key
-ninetynine-current-count = Текущий счёт: { $count }.
+ninetynine-current-count = Текущая сумма: { $count }.
+
+# Hand check - for H key
+ninetynine-hand-cards = Ваши карты: { $cards }.
+ninetynine-hand-empty = У вас нет карт.
 
 # Ace choice
 ninetynine-ace-choice = Разыграть туза как +1 или как +11?

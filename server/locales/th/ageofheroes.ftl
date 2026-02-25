@@ -201,31 +201,23 @@ ageofheroes-war-prepared = กองกำลังของคุณ: { $armies
 ageofheroes-war-roll-you = คุณทอยได้ { $roll }
 ageofheroes-war-roll-other = { $player } ทอยได้ { $roll }
 ageofheroes-war-bonuses-you = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            *[other] {"+{ $fortress } จากป้อมปราการ = { $total } รวม"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        *[other] +{ $fortress } จากป้อมปราการ = { $total } รวม
     }
-    *[other] {
-        { $fortress ->
-            [0] {"+{ $general } จากนายพล = { $total } รวม"}
-            *[other] {"+{ $general } จากนายพล, +{ $fortress } จากป้อมปราการ = { $total } รวม"}
-        }
+    *[other] { $fortress ->
+        [0] +{ $general } จากนายพล = { $total } รวม
+        *[other] +{ $general } จากนายพล, +{ $fortress } จากป้อมปราการ = { $total } รวม
     }
 }
 ageofheroes-war-bonuses-other = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            *[other] {"{ $player }: +{ $fortress } จากป้อมปราการ = { $total } รวม"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        *[other] { $player }: +{ $fortress } จากป้อมปราการ = { $total } รวม
     }
-    *[other] {
-        { $fortress ->
-            [0] {"{ $player }: +{ $general } จากนายพล = { $total } รวม"}
-            *[other] {"{ $player }: +{ $general } จากนายพล, +{ $fortress } จากป้อมปราการ = { $total } รวม"}
-        }
+    *[other] { $fortress ->
+        [0] { $player }: +{ $general } จากนายพล = { $total } รวม
+        *[other] { $player }: +{ $general } จากนายพล, +{ $fortress } จากป้อมปราการ = { $total } รวม
     }
 }
 

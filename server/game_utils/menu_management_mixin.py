@@ -4,10 +4,10 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..games.base import Player
-    from ..users.base import User
+    from server.core.users.base import User
     from .actions import ResolvedAction
 
-from ..users.base import MenuItem, EscapeBehavior
+from server.core.users.base import MenuItem, EscapeBehavior
 
 
 class MenuManagementMixin:
@@ -22,12 +22,27 @@ class MenuManagementMixin:
         get_all_visible_actions(player) -> list[ResolvedAction].
     """
 
-    def rebuild_player_menu(self, player: "Player") -> None:
-        """Rebuild the turn menu for a player."""
+    def rebuild_player_menu(
+        self, player: "Player", *, position: int | None = None
+    ) -> None:
+        """Rebuild the turn menu for a player.
+
+        Args:
+            player: The player whose menu to rebuild.
+            position: Optional 1-based position to focus on. Use position=1
+                to reset focus to the first item. When None, the client
+                preserves focus on the previously selected item by ID. This
+                causes a stuck-cursor bug when an always-visible action (like
+                "view pipe") shifts position as turn actions appear/disappear.
+                Pass position=1 in _start_turn for the current player to avoid
+                this.
+        """
         if self._destroyed:
             return  # Don't rebuild menus after game is destroyed
         if self.status == "finished":
             return  # Don't rebuild turn menu after game has ended
+        if player.id in self._status_box_open:
+            return  # Don't clobber status box with turn menu
         user = self.get_user(player)
         if not user:
             return
@@ -41,6 +56,7 @@ class MenuManagementMixin:
             items,
             multiletter=False,
             escape_behavior=EscapeBehavior.KEYBIND,
+            position=position,
         )
 
     def rebuild_all_menus(self) -> None:
@@ -58,6 +74,8 @@ class MenuManagementMixin:
             return
         if self.status == "finished":
             return
+        if player.id in self._status_box_open:
+            return  # Don't clobber status box with turn menu
         user = self.get_user(player)
         if not user:
             return

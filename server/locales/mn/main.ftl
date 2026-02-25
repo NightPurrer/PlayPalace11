@@ -353,3 +353,5 @@ virtual-bots-profiles-header = Профайлууд: { $count } тодорхой
 virtual-bots-profiles-empty = Профайл тодорхойлоогүй байна.
 virtual-bots-profiles-line = { $profile } ({ $bot_count } бот) дарж бичих: { $overrides }.
 virtual-bots-profiles-no-overrides = үндсэн тохиргооноос өвлөнө
+
+localization-in-progress-try-again = Нутагшуулалт хийгдэж байна. Нэг минутын дараа дахин оролдоно уу.

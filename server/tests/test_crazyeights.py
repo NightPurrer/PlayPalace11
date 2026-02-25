@@ -4,8 +4,8 @@ from server.game_utils.actions import Visibility
 from server.game_utils.cards import Card, Deck, DeckFactory
 from server.games.crazyeights.game import CrazyEightsGame, CrazyEightsOptions
 from server.messages.localization import Localization
-from server.users.bot import Bot
-from server.users.test_user import MockUser
+from server.core.users.bot import Bot
+from server.core.users.test_user import MockUser
 
 
 def create_game_with_host(host_name: str = "Host"):
@@ -160,6 +160,33 @@ def test_crazyeights_choose_suit_transitions_wild_state():
         suit=game._suit_name(3, guest_user.locale),
     )
     assert expected_suit_message in guest_user.get_spoken_messages()
+
+
+def test_crazyeights_suit_choice_labels_include_hand_counts():
+    game, host_player, host_user = create_game_with_host()
+    guest_user = MockUser("Guest")
+    guest_player = game.add_player("Guest", guest_user)
+    game.status = "playing"
+    game.set_turn_players([host_player, guest_player], reset_index=True)
+    game.awaiting_wild_suit = True
+    host_player.hand = [
+        make_card(1, 2, 4),  # spades
+        make_card(2, 7, 4),  # spades
+        make_card(3, 9, 1),  # diamonds
+        make_card(4, 8, 2),  # clubs
+    ]
+
+    visible = game.get_all_visible_actions(host_player)
+    labels = {a.action.id: a.label for a in visible}
+    expected_spades = f"{Localization.get(host_user.locale, 'suit-spades')} 2"
+    expected_diamonds = f"{Localization.get(host_user.locale, 'suit-diamonds')} 1"
+    expected_hearts = f"{Localization.get(host_user.locale, 'suit-hearts')} 0"
+    expected_clubs = f"{Localization.get(host_user.locale, 'suit-clubs')} 1"
+
+    assert labels["suit_spades"] == expected_spades
+    assert labels["suit_diamonds"] == expected_diamonds
+    assert labels["suit_hearts"] == expected_hearts
+    assert labels["suit_clubs"] == expected_clubs
 
 
 def test_crazyeights_start_new_hand_uses_number_start_card(monkeypatch: pytest.MonkeyPatch):

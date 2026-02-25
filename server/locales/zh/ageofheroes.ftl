@@ -233,35 +233,27 @@ ageofheroes-war-prepared = 你的部队：{ $armies }{ $armies ->
 ageofheroes-war-roll-you = 你掷出{ $roll }。
 ageofheroes-war-roll-other = { $player }掷出{ $roll }。
 ageofheroes-war-bonuses-you = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            [1] {"要塞+1 = 总计{ $total }"}
-            *[other] {"要塞+{ $fortress } = 总计{ $total }"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        [1] 要塞+1 = 总计{ $total }
+        *[other] 要塞+{ $fortress } = 总计{ $total }
     }
-    *[other] {
-        { $fortress ->
-            [0] {"将军+{ $general } = 总计{ $total }"}
-            [1] {"将军+{ $general }，要塞+1 = 总计{ $total }"}
-            *[other] {"将军+{ $general }，要塞+{ $fortress } = 总计{ $total }"}
-        }
+    *[other] { $fortress ->
+        [0] 将军+{ $general } = 总计{ $total }
+        [1] 将军+{ $general }，要塞+1 = 总计{ $total }
+        *[other] 将军+{ $general }，要塞+{ $fortress } = 总计{ $total }
     }
 }
 ageofheroes-war-bonuses-other = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            [1] {"{ $player }：要塞+1 = 总计{ $total }"}
-            *[other] {"{ $player }：要塞+{ $fortress } = 总计{ $total }"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        [1] { $player }：要塞+1 = 总计{ $total }
+        *[other] { $player }：要塞+{ $fortress } = 总计{ $total }
     }
-    *[other] {
-        { $fortress ->
-            [0] {"{ $player }：将军+{ $general } = 总计{ $total }"}
-            [1] {"{ $player }：将军+{ $general }，要塞+1 = 总计{ $total }"}
-            *[other] {"{ $player }：将军+{ $general }，要塞+{ $fortress } = 总计{ $total }"}
-        }
+    *[other] { $fortress ->
+        [0] { $player }：将军+{ $general } = 总计{ $total }
+        [1] { $player }：将军+{ $general }，要塞+1 = 总计{ $total }
+        *[other] { $player }：将军+{ $general }，要塞+{ $fortress } = 总计{ $total }
     }
 }
 

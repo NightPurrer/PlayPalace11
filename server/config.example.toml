@@ -22,6 +22,9 @@ max_message_bytes = 1048576
 allow_insecure_ws = false
 
 [server]
+# Bind interface IP address (default: 127.0.0.1). Use 127.0.0.1 for local-only
+# access or 0.0.0.0 to listen on all interfaces.
+bind_ip = "127.0.0.1"
 # Tick interval in milliseconds (default: 50ms = 20 ticks/sec)
 # Lower values = faster game updates but more CPU usage
 # Higher values = slower updates but less CPU usage

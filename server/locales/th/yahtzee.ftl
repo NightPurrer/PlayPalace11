@@ -48,7 +48,7 @@ yahtzee-continuing = ดำเนินการต่อ
 
 # Status checks
 yahtzee-check-scoresheet = ตรวจสอบบัตรคะแนน
-yahtzee-view-dice = ตรวจสอบมือ
+yahtzee-view-dice = ตรวจสอบลูกเต้าของคุณ
 yahtzee-your-dice = ลูกเต้าของคุณ: { $dice }
 yahtzee-your-dice-kept = ลูกเต้าของคุณ: { $dice } เก็บไว้: { $kept }
 yahtzee-not-rolled = คุณยังไม่ได้ทอย

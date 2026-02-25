@@ -233,35 +233,27 @@ ageofheroes-war-prepared = Erőid: { $armies } { $armies ->
 ageofheroes-war-roll-you = Te dobsz { $roll }.
 ageofheroes-war-roll-other = { $player } dob { $roll }.
 ageofheroes-war-bonuses-you = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            [one] {"+1 erődtől = összesen { $total }"}
-            *[other] {"+{ $fortress } erődöktől = összesen { $total }"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        [one] +1 erődtől = összesen { $total }
+        *[other] +{ $fortress } erődöktől = összesen { $total }
     }
-    *[other] {
-        { $fortress ->
-            [0] {"+{ $general } tábornoktól = összesen { $total }"}
-            [one] {"+{ $general } tábornoktól, +1 erődtől = összesen { $total }"}
-            *[other] {"+{ $general } tábornoktól, +{ $fortress } erődöktől = összesen { $total }"}
-        }
+    *[other] { $fortress ->
+        [0] +{ $general } tábornoktól = összesen { $total }
+        [one] +{ $general } tábornoktól, +1 erődtől = összesen { $total }
+        *[other] +{ $general } tábornoktól, +{ $fortress } erődöktől = összesen { $total }
     }
 }
 ageofheroes-war-bonuses-other = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            [one] {"{ $player }: +1 erődtől = összesen { $total }"}
-            *[other] {"{ $player }: +{ $fortress } erődöktől = összesen { $total }"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        [one] { $player }: +1 erődtől = összesen { $total }
+        *[other] { $player }: +{ $fortress } erődöktől = összesen { $total }
     }
-    *[other] {
-        { $fortress ->
-            [0] {"{ $player }: +{ $general } tábornoktól = összesen { $total }"}
-            [one] {"{ $player }: +{ $general } tábornoktól, +1 erődtől = összesen { $total }"}
-            *[other] {"{ $player }: +{ $general } tábornoktól, +{ $fortress } erődöktől = összesen { $total }"}
-        }
+    *[other] { $fortress ->
+        [0] { $player }: +{ $general } tábornoktól = összesen { $total }
+        [one] { $player }: +{ $general } tábornoktól, +1 erődtől = összesen { $total }
+        *[other] { $player }: +{ $general } tábornoktól, +{ $fortress } erődöktől = összesen { $total }
     }
 }
 

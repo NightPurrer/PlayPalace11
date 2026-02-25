@@ -48,7 +48,7 @@ yahtzee-continuing = 继续回合。
 
 # 状态检查
 yahtzee-check-scoresheet = 查看计分卡
-yahtzee-view-dice = 查看手牌
+yahtzee-view-dice = Check dice
 yahtzee-your-dice = 你的骰子：{ $dice }。
 yahtzee-your-dice-kept = 你的骰子：{ $dice }。保留：{ $kept }
 yahtzee-not-rolled = 你还没有掷骰子。

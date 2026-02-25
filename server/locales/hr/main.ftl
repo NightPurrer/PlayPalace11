@@ -353,3 +353,5 @@ virtual-bots-profiles-header = Profili: { $count } definirano (zadano: { $defaul
 virtual-bots-profiles-empty = Nisu definirani profili.
 virtual-bots-profiles-line = { $profile } ({ $bot_count } botova) nadjačava: { $overrides }.
 virtual-bots-profiles-no-overrides = nasljeđuje osnovnu konfiguraciju
+
+localization-in-progress-try-again = Lokalizacija je u tijeku. Pokušajte ponovno za minutu.

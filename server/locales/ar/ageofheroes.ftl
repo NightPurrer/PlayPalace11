@@ -289,35 +289,27 @@ ageofheroes-war-prepared = قواتك: { $armies } { $armies ->
 ageofheroes-war-roll-you = ترمي { $roll }.
 ageofheroes-war-roll-other = { $player } يرمي { $roll }.
 ageofheroes-war-bonuses-you = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            [1] {"+1 من الحصن = { $total } إجمالي"}
-            *[other] {"+{ $fortress } من الحصون = { $total } إجمالي"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        [1] +1 من الحصن = { $total } إجمالي
+        *[other] +{ $fortress } من الحصون = { $total } إجمالي
     }
-    *[other] {
-        { $fortress ->
-            [0] {"+{ $general } من القائد = { $total } إجمالي"}
-            [1] {"+{ $general } من القائد، +1 من الحصن = { $total } إجمالي"}
-            *[other] {"+{ $general } من القائد، +{ $fortress } من الحصون = { $total } إجمالي"}
-        }
+    *[other] { $fortress ->
+        [0] +{ $general } من القائد = { $total } إجمالي
+        [1] +{ $general } من القائد، +1 من الحصن = { $total } إجمالي
+        *[other] +{ $general } من القائد، +{ $fortress } من الحصون = { $total } إجمالي
     }
 }
 ageofheroes-war-bonuses-other = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            [1] {"{ $player }: +1 من الحصن = { $total } إجمالي"}
-            *[other] {"{ $player }: +{ $fortress } من الحصون = { $total } إجمالي"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        [1] { $player }: +1 من الحصن = { $total } إجمالي
+        *[other] { $player }: +{ $fortress } من الحصون = { $total } إجمالي
     }
-    *[other] {
-        { $fortress ->
-            [0] {"{ $player }: +{ $general } من القائد = { $total } إجمالي"}
-            [1] {"{ $player }: +{ $general } من القائد، +1 من الحصن = { $total } إجمالي"}
-            *[other] {"{ $player }: +{ $general } من القائد، +{ $fortress } من الحصون = { $total } إجمالي"}
-        }
+    *[other] { $fortress ->
+        [0] { $player }: +{ $general } من القائد = { $total } إجمالي
+        [1] { $player }: +{ $general } من القائد، +1 من الحصن = { $total } إجمالي
+        *[other] { $player }: +{ $general } من القائد، +{ $fortress } من الحصون = { $total } إجمالي
     }
 }
 

@@ -267,35 +267,27 @@ ageofheroes-war-prepared = Vaše síly: { $armies } { $armies ->
 ageofheroes-war-roll-you = Hážete { $roll }.
 ageofheroes-war-roll-other = { $player } hází { $roll }.
 ageofheroes-war-bonuses-you = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            [1] {"+1 z pevnosti = { $total } celkem"}
-           *[other] {"+{ $fortress } z pevností = { $total } celkem"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        [1] +1 z pevnosti = { $total } celkem
+       *[other] +{ $fortress } z pevností = { $total } celkem
     }
-   *[other] {
-        { $fortress ->
-            [0] {"+{ $general } od generála = { $total } celkem"}
-            [1] {"+{ $general } od generála, +1 z pevnosti = { $total } celkem"}
-           *[other] {"+{ $general } od generála, +{ $fortress } z pevností = { $total } celkem"}
-        }
+   *[other] { $fortress ->
+        [0] +{ $general } od generála = { $total } celkem
+        [1] +{ $general } od generála, +1 z pevnosti = { $total } celkem
+       *[other] +{ $general } od generála, +{ $fortress } z pevností = { $total } celkem
     }
 }
 ageofheroes-war-bonuses-other = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            [1] {"{ $player }: +1 z pevnosti = { $total } celkem"}
-           *[other] {"{ $player }: +{ $fortress } z pevností = { $total } celkem"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        [1] { $player }: +1 z pevnosti = { $total } celkem
+       *[other] { $player }: +{ $fortress } z pevností = { $total } celkem
     }
-   *[other] {
-        { $fortress ->
-            [0] {"{ $player }: +{ $general } od generála = { $total } celkem"}
-            [1] {"{ $player }: +{ $general } od generála, +1 z pevnosti = { $total } celkem"}
-           *[other] {"{ $player }: +{ $general } od generála, +{ $fortress } z pevností = { $total } celkem"}
-        }
+   *[other] { $fortress ->
+        [0] { $player }: +{ $general } od generála = { $total } celkem
+        [1] { $player }: +{ $general } od generála, +1 z pevnosti = { $total } celkem
+       *[other] { $player }: +{ $general } od generála, +{ $fortress } z pevností = { $total } celkem
     }
 }
 

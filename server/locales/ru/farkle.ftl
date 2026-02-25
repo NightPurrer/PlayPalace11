@@ -78,8 +78,18 @@ farkle-rolls = { $player } бросает { $count } { $count ->
     [few] кубика
    *[other] кубиков
 }...
+farkle-you-roll = Вы бросаете { $count } { $count ->
+    [one] кубик
+    [few] кубика
+   *[other] кубиков
+}...
 farkle-roll-result = { $dice }
 farkle-farkle = ФАРКЛ! { $player } теряет { $points } { $points ->
+    [one] очко
+    [few] очка
+   *[other] очков
+}
+farkle-you-farkle = ФАРКЛ! Вы теряете { $points } { $points ->
     [one] очко
     [few] очка
    *[other] очков
@@ -100,7 +110,17 @@ farkle-banks = { $player } банкует { $points } { $points ->
     [few] очка
    *[other] очков
 } (всего { $total })
+farkle-you-bank = Вы банкуете { $points } { $points ->
+    [one] очко
+    [few] очка
+   *[other] очков
+} (всего { $total })
 farkle-winner = { $player } побеждает, набрав { $score } { $score ->
+    [one] очко
+    [few] очка
+   *[other] очков
+}!
+farkle-you-win = Вы побеждаете, набрав { $score } { $score ->
     [one] очко
     [few] очка
    *[other] очков
@@ -123,3 +143,13 @@ farkle-option-changed-target = Конечный счёт установлен н
 # Disabled action reasons
 farkle-must-take-combo = Сначала нужно выбрать выигрышную комбинацию.
 farkle-cannot-bank = Сейчас нельзя забрать очки в банк.
+
+# Additional Farkle options
+farkle-set-initial-bank-score = Начальный порог банка: { $score }
+farkle-enter-initial-bank-score = Введите начальный порог банка (0-1000):
+farkle-option-changed-initial-bank-score = Начальный порог банка установлен на { $score }.
+farkle-toggle-hot-dice-multiplier = Множитель hot dice: { $enabled }
+farkle-option-changed-hot-dice-multiplier = Множитель hot dice установлен на { $enabled }.
+
+# Action feedback
+farkle-minimum-initial-bank-score = Минимальный начальный порог банка: { $score }.

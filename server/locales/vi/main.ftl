@@ -3,7 +3,7 @@
 # Danh mục trò chơi
 category-card-games = Game Bài
 category-dice-games = Game Xúc Xắc
-category-board-games = Game Bàn Cờ
+category-board-games = Board Game (Cờ bàn)
 category-rb-play-center = Trung tâm Giải trí RB
 category-poker = Poker
 category-uncategorized = Chưa phân loại
@@ -72,7 +72,7 @@ goodbye = Tạm biệt!
 user-online = { $player } vừa online.
 user-offline = { $player } đã offline.
 user-is-admin = { $player } là quản trị viên của PlayPalace.
-user-is-server-owner = { $player } là chủ sở hữu máy chủ của PlayPalace.
+user-is-server-owner = { $player } là chủ sở hữu máy chủ PlayPalace.
 online-users-none = Không có ai online.
 online-users-one = 1 người dùng: { $users }
 online-users-many = { $count } người dùng: { $users }
@@ -257,13 +257,13 @@ account-declined-goodbye = Yêu cầu tạo tài khoản của bạn đã bị t
 account-banned = Tài khoản của bạn đã bị cấm và không thể truy cập.
 
 # Lỗi đăng nhập
-incorrect-username = Tên người dùng bạn nhập không tồn tại.
-incorrect-password = Mật khẩu bạn nhập không chính xác.
-already-logged-in = Tài khoản này đã đăng nhập.
+incorrect-username = Tên đăng nhập không tồn tại.
+incorrect-password = Mật khẩu không chính xác.
+already-logged-in = Tài khoản này đang được đăng nhập ở nơi khác.
 
 # Lý do từ chối
 decline-reason-prompt = Nhập lý do từ chối (hoặc nhấn Escape để hủy):
-account-action-empty-reason = Không có lý do được cung cấp.
+account-action-empty-reason = Không có lý do.
 
 # Thông báo Admin về yêu cầu tài khoản
 account-request = yêu cầu tài khoản
@@ -286,23 +286,23 @@ promote-announcement-you = Bạn đã được thăng chức lên Admin!
 demote-announcement = { $player } đã bị bãi nhiệm Admin.
 demote-announcement-you = Bạn đã bị bãi nhiệm Admin.
 not-admin-anymore = Bạn không còn là Admin và không thể thực hiện hành động này.
-not-server-owner = Chỉ chủ sở hữu máy chủ mới có thể thực hiện hành động này.
+not-server-owner = Chỉ chủ sở hữu máy chủ mới được thực hiện hành động này.
 
-# Chuyển quyền sở hữu máy chủ
-transfer-ownership = Chuyển quyền sở hữu
-transfer-ownership-menu-title = Chuyển quyền sở hữu
-no-admins-for-transfer = Không có Admin nào để chuyển quyền sở hữu.
-confirm-transfer-ownership = Bạn có chắc muốn chuyển quyền sở hữu máy chủ cho { $player } không? Bạn sẽ trở thành Admin.
-transfer-ownership-announcement = { $player } giờ là chủ sở hữu máy chủ Play Palace!
-transfer-ownership-announcement-you = Bạn giờ là chủ sở hữu máy chủ Play Palace!
+# Chuyển nhượng quyền sở hữu Server
+transfer-ownership = Chuyển nhượng quyền sở hữu
+transfer-ownership-menu-title = Chuyển nhượng quyền sở hữu
+no-admins-for-transfer = Không có Admin nào để chuyển nhượng.
+confirm-transfer-ownership = Bạn có chắc muốn chuyển quyền sở hữu server cho { $player } không? Bạn sẽ trở thành Admin bình thường.
+transfer-ownership-announcement = { $player } giờ là chủ sở hữu máy chủ PlayPalace!
+transfer-ownership-announcement-you = Bạn giờ là chủ sở hữu máy chủ PlayPalace!
 
-# Cấm người dùng
+# Cấm người dùng (Ban User)
 ban-user = Cấm người dùng
 unban-user = Bỏ cấm người dùng
 no-users-to-ban = Không có người dùng nào để cấm.
-no-users-to-unban = Không có người dùng bị cấm nào để bỏ cấm.
+no-users-to-unban = Không có người dùng bị cấm để mở khóa.
 confirm-ban = Bạn có chắc muốn cấm { $player } không?
-confirm-unban = Bạn có chắc muốn bỏ cấm { $player } không?
+confirm-unban = Bạn có chắc muốn bỏ cấm cho { $player } không?
 ban-reason-prompt = Nhập lý do cấm (tùy chọn):
 unban-reason-prompt = Nhập lý do bỏ cấm (tùy chọn):
 user-banned = { $player } đã bị cấm.
@@ -311,27 +311,47 @@ you-have-been-banned = Bạn đã bị cấm khỏi máy chủ này.
     Lý do:
 you-have-been-unbanned = Bạn đã được bỏ cấm khỏi máy chủ này.
     Lý do:
-virtual-bots-guided-overview = Guided Tables
-virtual-bots-groups-overview = Bot Groups
-virtual-bots-profiles-overview = Profiles
-virtual-bots-guided-header = Guided tables: { $count } rule(s). Allocation: { $allocation }, fallback: { $fallback }, default profile: { $default_profile }.
-virtual-bots-guided-empty = No guided table rules are configured.
-virtual-bots-guided-status-active = active
-virtual-bots-guided-status-inactive = inactive
-virtual-bots-guided-table-linked = linked to table { $table_id } (host { $host }, players { $players }, humans { $humans })
-virtual-bots-guided-table-stale = table { $table_id } missing on server
-virtual-bots-guided-table-unassigned = no table is currently tracked
-virtual-bots-guided-next-change = next change in { $ticks } ticks
-virtual-bots-guided-no-schedule = no scheduling window
-virtual-bots-guided-warning = ⚠ underfilled
-virtual-bots-guided-line = { $table }: game { $game }, priority { $priority }, bots { $assigned } (min { $min_bots }, max { $max_bots }), waiting { $waiting }, unavailable { $unavailable }, status { $status }, profile { $profile }, groups { $groups }. { $table_state }. { $next_change } { $warning_text }
-virtual-bots-groups-header = Bot groups: { $count } tag(s), { $bots } configured bots.
-virtual-bots-groups-empty = No bot groups are defined.
-virtual-bots-groups-line = { $group }: profile { $profile }, bots { $total } (online { $online }, waiting { $waiting }, in-game { $in_game }, offline { $offline }), rules { $rules }.
-virtual-bots-groups-no-rules = none
-virtual-bots-no-profile = default
-virtual-bots-profile-inherit-default = inherits default profile
-virtual-bots-profiles-header = Profiles: { $count } defined (default: { $default_profile }).
-virtual-bots-profiles-empty = No profiles are defined.
-virtual-bots-profiles-line = { $profile } ({ $bot_count } bots) overrides: { $overrides }.
-virtual-bots-profiles-no-overrides = inherits base configuration
+ban-no-reason = Không có lý do.
+
+# Bot ảo (Chỉ dành cho chủ server)
+virtual-bots = Bot ảo
+virtual-bots-fill = Lấp đầy Server (bằng bot)
+virtual-bots-clear = Xóa tất cả Bot ảo
+virtual-bots-status = Trạng thái
+virtual-bots-clear-confirm = Bạn có chắc muốn xóa tất cả bot ảo không? Việc này sẽ hủy mọi bàn chơi có chúng tham gia.
+virtual-bots-not-available = Tính năng Bot ảo không khả dụng.
+virtual-bots-filled = Đã thêm { $added } bot ảo. Hiện có { $online } bot đang online.
+virtual-bots-already-filled = Số lượng bot ảo theo cấu hình đã hoạt động đầy đủ.
+virtual-bots-cleared = Đã xóa { $bots } bot ảo và hủy { $tables } { $tables ->
+    [one] bàn chơi
+   *[other] bàn chơi
+}.
+virtual-bot-table-closed = Bàn bị đóng bởi quản trị viên.
+virtual-bots-none-to-clear = Không có bot ảo nào để xóa.
+virtual-bots-status-report = Bot ảo: tổng { $total }, online { $online }, offline { $offline }, đang chơi { $in_game }.
+virtual-bots-guided-overview = Bàn điều hướng (Guided Tables)
+virtual-bots-groups-overview = Nhóm Bot
+virtual-bots-profiles-overview = Hồ sơ Bot
+virtual-bots-guided-header = Bàn điều hướng: { $count } luật. Phân bổ: { $allocation }, dự phòng: { $fallback }, hồ sơ mặc định: { $default_profile }.
+virtual-bots-guided-empty = Chưa cấu hình luật bàn điều hướng nào.
+virtual-bots-guided-status-active = hoạt động
+virtual-bots-guided-status-inactive = không hoạt động
+virtual-bots-guided-table-linked = liên kết với bàn { $table_id } (chủ bàn { $host }, người chơi { $players }, người thực { $humans })
+virtual-bots-guided-table-stale = bàn { $table_id } bị mất trên server
+virtual-bots-guided-table-unassigned = chưa theo dõi bàn nào
+virtual-bots-guided-next-change = thay đổi tiếp theo trong { $ticks } ticks
+virtual-bots-guided-no-schedule = không có lịch trình
+virtual-bots-guided-warning = ⚠ chưa đủ bot
+virtual-bots-guided-line = { $table }: game { $game }, ưu tiên { $priority }, bot { $assigned } (min { $min_bots }, max { $max_bots }), đang chờ { $waiting }, không sẵn sàng { $unavailable }, trạng thái { $status }, hồ sơ { $profile }, nhóm { $groups }. { $table_state }. { $next_change } { $warning_text }
+virtual-bots-groups-header = Nhóm Bot: { $count } thẻ, { $bots } bot đã cấu hình.
+virtual-bots-groups-empty = Chưa định nghĩa nhóm bot nào.
+virtual-bots-groups-line = { $group }: hồ sơ { $profile }, bot { $total } (online { $online }, đang chờ { $waiting }, đang chơi { $in_game }, offline { $offline }), luật { $rules }.
+virtual-bots-groups-no-rules = không có
+virtual-bots-no-profile = mặc định
+virtual-bots-profile-inherit-default = kế thừa hồ sơ mặc định
+virtual-bots-profiles-header = Hồ sơ: { $count } đã định nghĩa (mặc định: { $default_profile }).
+virtual-bots-profiles-empty = Chưa định nghĩa hồ sơ nào.
+virtual-bots-profiles-line = { $profile } ({ $bot_count } bots) ghi đè: { $overrides }.
+virtual-bots-profiles-no-overrides = kế thừa cấu hình gốc
+
+localization-in-progress-try-again = Bản địa hóa đang được xử lý. Vui lòng thử lại sau một phút.

@@ -233,35 +233,27 @@ ageofheroes-war-prepared = आपकी सेनाएं: { $armies } { $armie
 ageofheroes-war-roll-you = आप { $roll } फेंकते हैं।
 ageofheroes-war-roll-other = { $player } { $roll } फेंकता है।
 ageofheroes-war-bonuses-you = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            [1] {"+1 किले से = { $total } कुल"}
-            *[other] {"+{ $fortress } किलों से = { $total } कुल"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        [1] +1 किले से = { $total } कुल
+        *[other] +{ $fortress } किलों से = { $total } कुल
     }
-    *[other] {
-        { $fortress ->
-            [0] {"+{ $general } जनरल से = { $total } कुल"}
-            [1] {"+{ $general } जनरल से, +1 किले से = { $total } कुल"}
-            *[other] {"+{ $general } जनरल से, +{ $fortress } किलों से = { $total } कुल"}
-        }
+    *[other] { $fortress ->
+        [0] +{ $general } जनरल से = { $total } कुल
+        [1] +{ $general } जनरल से, +1 किले से = { $total } कुल
+        *[other] +{ $general } जनरल से, +{ $fortress } किलों से = { $total } कुल
     }
 }
 ageofheroes-war-bonuses-other = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            [1] {"{ $player }: +1 किले से = { $total } कुल"}
-            *[other] {"{ $player }: +{ $fortress } किलों से = { $total } कुल"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        [1] { $player }: +1 किले से = { $total } कुल
+        *[other] { $player }: +{ $fortress } किलों से = { $total } कुल
     }
-    *[other] {
-        { $fortress ->
-            [0] {"{ $player }: +{ $general } जनरल से = { $total } कुल"}
-            [1] {"{ $player }: +{ $general } जनरल से, +1 किले से = { $total } कुल"}
-            *[other] {"{ $player }: +{ $general } जनरल से, +{ $fortress } किलों से = { $total } कुल"}
-        }
+    *[other] { $fortress ->
+        [0] { $player }: +{ $general } जनरल से = { $total } कुल
+        [1] { $player }: +{ $general } जनरल से, +1 किले से = { $total } कुल
+        *[other] { $player }: +{ $general } जनरल से, +{ $fortress } किलों से = { $total } कुल
     }
 }
 

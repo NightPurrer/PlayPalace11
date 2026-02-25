@@ -10,7 +10,7 @@ This is the primary place for discussion about the project.
 
 ## Quick Start
 
-You need Python 3.11 or later. We use [uv](https://docs.astral.sh/uv/) for dependency management on the server and client.
+You need Python 3.13 or later. We use [uv](https://docs.astral.sh/uv/) for dependency management on the server and client.
 
 ### Developing with nix
 
@@ -29,7 +29,7 @@ Once inside the shell, use the helper scripts under `scripts/` (documented below
 
 ### Running the Server
 
-PlayPalace always reads configuration from `server/config.toml`. On a fresh clone, copy the template once and edit it to suit your environment. See [Server Configuration](#server-configuration) for descriptions of each knob.
+PlayPalace always reads configuration from `server/config.toml` when run from source. On Windows installs produced by the MSI, the server instead looks for `%PROGRAMDATA%\PlayPalace\config.toml`. The installer copies `config.example.toml` into that directory the first time and future updates preserve any edits. See [Server Configuration](#server-configuration) for descriptions of each knob.
 
 ```bash
 cd server
@@ -45,7 +45,7 @@ uv sync
 uv run python main.py
 ```
 
-You can also double-click `run_server.bat` (Windows) or use the `run_server.sh` helper in the repo root as shortcuts.
+You can also double-click `run_server.bat` (Windows) or use the `scripts/run_server.sh` helper as a shortcut.
 
 The server starts on port 8000 by default. Use `--help` to see all options:
 
@@ -87,7 +87,7 @@ When SSL is enabled, the server will report `wss://` instead of `ws://` in its s
 ### Running the Client
 
 ```bash
-cd client
+cd clients/desktop
 uv sync
 uv run python client.py
 ```
@@ -99,6 +99,12 @@ The client requires wxPython and a few other dependencies from v10.
 The client supports both `ws://` and `wss://` connections. When connecting to a server with SSL enabled, enter the server address with the `wss://` prefix (e.g., `wss://example.com`). The client will handle SSL certificate validation automatically.
 Use the **Server Manager** button on the login screen to add/edit servers (name, host, port, notes) and manage saved accounts for each server. You can add `localhost` for local testing.
 
+### Windows Packaging (Work in Progress)
+
+To produce a single MSI that ships both the PyInstaller-built client and server, run `clients/desktop/build.ps1` and `server/build.ps1`, then follow the WiX v4 instructions in `packaging/installers/windows/README.md`. When it is time to build, change into `packaging/installers/windows/wix/` (or pass the `.wxs/.wixproj` path) before invoking `wix build` so the relative `ClientSource`/`ServerSource` values resolve correctly. The MSI installs binaries under `Program Files\PlayPalace`, copies configuration into `%PROGRAMDATA%\PlayPalace\config.toml`, and registers the server as a Windows service with a post-install PowerShell helper that applies the installer’s host/port/SSL inputs. Branding assets and the final configuration wizard are still placeholders—see the installer README for current gaps.
+
+Linux packaging work has begun too: run the repo-relative helpers (`./packaging/installers/linux/scripts/build_deb.sh`, `build_rpm.sh`, `build_arch.sh`) to produce basic `.deb`, `.rpm`, and Arch packages (client and server separately) from any working directory. See `packaging/installers/linux/README.md` for details.
+
 ### Packet Schema Validation
 
 Packet contracts are defined once in `server/network/packet_models.py` using Pydantic. Whenever you add or edit packet fields, regenerate the mirrored JSON schema files (used by both the server and client validators) with:
@@ -108,7 +114,7 @@ cd server
 uv run python tools/export_packet_schema.py
 ```
 
-This command rewrites `server/packet_schema.json` and `client/packet_schema.json`; make sure both artifacts are committed alongside any packet changes. The server validates incoming packets before handing them to gameplay handlers, and the client validates both outgoing and incoming packets before they are sent or dispatched.
+This command rewrites `server/packet_schema.json` and `clients/desktop/packet_schema.json`; make sure both artifacts are committed alongside any packet changes. The server validates incoming packets before handing them to gameplay handlers, and the client validates both outgoing and incoming packets before they are sent or dispatched.
 
 #### TLS Verification
 
@@ -127,7 +133,7 @@ Refresh tokens are stored in the client identities file (same storage used for s
 
 ### Server Configuration
 
-After the first server launch creates `server/config.toml`, edit that file (or re-copy `config.example.toml` if you need a fresh baseline) to adjust behavior. Alongside the existing `[virtual_bots]` settings, the `[auth]` section lets you clamp username and password lengths that the server will accept:
+After the first server launch creates `server/config.toml` (or `%PROGRAMDATA%\PlayPalace\config.toml` on Windows installs), edit that file (or re-copy `config.example.toml` if you need a fresh baseline) to adjust behavior. Alongside the existing `[virtual_bots]` settings, the `[auth]` section lets you clamp username and password lengths that the server will accept:
 
 ```toml
 [auth]
@@ -185,7 +191,7 @@ See `server/config.example.toml` for an annotated sample, and refer to [Appendix
 
 ## Project Structure
 
-The server and client are separate codebases with different philosophies.
+The server and clients are separate codebases with different philosophies.
 
 ### Server
 
@@ -200,13 +206,23 @@ Key directories:
 - `server/auth/` - Authentication and session management
 - `server/persistence/` - SQLite database for users and tables
 - `server/messages/` - Localization system
-- `server/plans/` - Design documents explaining architectural decisions
+- `docs/design/` - Design documents explaining architectural decisions
 
-### Client
+### Clients
 
-The client is ported from v10. It works, but it carries some technical debt from the older codebase. You may encounter rough edges.
+The GUI client lives under `clients/desktop/` and is ported from v10. It works, but it carries some technical debt from the older codebase. You may encounter rough edges.
 
-The client is built with wxPython and designed for accessibility. It communicates with the server over websockets using JSON packets.
+The desktop app is built with wxPython and designed for accessibility. It communicates with the server over websockets using JSON packets.
+
+The browser client (`clients/web/`) shares the packet schema and focuses on quick testing or lightweight deployments.
+
+### Packaging
+
+`packaging/` contains container build contexts (under `packaging/containers/`) and cross-platform installers (`packaging/installers/`). Refer to the README files inside each subdirectory for distro-specific instructions.
+
+### Runtime Artifacts
+
+Local-only files (SQLite database, logs, collected build outputs) live under `var/`. The server now defaults to writing `var/server/playpalace.db` and `var/server/errors.log`, keeping the repo root clean; delete this directory if you want a fresh start.
 
 ## Running Tests
 
@@ -252,12 +268,12 @@ Running the wxPython-based client tests under `nix develop` needs a small amount
 nix --extra-experimental-features 'nix-command flakes' develop . --command ./scripts/nix_client_pytest.sh
 ```
 
-Already inside `nix develop`, you can also call `./scripts/nix_client_pytest.sh` directly; the helper takes care of the rest either way. It installs the required Python packages under `.nix-python/` (per-repo, not system-wide), exports `PYTHONPATH` so that site-packages and `client/` itself are importable, and executes:
+Already inside `nix develop`, you can also call `./scripts/nix_client_pytest.sh` directly; the helper takes care of the rest either way. It installs the required Python packages under `.nix-python/` (per-repo, not system-wide), exports `PYTHONPATH` so that site-packages and `clients/desktop/` itself are importable, and executes:
 
 ```
-client/tests/test_network_manager.py
-client/tests/test_main_window_packets.py
-client/tests/test_main_window_startup.py
+clients/desktop/tests/test_network_manager.py
+clients/desktop/tests/test_main_window_packets.py
+clients/desktop/tests/test_main_window_startup.py
 ```
 
 Pass additional pytest arguments to target different files, e.g.:
@@ -364,7 +380,7 @@ A few things worth understanding about how the server works:
 
 **Imperative state changes.** We recommend changing game state imperatively, not declaratively. Actions should directly end turns and send messages, not return results describing what should happen.
 
-For more details, see the design documents in `server/plans/`.
+For more details, see the design documents in `docs/design/`.
 
 ## Known Issues
 

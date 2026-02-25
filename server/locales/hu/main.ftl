@@ -353,3 +353,5 @@ virtual-bots-profiles-header = Profilok: { $count } definiálva (alapértelmezet
 virtual-bots-profiles-empty = Nincsenek definiált profilok.
 virtual-bots-profiles-line = { $profile } ({ $bot_count } bot) felülírások: { $overrides }.
 virtual-bots-profiles-no-overrides = örökli az alap konfigurációt
+
+localization-in-progress-try-again = A lokalizáció folyamatban van. Kérjük, próbálja újra egy perc múlva.

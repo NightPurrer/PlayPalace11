@@ -233,35 +233,27 @@ ageofheroes-war-prepared = Таны хүч: { $armies } { $armies ->
 ageofheroes-war-roll-you = Та { $roll } орхив.
 ageofheroes-war-roll-other = { $player } { $roll } орхив.
 ageofheroes-war-bonuses-you = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            [one] {"+1 цайзнаас = { $total } нийт"}
-            *[other] {"+{ $fortress } цайзнуудаас = { $total } нийт"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        [one] +1 цайзнаас = { $total } нийт
+        *[other] +{ $fortress } цайзнуудаас = { $total } нийт
     }
-    *[other] {
-        { $fortress ->
-            [0] {"+{ $general } генералаас = { $total } нийт"}
-            [one] {"+{ $general } генералаас, +1 цайзнаас = { $total } нийт"}
-            *[other] {"+{ $general } генералаас, +{ $fortress } цайзнуудаас = { $total } нийт"}
-        }
+    *[other] { $fortress ->
+        [0] +{ $general } генералаас = { $total } нийт
+        [one] +{ $general } генералаас, +1 цайзнаас = { $total } нийт
+        *[other] +{ $general } генералаас, +{ $fortress } цайзнуудаас = { $total } нийт
     }
 }
 ageofheroes-war-bonuses-other = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            [one] {"{ $player }: +1 цайзнаас = { $total } нийт"}
-            *[other] {"{ $player }: +{ $fortress } цайзнуудаас = { $total } нийт"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        [one] { $player }: +1 цайзнаас = { $total } нийт
+        *[other] { $player }: +{ $fortress } цайзнуудаас = { $total } нийт
     }
-    *[other] {
-        { $fortress ->
-            [0] {"{ $player }: +{ $general } генералаас = { $total } нийт"}
-            [one] {"{ $player }: +{ $general } генералаас, +1 цайзнаас = { $total } нийт"}
-            *[other] {"{ $player }: +{ $general } генералаас, +{ $fortress } цайзнуудаас = { $total } нийт"}
-        }
+    *[other] { $fortress ->
+        [0] { $player }: +{ $general } генералаас = { $total } нийт
+        [one] { $player }: +{ $general } генералаас, +1 цайзнаас = { $total } нийт
+        *[other] { $player }: +{ $general } генералаас, +{ $fortress } цайзнуудаас = { $total } нийт
     }
 }
 

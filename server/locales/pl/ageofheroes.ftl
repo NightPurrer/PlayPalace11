@@ -245,35 +245,27 @@ ageofheroes-war-prepared = Twoje siły: { $armies } { $armies ->
 ageofheroes-war-roll-you = Rzucasz { $roll }.
 ageofheroes-war-roll-other = { $player } rzuca { $roll }.
 ageofheroes-war-bonuses-you = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            [1] {"+1 z twierdzy = { $total } razem"}
-            *[other] {"+{ $fortress } z twierdz = { $total } razem"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        [1] +1 z twierdzy = { $total } razem
+        *[other] +{ $fortress } z twierdz = { $total } razem
     }
-    *[other] {
-        { $fortress ->
-            [0] {"+{ $general } od generała = { $total } razem"}
-            [1] {"+{ $general } od generała, +1 z twierdzy = { $total } razem"}
-            *[other] {"+{ $general } od generała, +{ $fortress } z twierdz = { $total } razem"}
-        }
+    *[other] { $fortress ->
+        [0] +{ $general } od generała = { $total } razem
+        [1] +{ $general } od generała, +1 z twierdzy = { $total } razem
+        *[other] +{ $general } od generała, +{ $fortress } z twierdz = { $total } razem
     }
 }
 ageofheroes-war-bonuses-other = { $general ->
-    [0] {
-        { $fortress ->
-            [0] {""}
-            [1] {"{ $player }: +1 z twierdzy = { $total } razem"}
-            *[other] {"{ $player }: +{ $fortress } z twierdz = { $total } razem"}
-        }
+    [0] { $fortress ->
+        [0] {""}
+        [1] { $player }: +1 z twierdzy = { $total } razem
+        *[other] { $player }: +{ $fortress } z twierdz = { $total } razem
     }
-    *[other] {
-        { $fortress ->
-            [0] {"{ $player }: +{ $general } od generała = { $total } razem"}
-            [1] {"{ $player }: +{ $general } od generała, +1 z twierdzy = { $total } razem"}
-            *[other] {"{ $player }: +{ $general } od generała, +{ $fortress } z twierdz = { $total } razem"}
-        }
+    *[other] { $fortress ->
+        [0] { $player }: +{ $general } od generała = { $total } razem
+        [1] { $player }: +{ $general } od generała, +1 z twierdzy = { $total } razem
+        *[other] { $player }: +{ $general } od generała, +{ $fortress } z twierdz = { $total } razem
     }
 }
 
