@@ -141,15 +141,15 @@ dice-locked = Ta kość jest zablokowana
 dice-no-dice = brak kości
 
 # Game actions
-game-turn-start = Tura gracza { $player }.
+game-turn-start = Kolej gracza { $player }.
 game-no-turn = Nikt teraz nie ma tury.
 table-no-players = Brak graczy.
 table-players-one = { $count } gracz: { $players }.
-table-players-many = { $count } graczy: { $players }.
+table-players-many = { $count } Gracze: { $players }.
 table-spectators = Obserwatorzy: { $spectators }.
 game-leave = Opuść
 game-over = Koniec gry
-game-final-scores = Wyniki końcowe
+game-final-scores = Wyniki końcowe:
 game-points = { $count } { $count ->
     [one] punkt
    *[other] punktów
@@ -160,28 +160,28 @@ play = Graj
 # Leaderboards
 leaderboards = Rankingi
 leaderboards-menu-title = Rankingi
-leaderboards-select-game = Zaznacz grę, aby przeglądać wyniki.
+leaderboards-select-game = Wybierz grę, aby przeglądać wyniki.
 leaderboard-no-data = Brak wyników dla tej gry.
 
 # Leaderboard types
-leaderboard-type-wins = Rankingi wygranych
-leaderboard-type-rating = ranking umiejętności
-leaderboard-type-total-score = całkowity wynik
-leaderboard-type-high-score = najwyższy wynik
-leaderboard-type-games-played = grane gry
-leaderboard-type-avg-points-per-turn = średnia punktów na turę
+leaderboard-type-wins = Ranking wygranych liderów
+leaderboard-type-rating = Ranking umiejętności
+leaderboard-type-total-score = Ranking całkowitych wyników
+leaderboard-type-high-score = Ranking najwyższych wyników
+leaderboard-type-games-played = Największej liczby rozegranych gier
+leaderboard-type-avg-points-per-turn = Średnia punktów na turę
 leaderboard-type-best-single-turn = Najlepsza pojedyńcza tura
-leaderboard-type-score-per-round = wynik na rundę
+leaderboard-type-score-per-round = Wynik na rundę
 
 # Leaderboard headers
 leaderboard-wins-header = { $game } - liderzy wygranych gier
-leaderboard-total-score-header = { $game } - Całkowity wynik.
-leaderboard-high-score-header = { $game } - najwyższy wynik
-leaderboard-games-played-header = { $game } - granych gier
+leaderboard-total-score-header = { $game } - całkowite wyniki
+leaderboard-high-score-header = { $game } - najwyższe wyniki
+leaderboard-games-played-header = { $game } - rozegrane gry
 leaderboard-rating-header = { $game } - oceny umiejętności
-leaderboard-avg-points-header = { $game } - punktów AFK na turę
-leaderboard-best-turn-header = { $game } - Najlepsza pojedyńcza tura
-leaderboard-score-per-round-header = { $game } - Wynik na rundę
+leaderboard-avg-points-header = { $game } - średnia liczba punktów  na turę
+leaderboard-best-turn-header = { $game } - najlepsza pojedyncza tura
+leaderboard-score-per-round-header = { $game } - wynik na rundę
 
 # Leaderboard entries
 leaderboard-wins-entry = { $rank }: { $player }, { $wins } { $wins ->
@@ -196,39 +196,39 @@ leaderboard-avg-entry = { $rank }. { $player }: { $value } avg
 leaderboard-games-entry = { $rank }. { $player }: { $value } gier
 
 # Player stats
-leaderboard-player-stats = Twoje statystyki: { $wins } wins, { $losses } losses ({ $percentage }% procent wygranych)
+leaderboard-player-stats = Twoje statystyki: { $wins } wygranych, { $losses } przegranych, { $percentage } procent wygranych
 leaderboard-no-player-stats = Jeszcze nie grałeś w tą grę
 
 # Skill rating leaderboard
 leaderboard-no-ratings = Brak  danych dla tej gry.
 leaderboard-rating-entry = { $rank }. { $player }: { $rating } rating ({ $mu } ± { $sigma })
 leaderboard-player-rating = Twój ranking: { $rating } ({ $mu } ± { $sigma })
-leaderboard-no-player-rating = Nie jesteś w rankingó w tej grze
+leaderboard-no-player-rating = Nie masz jeszcze żadnych wyników w tej grze.
 
 # My Stats menu
 my-stats = Moje  Statystyki
-my-stats-select-game = Zaznacz grę aby zobaczyć swoje statystyki
-my-stats-no-data = Jeszcze nie grałeś w tą grę
+my-stats-select-game = Wybierz grę, aby zobaczyć swoje statystyki
+my-stats-no-data = Jeszcze nie grałeś w tą grę.
 my-stats-no-games = Jeszcze nie grałeś w żadną grę.
 my-stats-header = { $game } - Twoje statystyki
 my-stats-wins = Wygranych: { $value }
-my-stats-losses = Wygranych: { $value }
+my-stats-losses = Przegranych: { $value }
 my-stats-winrate = Procent wygranych: { $value }%
-my-stats-games-played = Zagrane rozgrywki: { $value }
-my-stats-total-score = Wszystkie wyniki: { $value }
+my-stats-games-played = Rozegrane gry: { $value }
+my-stats-total-score = Całkowite wyniki: { $value }
 my-stats-high-score = Najwyższy wynik: { $value }
 my-stats-rating = Ocena umiejętności: { $value } ({ $mu } ± { $sigma })
 my-stats-no-rating = Brak oceny umiejętności
-my-stats-avg-per-turn = średnia ilość punktów na turę: { $value }
-my-stats-best-turn = Najlepsza pojedyńcza tura: { $value }
+my-stats-avg-per-turn = Średnia liczba punktów na turę: { $value }
+my-stats-best-turn = Najlepsza pojedyncza tura: { $value }
 # Prediction system
-predict-outcomes = Predict outcomes
-predict-header = Predicted Outcomes (by skill rating)
+predict-outcomes = Przewiduj wyniki
+predict-header = Przewidywane wyniki na podstawie poziomu umiejętności
 predict-entry = { $rank }. { $player } (rating: { $rating })
 predict-entry-2p = { $rank }. { $player } (rating: { $rating }, { $probability }% win chance)
 predict-unavailable = Prognoza ocen nie jest dostępna.
-predict-need-players = potrzebuje conajmniej 2 luckich graczy do przewidywania
-action-need-more-humans = Potrzeba więcej ludzi
+predict-need-players = Potrzebne jest conajmniej dwóch realnych graczy do przewidywania.
+action-need-more-humans = Potrzeba więcej ludzi.
 confirm-leave-game = Czy na pewno chcesz opuścić stół?
 confirm-yes = Tak
 confirm-no = Nie
@@ -240,7 +240,7 @@ admin-menu-title = Administracja
 # Account approval
 account-approval = Zatwierdzanie kont
 account-approval-menu-title = Zatwierdzanie kont
-no-pending-accounts = Brak kont oczekujących.
+no-pending-accounts = Brak kont oczekujących na zatwierdzenie.
 approve-account = Zatwierdź
 decline-account = Odrzuć
 account-approved = Konto gracza { $player } zostało zatwierdzone.
@@ -248,8 +248,8 @@ account-declined = Konto gracza { $player } zostało odrzucone i usunięte.
 
 # Waiting for approval (shown to unapproved users)
 waiting-for-approval = Twoje konto oczekuje na zatwierdzenie przez administratora.
-account-approved-welcome = Twoje konto zostało zatwierdzone! Witaj w PlayPalace!
-account-declined-goodbye = Twoja prośba o konto została odrzucona.
+account-approved-welcome = Twoje konto zostało zatwierdzone! Witamy w PlayPalace!
+account-declined-goodbye = Twoja prośba o zatwierdzenie konta została odrzucona.
     Powód:
 account-banned = Twoje konto zostało zbanowane i nie można uzyskać do niego dostępu.
 
@@ -263,33 +263,33 @@ decline-reason-prompt = Podaj powód odrzucenia (lub naciśnij Escape, aby anulo
 account-action-empty-reason = Nie podano powodu.
 
 # Admin notifications for account requests
-account-request = prośba o konto
-account-action = podjęto działanie dotyczące konta
+account-request = Prośba o konto
+account-action = Podjęto działanie dotyczące konta
 
 # Admin promotion/demotion
-promote-admin = Awansuj na admina
-demote-admin = Degraduj admina
-promote-admin-menu-title = Awansuj na admina
-demote-admin-menu-title = Degraduj admina
-no-users-to-promote = Brak użytkowników do awansowania.
-no-admins-to-demote = Brak adminów do degradacji.
-confirm-promote = Czy na pewno chcesz awansować { $player } na admina?
-confirm-demote = Czy na pewno chcesz zdegradować { $player } z funkcji admina?
-broadcast-to-all = Ogłoś wszystkim użytkownikom
-broadcast-to-admins = Ogłoś tylko adminom
-broadcast-to-nobody = Cicho (bez ogłoszenia)
-promote-announcement = { $player } został awansowany na admina!
-promote-announcement-you = Zostałeś awansowany na admina!
-demote-announcement = { $player } został zdegradowany z funkcji admina.
-demote-announcement-you = Zostałeś zdegradowany z funkcji admina.
-not-admin-anymore = Nie jesteś już adminem i nie możesz wykonać tej akcji.
+promote-admin = Awansuj na administratora
+demote-admin = Zdegraduj administratora
+promote-admin-menu-title = Awansuj na administratora
+demote-admin-menu-title = Degraduj administratora
+no-users-to-promote = Brak użytkowników, których mógłbyś awansować.
+no-admins-to-demote = Brak administratorów, których mógłbyś zdegradować.
+confirm-promote = Czy na pewno chcesz awansować { $player } na administratora?
+confirm-demote = Czy na pewno chcesz zdegradować { $player } z funkcji administratora?
+broadcast-to-all = Wyślij ogłoszenie do wszystkich użytkowników
+broadcast-to-admins = Wyślij ogłoszenie tylko dla administratorów
+broadcast-to-nobody = Cisza, (brak ogłoszenia)
+promote-announcement = { $player } został awansowany na administratora!
+promote-announcement-you = Zostałeś awansowany na administratora!
+demote-announcement = { $player } został zdegradowany z funkcji administratora.
+demote-announcement-you = Zostałeś zdegradowany z funkcji administratora.
+not-admin-anymore = Nie jesteś już administratorem, i nie możesz wykonać tej akcji.
 not-server-owner = Tylko właściciel serwera może wykonać tę akcję.
 
 # Server ownership transfer
 transfer-ownership = Przekaż własność
 transfer-ownership-menu-title = Przekaż własność
-no-admins-for-transfer = Brak adminów, którym można przekazać własność.
-confirm-transfer-ownership = Czy na pewno chcesz przekazać własność serwera graczowi { $player }? Zostaniesz zdegradowany do admina.
+no-admins-for-transfer = Brak administratorów, którym można przekazać własność.
+confirm-transfer-ownership = Czy na pewno chcesz przekazać własność serwera graczowi { $player }? Zostaniesz zdegradowany do funkcji administratora.
 transfer-ownership-announcement = { $player } jest teraz właścicielem serwera Play Palace!
 transfer-ownership-announcement-you = Jesteś teraz właścicielem serwera Play Palace!
 
