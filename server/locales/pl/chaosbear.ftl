@@ -1,52 +1,52 @@
 # Chaos Bear game messages
 
 # Game name
-game-name-chaosbear = Chaos Bear
+game-name-chaosbear = Niedźwiedź chaosu
 
 # Actions
-chaosbear-roll-dice = Roll dice
-chaosbear-draw-card = Draw a card
-chaosbear-check-status = Check status
+chaosbear-roll-dice = Rzuć kostką
+chaosbear-draw-card = Dobierz kartę
+chaosbear-check-status = Sprawdź status
 
 # Game intro (3 separate messages like v10)
-chaosbear-intro-1 = Chaos Bear has begun! All players start 30 squares ahead of the bear.
-chaosbear-intro-2 = Roll dice to move forward, and draw cards on multiples of 5 to gain special effects.
-chaosbear-intro-3 = Don't let the bear catch you!
+chaosbear-intro-1 = Gra Niedźwiedź chaosu się rozpoczęła! Wszyscy gracze startują 30 pól od niedźwiedzia.
+chaosbear-intro-2 = Rzuć kostką, aby poruszać się naprzód, i dobieraj karty na każdej wielokrotności liczby 5.
+chaosbear-intro-3 = Nie pozwól, aby niedźwiedź Cię złapał!
 
 # Turn announcement
-chaosbear-turn = { $player }'s turn; square { $position }.
+chaosbear-turn = Kolej { $player }; pozycja { $position }.
 
 # Rolling
-chaosbear-roll = { $player } rolled { $roll }.
-chaosbear-position = { $player } is now at square { $position }.
+chaosbear-roll = { $player } wyrzuca { $roll }.
+chaosbear-position = { $player } jest teraz na pozycji { $position }.
 
 # Drawing cards
-chaosbear-draws-card = { $player } draws a card.
-chaosbear-card-impulsion = Impulsion! { $player } moves forward 3 squares to square { $position }!
-chaosbear-card-super-impulsion = Super impulsion! { $player } moves forward 5 squares to square { $position }!
-chaosbear-card-tiredness = Tiredness! Bear energy minus 1. It now has { $energy } energy.
-chaosbear-card-hunger = Hunger! Bear energy plus 1. It now has { $energy } energy.
-chaosbear-card-backward = Backward push! { $player } moves back to square { $position }.
-chaosbear-card-random-gift = Random gift!
-chaosbear-gift-back = { $player } went back to square { $position }.
-chaosbear-gift-forward = { $player } went forward to square { $position }!
+chaosbear-draws-card = { $player } dobiera kartę.
+chaosbear-card-impulsion = Impuls! { $player } przenosi się o 3 pola w przód, na pozycję { $position }!
+chaosbear-card-super-impulsion = Super impuls! { $player } przenosi się o 5 pól naprzód na pozycję { $position }!
+chaosbear-card-tiredness = Zmęczenie! Energia niedźwiedzia minus 1. Ma teraz { $energy } energii.
+chaosbear-card-hunger = Głód!! Energia niedźwiedzia plus 1. Ma teraz { $energy } energii.
+chaosbear-card-backward = Pchnięcie w tył! { $player } cofa się na pozycję { $position }.
+chaosbear-card-random-gift = Losowy prezent!
+chaosbear-gift-back = { $player } wraca na pozycję { $position }.
+chaosbear-gift-forward = { $player } idzie w przód na pozycję { $position }!
 
 # Bear turn
-chaosbear-bear-roll = The bear rolled { $roll } + its { $energy } energy = { $total }.
-chaosbear-bear-energy-up = The bear rolled a 3 and gained 1 energy!
-chaosbear-bear-position = The bear is now at square { $position }!
-chaosbear-player-caught = The bear caught { $player }! { $player } has been defeated!
-chaosbear-bear-feast = The bear loses 3 energy after feasting on their flesh!
+chaosbear-bear-roll = Niedźwiedź wyrzuca { $roll }, plus energia { $energy }, razem { $total }.
+chaosbear-bear-energy-up = Niedźwiedź wyrzuca 3 i zyskuje 1 energii!
+chaosbear-bear-position = Niedźwiedź jest teraz na pozycji { $position }!
+chaosbear-player-caught = Niedźwiedź łapie { $player }! { $player } został pokonany!
+chaosbear-bear-feast = Niedźwiedź traci 3 energii po pożarciu swojej ofiary!
 
 # Status check
-chaosbear-status-player-alive = { $player }: square { $position }.
-chaosbear-status-player-caught = { $player }: caught at square { $position }.
-chaosbear-status-bear = The bear is at square { $position } with { $energy } energy.
+chaosbear-status-player-alive = { $player }: na pozycji { $position }.
+chaosbear-status-player-caught = { $player }: złapany na pozycji { $position }.
+chaosbear-status-bear = Niedźwiedź jest na pozycji { $position } i ma { $energy } energii.
 
 # End game
-chaosbear-winner = { $player } survived and wins! They reached square { $position }!
-chaosbear-tie = It's a tie at square { $position }!
+chaosbear-winner = { $player } przetrwał i wygrywa! Osiągnął pozycję { $position }!
+chaosbear-tie = Remis na pozycji { $position }!
 
 # Disabled action reasons
-chaosbear-you-are-caught = You have been caught by the bear.
-chaosbear-not-on-multiple = You can only draw cards on multiples of 5.
+chaosbear-you-are-caught = Zostałeś złapany przez niedźwiedzia.
+chaosbear-not-on-multiple = Możesz dobierać karty tylko na polach będących wielokrotnością 5.

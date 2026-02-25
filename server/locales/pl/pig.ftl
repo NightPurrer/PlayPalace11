@@ -2,27 +2,30 @@
 # Note: Common messages like round-start, turn-start, target-score are in games.ftl
 
 # Game info
-game-name-pig = Pig
-pig-category = Dice Games
+game-name-pig = Pig (Świnia)
+pig-category = Gry kościane
 
 # Actions
-pig-roll = Roll the die
-pig-bank = Bank { $points } points
+pig-roll = Rzuć kostką
+pig-bank = Bankuj { $points } PKT.
 
 # Game events (Pig-specific)
-pig-rolls = { $player } rolls the die...
-pig-roll-result = A { $roll }, for a total of { $total }
-pig-bust = Oh no, a 1! { $player } loses { $points } points.
-pig-bank-action = { $player } decides to bank { $points }, for a total of { $total }
-pig-winner = We have a winner, and it is { $player }!
+pig-rolls = { $player } rzuca kostką...
+pig-roll-result = Wyrzuca { $roll }, łącznie ma { $total }
+pig-bust = O nie! 1! { $player } traci { $points } punktów.
+pig-bank-action = { $player } bankuje { $points }, łącznie ma teraz { $total }
+pig-winner = Mamy zwycięzcę, jest nim { $player }!
 
 # Pig-specific options
-pig-set-min-bank = Minimum bank: { $points }
-pig-set-dice-sides = Dice sides: { $sides }
-pig-enter-min-bank = Enter the minimum points to bank:
-pig-enter-dice-sides = Enter the number of dice sides:
-pig-option-changed-min-bank = Minimum bank points changed to { $points }
-pig-option-changed-dice = Dice now has { $sides } sides
+pig-set-min-bank = Minimalna liczba punktów do zabankowania: { $points }
+pig-set-dice-sides = Ścianki kości: { $sides }
+pig-enter-min-bank = Wpisz minimalną liczbę punktów możliwą do zabankowania:
+pig-enter-dice-sides = Podaj liczbę ścianek kości:
+pig-option-changed-min-bank = Minimalna liczba punktów do zabankowania została ustawiona na { $points }
+pig-option-changed-dice = Od teraz liczba ścianek kości wynosi { $sides }
 
 # Disabled reasons
-pig-need-more-points = You need more points to bank.
+pig-need-more-points = Aby zabankować, musisz zdobyć więcej punktów.
+
+# Validation errors
+pig-error-min-bank-too-high = Minimalna liczba punktów do zabankowania musi być mniejsza niż wynik docelowy.

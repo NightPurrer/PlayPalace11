@@ -4,11 +4,11 @@
 game-name-farkle = Farkle
 
 # Actions - Roll and Bank
-farkle-roll = Roll { $count } { $count ->
-    [one] die
-   *[other] dice
+farkle-roll = Rzuć { $count } { $count ->
+    [one] kostką
+   *[other] kostkami
 }
-farkle-bank = Bank { $points } points
+farkle-bank = Bankuj { $points } punktów
 
 # Scoring combination actions (matching v10 exactly)
 farkle-take-single-one = Single 1 for { $points } points
@@ -24,42 +24,45 @@ farkle-take-double-triplets = Double triplets for { $points } points
 farkle-take-full-house = Full house for { $points } points
 
 # Game events (matching v10 exactly)
-farkle-rolls = { $player } rolls { $count } { $count ->
-    [one] die
-   *[other] dice
+farkle-rolls = { $player } rzuca { $count } { $count ->
+    [one] kostką
+   *[other] kostkami
 }...
-farkle-you-roll = Rzucasz { $count } { $count -> [one] kością [other] kośćmi }...
+farkle-you-roll = Rzucasz { $count } { $count ->
+    [one] kostką
+   *[other] kostkami
+}...
 farkle-roll-result = { $dice }
-farkle-farkle = FARKLE! { $player } loses { $points } points
+farkle-farkle = FARKLE! { $player } traci { $points } punktów
 farkle-you-farkle = FARKLE! Tracisz { $points } punktów
-farkle-takes-combo = { $player } takes { $combo } for { $points } points
-farkle-you-take-combo = You take { $combo } for { $points } points
-farkle-hot-dice = Hot dice!
-farkle-banks = { $player } banks { $points } points for a total of { $total }
-farkle-you-bank = Bankujesz { $points } punktów (razem { $total })
-farkle-winner = { $player } wins with { $score } points!
+farkle-takes-combo = { $player } bierze { $combo } za { $points } punktów
+farkle-you-take-combo = Bierzesz { $combo } za { $points } punktów
+farkle-hot-dice = Gorące kości!
+farkle-banks = { $player } bankuje { $points } punktów, łącznie ma { $total }
+farkle-you-bank = Bankujesz { $points } punktów, łącznie masz { $total }
+farkle-winner = { $player } wygrywa z wynikiem { $score } punktów!
 farkle-you-win = Wygrywasz z wynikiem { $score } punktów!
-farkle-winners-tie = We have a tie! Winners: { $players }
+farkle-winners-tie = Mamy remis! Wygrywają: { $players }
 
 # Check turn score action
-farkle-turn-score = { $player } has { $points } points this turn.
-farkle-no-turn = No one is currently taking a turn.
+farkle-turn-score = { $player } ma { $points } punktów w tej turze.
+farkle-no-turn = Obecnie nikt nie ma tury.
 
 # Farkle-specific options
-farkle-set-target-score = Target score: { $score }
-farkle-enter-target-score = Enter target score (500-5000):
-farkle-option-changed-target = Target score set to { $score }.
+farkle-set-target-score = Maksymalna liczba punktów: { $score }
+farkle-enter-target-score = Podaj maksymalną liczbę punktów (między 500 a 5000):
+farkle-option-changed-target = Maksymalna liczba punktów została ustawiona na { $score }.
 
 # Disabled action reasons
-farkle-must-take-combo = You must take a scoring combination first.
-farkle-cannot-bank = You cannot bank right now.
+farkle-must-take-combo = Najpierw musisz wybrać punktującą kombinację.
+farkle-cannot-bank = Nie możesz teraz zabankować.
 
 # Additional Farkle options
 farkle-set-initial-bank-score = Początkowy próg bankowania: { $score }
-farkle-enter-initial-bank-score = Wpisz początkowy próg bankowania (0-1000):
-farkle-option-changed-initial-bank-score = Początkowy próg bankowania ustawiono na { $score }.
-farkle-toggle-hot-dice-multiplier = Mnożnik hot dice: { $enabled }
-farkle-option-changed-hot-dice-multiplier = Mnożnik hot dice ustawiono na { $enabled }.
+farkle-enter-initial-bank-score = Wpisz początkowy próg bankowania (między 0 a 1000):
+farkle-option-changed-initial-bank-score = Początkowy próg bankowania został ustawiony na { $score }.
+farkle-toggle-hot-dice-multiplier = Mnożnik gorących kości: { $enabled }
+farkle-option-changed-hot-dice-multiplier = Mnożnik gorących kości został ustawiony na { $enabled }.
 
 # Action feedback
-farkle-minimum-initial-bank-score = Minimalny początkowy próg bankowania to { $score }.
+farkle-minimum-initial-bank-score = Minimalny początkowy próg bankowania wynosi { $score }.

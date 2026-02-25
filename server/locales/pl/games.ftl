@@ -3,11 +3,15 @@
 
 # Game names
 game-name-ninetynine = Ninety Nine
+game-name-humanitycards = Karty przeciwko ludzkości
+
+# Game categories (shared)
+category-party-games = Gry imprezowe
 
 # Round and turn flow
 game-round-start = Runda { $round }.
 game-round-end = Runda { $round } zakończona.
-game-turn-start = Tura { $player }.
+game-turn-start = Kolej { $player }.
 game-your-turn = Twoja kolej.
 game-no-turn = Obecnie brak czyjejkolwiek tury.
 
@@ -26,27 +30,48 @@ game-eliminated = { $player } został wyeliminowany z liczbą { $score } punktó
 # Common options
 game-set-target-score = Maksymalna liczba punktów: { $score }
 game-enter-target-score = Podaj maksymalną liczbę punktów:
-game-option-changed-target = Maksymalna liczba punkót została ustawiona na { $score }.
+game-option-changed-target = Maksymalna liczba punktów została ustawiona na { $score }.
 
 game-set-team-mode = Team mode: { $mode }
-game-select-team-mode = Select team mode
-game-option-changed-team = Team mode set to { $mode }.
-game-team-mode-individual = Individual
-game-team-mode-x-teams-of-y = { $num_teams } teams of { $team_size }
+game-select-team-mode = Wybierz tryb gry
+game-option-changed-team = Tryb gry został ustawiony na { $mode }.
+game-team-mode-individual = Indywidualna
+game-team-mode-x-teams-of-y = { $num_teams } drużyn po { $team_size } graczy
 
 # Boolean option values
-option-on = włączone
-option-off = wyłączone
+option-on = Wł
+option-off = Wył
+
+# Option navigation
+option-back = Wróć
+option-min-selected = Wybierz co najmniej { $count } { $count ->
+    [one] element
+   *[other] elementów
+}.
+option-max-selected = Wybierz maksymalnie { $count } { $count ->
+    [one] element
+   *[other] elementów
+}.
+option-select-all = Zaznacz wszystko
+option-deselect-all = Odznacz wszystko
+option-selected-count = Wybrano { $count } { $count ->
+    [one] element
+   *[other] elementów
+}.
+option-deselected-count = Wybrano { $count } { $count ->
+    [one] element
+   *[other] elementów
+}.
 
 # Status box
-status-box-closed = Status information closed.
+status-box-closed = Informacja o statusie zamknięta.
 
 # Game end
-game-leave = opuść grę
+game-leave = Opuść grę
 
 # Round timer
 round-timer-paused = { $player } wstrzymał grę. Naciśnij P, aby rozpocząć następną rundę.
-round-timer-resumed = Round timer resumed.
+round-timer-resumed = Licznik rund wznowiony
 round-timer-countdown = Następna runda za { $seconds }...
 
 # Dice games - keeping/releasing dice
@@ -62,6 +87,21 @@ game-player-deals = { $player } deals out the cards.
 # Card names
 card-name = { $rank } of { $suit }
 no-cards = No cards
+
+# Colors
+color-black = czarny
+color-blue = niebieski
+color-brown = brązowy
+color-gray = szary
+color-green = zielony
+color-indigo = indygo
+color-orange = pomarańczowy
+color-pink = różowy
+color-purple = purpurowy
+color-red = czerwony
+color-violet = fioletowy
+color-white = biały
+color-yellow = żółty
 
 # Suit names
 suit-diamonds = diamonds
@@ -96,6 +136,20 @@ rank-queen = queen
 rank-queen-plural = queens
 rank-king = king
 rank-king-plural = kings
+rank-joker = joker
+rank-joker-plural = jokers
+
+# Shapes
+shape-circle = circle
+shape-cone = cone
+shape-cylinder = cylinder
+shape-hexagon = hexagon
+shape-oval = oval
+shape-pentagon = pentagon
+shape-prism = prism
+shape-rectangle = rectangle
+shape-square = square
+shape-triangle = triangle
 
 # Poker hand descriptions
 poker-high-card-with = { $high } high, with { $rest }
@@ -113,3 +167,6 @@ poker-quads-with = Four of a Kind, { $quads }, with { $kicker }
 poker-quads = Four of a Kind, { $quads }
 poker-straight-flush-high = { $high } high Straight Flush
 poker-unknown-hand = Unknown hand
+
+# Validation errors (common across games)
+game-error-invalid-team-mode = Wybrany tryb gry drużynowej nie jest dostępny w przypadku tej liczby graczy.
