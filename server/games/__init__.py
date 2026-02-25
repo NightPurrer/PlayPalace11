@@ -29,6 +29,7 @@ from .sorry.game import SorryGame
 from .metalpipe.game import MetalPipeGame
 from .humanitycards.game import HumanityCardsGame
 from .blackjack.game import BlackjackGame
+from .twentyone import TwentyOneGame
 
 
 __all__ = [
@@ -61,4 +62,5 @@ __all__ = [
     "MetalPipeGame",
     "HumanityCardsGame",
     "BlackjackGame",
+    "TwentyOneGame",
 ]
