@@ -678,8 +678,25 @@ class BlackjackGame(Game):
                 player.chips = self.options.starting_chips
 
         self._sync_team_scores()
-        self.play_music("game_blackjack/mus.ogg")
+        self.play_music("game_3cardpoker/mus.ogg")
         self._start_new_hand()
+
+    def _should_rebuild_after_keybind(self, player: Player, executed_any: bool) -> bool:
+        """Skip keybind-driven menu rebuild for read-only check actions."""
+        pending = getattr(self, "_suppress_keybind_rebuild_player_ids", None)
+        if pending and player.id in pending:
+            pending.discard(player.id)
+            return False
+        return super()._should_rebuild_after_keybind(player, executed_any)
+
+    def _suppress_keybind_rebuild(self, player: Player) -> None:
+        """Suppress post-keybind menu rebuild for this player when appropriate."""
+        context = self.get_action_context(player)
+        if not context.from_keybind:
+            return
+        suppress = getattr(self, "_suppress_keybind_rebuild_player_ids", set())
+        suppress.add(player.id)
+        self._suppress_keybind_rebuild_player_ids = suppress
 
     def on_tick(self) -> None:
         super().on_tick()
@@ -929,7 +946,6 @@ class BlackjackGame(Game):
                 "blackjack-dealer-hits",
                 lambda locale: {
                     "card": card_name(card, locale),
-                    "cards": read_cards(self.dealer_hand, locale),
                     "total": self._total_text(locale, *self.hand_value(self.dealer_hand)),
                 },
             )
@@ -1182,6 +1198,7 @@ class BlackjackGame(Game):
         user = self.get_user(player)
         if not p or not user:
             return
+        self._suppress_keybind_rebuild(player)
 
         if p.split_bet > 0 and p.split_hand:
             total1, soft1 = self.hand_value(p.hand)
@@ -1207,6 +1224,7 @@ class BlackjackGame(Game):
         user = self.get_user(player)
         if not user:
             return
+        self._suppress_keybind_rebuild(player)
 
         if not self.dealer_hand:
             user.speak_l("blackjack-no-dealer-cards")
@@ -1230,8 +1248,9 @@ class BlackjackGame(Game):
         user = self.get_user(player)
         if not user:
             return
+        self._suppress_keybind_rebuild(player)
 
-        lines = [self._rules_readout_text(user.locale)]
+        lines: list[str] = []
         for p in self.get_active_players():
             if not isinstance(p, BlackjackPlayer):
                 continue
@@ -1319,17 +1338,31 @@ class BlackjackGame(Game):
         user = self.get_user(player)
         if not user:
             return
+        self._suppress_keybind_rebuild(player)
         user.speak(self._rules_readout_text(user.locale))
 
     def _action_check_turn_timer(self, player: Player, action_id: str) -> None:
         user = self.get_user(player)
         if not user:
             return
+        self._suppress_keybind_rebuild(player)
         remaining = self.timer.seconds_remaining()
         if remaining <= 0:
             user.speak_l("poker-timer-disabled")
         else:
             user.speak_l("poker-timer-remaining", seconds=remaining)
+
+    def _action_whose_turn(self, player: Player, action_id: str) -> None:
+        self._suppress_keybind_rebuild(player)
+        super()._action_whose_turn(player, action_id)
+
+    def _action_whos_at_table(self, player: Player, action_id: str) -> None:
+        self._suppress_keybind_rebuild(player)
+        super()._action_whos_at_table(player, action_id)
+
+    def _action_check_scores(self, player: Player, action_id: str) -> None:
+        self._suppress_keybind_rebuild(player)
+        super()._action_check_scores(player, action_id)
 
     # ======================================================================
     # Helpers

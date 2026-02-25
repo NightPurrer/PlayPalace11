@@ -120,7 +120,7 @@ blackjack-insurance-prompt-even-money-player = { $player } can take even money.
 
 blackjack-dealer-shows = Dealer shows { $card }.
 blackjack-dealer-reveals = Dealer reveals { $card }. Dealer has { $cards } ({ $total }).
-blackjack-dealer-hits = Dealer draws { $card }. Dealer has { $cards } ({ $total }).
+blackjack-dealer-hits = Dealer draws { $card }. Dealer has { $total }.
 blackjack-dealer-stands = Dealer stands with { $total }.
 blackjack-dealer-bust = Dealer busts with { $total }.
 blackjack-dealer-blackjack = Dealer has blackjack.

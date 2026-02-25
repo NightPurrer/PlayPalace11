@@ -116,7 +116,7 @@ blackjack-insurance-offer = Insurance is open.
 
 blackjack-dealer-shows = Dealer shows { $card }.
 blackjack-dealer-reveals = Dealer reveals { $card }. Dealer has { $cards } ({ $total }).
-blackjack-dealer-hits = Dealer draws { $card }. Dealer has { $cards } ({ $total }).
+blackjack-dealer-hits = Dealer draws { $card }. Dealer has { $total }.
 blackjack-dealer-stands = Dealer stands with { $total }.
 blackjack-dealer-bust = Dealer busts with { $total }.
 blackjack-dealer-blackjack = Dealer has blackjack.
