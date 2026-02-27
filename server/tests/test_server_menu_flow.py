@@ -211,10 +211,13 @@ def test_show_dice_keeping_style_menu_marks_current(server):
 
 @pytest.mark.slow
 def test_show_language_menu_focuses_current_locale(server):
+    from server.core.ui.common_flows import show_language_menu
+
     user = make_network_user("Polyglot", locale="pl")
 
-    server._show_language_menu(user)
+    result = show_language_menu(user)
 
+    assert result is True
     menu = user._current_menus["language_menu"]
     selected_index = None
     for index, item in enumerate(menu["items"], start=1):
@@ -252,11 +255,13 @@ def test_show_options_menu_uses_settings_music_and_checkbox_sounds(server):
 
 @pytest.mark.asyncio
 @pytest.mark.slow
-async def test_menu_selection_is_remembered_for_return_focus(server):
+async def test_menu_selection_is_remembered_for_return_focus(server, monkeypatch):
     user = make_network_user("FocusUser", locale="en")
     server._users[user.username] = user
     server._tables = SimpleNamespace(find_user_table=lambda username: None)
-    server._show_language_menu = lambda target: None
+    monkeypatch.setattr(
+        "server.core.ui.common_flows.show_language_menu", lambda *a, **kw: True
+    )
 
     server._show_options_menu(user)
     server._user_states[user.username] = {"menu": "options_menu"}
@@ -303,12 +308,17 @@ async def test_options_toggle_updates_menu_without_forced_position(server):
 @pytest.mark.asyncio
 @pytest.mark.slow
 async def test_back_prunes_previous_menu_position_history(server):
+    from server.core.ui.common_flows import show_language_menu
+
     user = make_network_user("BackUser", locale="en")
     server._users[user.username] = user
     server._tables = SimpleNamespace(find_user_table=lambda username: None)
 
     server._show_options_menu(user)
-    server._show_language_menu(user)
+    show_language_menu(
+        user,
+        on_back=lambda u: server._show_options_menu(u),
+    )
     assert "language_menu" in user._current_menus
     server._user_states[user.username] = {"menu": "language_menu"}
 
@@ -372,7 +382,7 @@ async def test_language_selection_updates_locale(server):
     called = []
     server._show_options_menu = lambda target: called.append(target.username)
 
-    await server._handle_language_selection(user, "lang_pl")
+    await server._apply_locale_change(user, "pl")
 
     assert user.locale == "pl"
     assert updated == [(user.username, "pl")]

@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import asyncio
-import contextlib
 from types import SimpleNamespace
 
 import pytest
 
 from server.core.server import Server
 from server.core.users.preferences import UserPreferences, DiceKeepingStyle
+from server.messages.localization import Localization
 
 
 class DummyDB:
@@ -93,7 +92,10 @@ async def test_handle_options_selection_toggle_turn_sound(server, monkeypatch):
 async def test_handle_options_selection_language_opens_menu(server, monkeypatch):
     user = DummyUser("alice")
     opened = {}
-    monkeypatch.setattr(server, "_show_language_menu", lambda u: opened.setdefault("lang", True))
+    monkeypatch.setattr(
+        "server.core.ui.common_flows.show_language_menu",
+        lambda *a, **kw: opened.setdefault("lang", True),
+    )
 
     await server._handle_options_selection(user, "language")
 
@@ -104,18 +106,16 @@ async def test_handle_options_selection_language_opens_menu(server, monkeypatch)
 async def test_handle_options_selection_language_warmup_in_progress(server, monkeypatch):
     user = DummyUser("alice")
     shown = {}
-    server._localization_warmup_task = asyncio.create_task(asyncio.sleep(1))
+    Localization.set_warmup_active(True)
     monkeypatch.setattr(server, "_show_options_menu", lambda u: shown.setdefault("options", True))
-    monkeypatch.setattr(server, "_show_language_menu", lambda u: shown.setdefault("lang", True))
 
-    await server._handle_options_selection(user, "language")
+    try:
+        await server._handle_options_selection(user, "language")
+    finally:
+        Localization.set_warmup_active(False)
 
     assert shown.get("options")
-    assert not shown.get("lang")
     assert user.spoken[-1][0] == "localization-in-progress-try-again"
-    server._localization_warmup_task.cancel()
-    with contextlib.suppress(asyncio.CancelledError):
-        await server._localization_warmup_task
 
 
 @pytest.mark.asyncio
@@ -140,7 +140,7 @@ async def test_handle_language_selection_updates_locale(server, monkeypatch):
     shown = {}
     monkeypatch.setattr(server, "_show_options_menu", lambda u: shown.setdefault("options", True))
 
-    await server._handle_language_selection(user, "lang_es")
+    await server._apply_locale_change(user, "es")
 
     assert user.locale == "es"
     assert server._db.locale_updates == [("alice", "es")]
@@ -148,17 +148,16 @@ async def test_handle_language_selection_updates_locale(server, monkeypatch):
     assert shown.get("options")
 
 
-@pytest.mark.asyncio
-async def test_show_language_menu_warmup_in_progress(server, monkeypatch):
+def test_show_language_menu_warmup_in_progress(server, monkeypatch):
+    from server.core.ui.common_flows import show_language_menu
+
     user = DummyUser("alice")
-    shown = {}
-    server._localization_warmup_task = asyncio.create_task(asyncio.sleep(1))
-    monkeypatch.setattr(server, "_show_options_menu", lambda u: shown.setdefault("options", True))
+    Localization.set_warmup_active(True)
 
-    server._show_language_menu(user)
+    try:
+        result = show_language_menu(user)
+    finally:
+        Localization.set_warmup_active(False)
 
-    assert shown.get("options")
+    assert result is False
     assert user.spoken[-1][0] == "localization-in-progress-try-again"
-    server._localization_warmup_task.cancel()
-    with contextlib.suppress(asyncio.CancelledError):
-        await server._localization_warmup_task

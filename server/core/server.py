@@ -576,6 +576,7 @@ class Server(AdministrationMixin):
             return
         if self._localization_warmup_task:
             return
+        Localization.set_warmup_active(True)
         loop = asyncio.get_running_loop()
         self._localization_warmup_task = loop.create_task(self._warm_locales_async())
         print(
@@ -585,8 +586,7 @@ class Server(AdministrationMixin):
 
     def _is_localization_warmup_active(self) -> bool:
         """Return whether non-blocking localization warmup is still running."""
-        task = self._localization_warmup_task
-        return task is not None and not task.done()
+        return Localization.is_warmup_active()
 
     @staticmethod
     def _notify_localization_in_progress(user: NetworkUser) -> None:
@@ -612,6 +612,8 @@ class Server(AdministrationMixin):
             logger.exception("Localization preload failed")
             self._lifecycle.enter_maintenance(message="Localization preload failed. Check server logs.")
             await self._disconnect_clients_for_status(self._lifecycle.snapshot())
+        finally:
+            Localization.set_warmup_active(False)
 
     async def _run_localization_warmup_in_daemon_thread(self) -> None:
         """Run localization warmup in a daemon thread so shutdown isn't blocked."""
@@ -1681,42 +1683,23 @@ class Server(AdministrationMixin):
             user.play_music("settingsmus.ogg")
         self._user_states[user.username] = {"menu": "options_menu"}
 
-    def _show_language_menu(self, user: NetworkUser) -> None:
-        """Show language selection menu."""
+    async def _apply_locale_change(self, user: NetworkUser, lang_code: str) -> None:
+        """Apply a locale change from the language menu."""
         if self._is_localization_warmup_active():
             self._notify_localization_in_progress(user)
             self._show_options_menu(user)
             return
-
-        # Get languages in their native names and in user's locale for comparison
         languages = Localization.get_available_languages(fallback=user.locale)
-        localized_languages = Localization.get_available_languages(
-            user.locale, fallback=user.locale
-        )
+        if lang_code in languages:
+            user.set_locale(lang_code)
+            self._db.update_user_locale(user.username, lang_code)
+            user.speak_l("language-changed", language=languages[lang_code])
+        self._show_options_menu(user)
 
-        items = []
-        selected_position = 1
-        for index, (lang_code, lang_name) in enumerate(languages.items(), start=1):
-            prefix = "* " if lang_code == user.locale else ""
-            localized_name = localized_languages.get(lang_code, lang_name)
-            # Show localized name first, then native name in parentheses if different
-            if localized_name != lang_name:
-                display = f"{prefix}{localized_name} ({lang_name})"
-            else:
-                display = f"{prefix}{lang_name}"
-            items.append(MenuItem(text=display, id=f"lang_{lang_code}"))
-            if lang_code == user.locale:
-                selected_position = index
-        items.append(MenuItem(text=Localization.get(user.locale, "back"), id="back"))
-        user.show_menu(
-            "language_menu",
-            items,
-            multiletter=True,
-            escape_behavior=EscapeBehavior.SELECT_LAST,
-            position=selected_position,
-        )
-        user.play_music("settingsmus.ogg")
-        self._user_states[user.username] = {"menu": "language_menu"}
+    async def _handle_language_menu_dispatch(self, user: NetworkUser, selection_id: str) -> None:
+        """Thin wrapper that delegates to the common language menu handler."""
+        from server.core.ui.common_flows import handle_language_menu_selection
+        await handle_language_menu_selection(user, selection_id)
 
     def _show_saved_tables_menu(self, user: NetworkUser) -> None:
         """Show saved tables menu."""
@@ -1869,7 +1852,7 @@ class Server(AdministrationMixin):
             "active_tables_menu": (self._handle_active_tables_selection, (user, selection_id)),
             "join_menu": (self._handle_join_selection, (user, selection_id, state)),
             "options_menu": (self._handle_options_selection, (user, selection_id)),
-            "language_menu": (self._handle_language_selection, (user, selection_id)),
+            "language_menu": (self._handle_language_menu_dispatch, (user, selection_id)),
             "dice_keeping_style_menu": (self._handle_dice_keeping_style_selection, (user, selection_id)),
             "saved_tables_menu": (self._handle_saved_tables_selection, (user, selection_id, state)),
             "saved_table_actions_menu": (self._handle_saved_table_actions_selection, (user, selection_id, state)),
@@ -1995,11 +1978,15 @@ class Server(AdministrationMixin):
             selection_id: Selected menu item id.
         """
         if selection_id == "language":
-            if self._is_localization_warmup_active():
-                self._notify_localization_in_progress(user)
-                self._show_options_menu(user)
+            from server.core.ui.common_flows import show_language_menu
+            if show_language_menu(
+                user, include_native_names=True,
+                on_select=self._apply_locale_change,
+                on_back=lambda u: self._show_options_menu(u),
+            ):
+                self._user_states[user.username] = {"menu": "language_menu"}
             else:
-                self._show_language_menu(user)
+                self._show_options_menu(user)
         elif selection_id == "turn_sound":
             # Toggle turn sound
             prefs = user.preferences
@@ -2075,31 +2062,6 @@ class Server(AdministrationMixin):
         """
         prefs_json = json.dumps(user.preferences.to_dict())
         self._db.update_user_preferences(user.username, prefs_json)
-
-    async def _handle_language_selection(
-        self, user: NetworkUser, selection_id: str
-    ) -> None:
-        """Handle language selection.
-
-        Args:
-            user: Acting user.
-            selection_id: Selected language id.
-        """
-        if selection_id.startswith("lang_"):
-            if self._is_localization_warmup_active():
-                self._notify_localization_in_progress(user)
-                self._show_options_menu(user)
-                return
-            lang_code = selection_id[5:]  # Remove "lang_" prefix
-            languages = Localization.get_available_languages(fallback=user.locale)
-            if lang_code in languages:
-                user.set_locale(lang_code)
-                self._db.update_user_locale(user.username, lang_code)
-                user.speak_l("language-changed", language=languages[lang_code])
-                self._show_options_menu(user)
-                return
-        # Back or invalid
-        self._show_options_menu(user)
 
     async def _handle_categories_selection(
         self, user: NetworkUser, selection_id: str, state: dict

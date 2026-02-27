@@ -24,9 +24,18 @@ class Localization:
     _locales_dir: Path | None = None
     _cache_dir: Path | None = None
     _cache_enabled: bool = True
+    _warmup_active: bool = False
     _CACHE_VERSION = "1"
     _CACHE_DISABLE_ENV = "PLAYPALACE_DISABLE_LOCALE_CACHE"
     _CACHE_DIR_ENV = "PLAYPALACE_LOCALE_CACHE_DIR"
+
+    @classmethod
+    def set_warmup_active(cls, active: bool) -> None:
+        cls._warmup_active = active
+
+    @classmethod
+    def is_warmup_active(cls) -> bool:
+        return cls._warmup_active
 
     @classmethod
     def init(cls, locales_dir: Path | str) -> None:
