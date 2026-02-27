@@ -4,7 +4,7 @@ import sqlite3
 import sys
 import json
 from pathlib import Path
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from server.core.tables.table import Table
 from server.core.users.base import TrustLevel
@@ -23,6 +23,7 @@ class UserRecord:
         preferences_json: JSON preferences blob.
         trust_level: Trust level for permissions.
         approved: Whether the account is approved.
+        fluent_languages: Languages the user knows.
     """
 
     id: int
@@ -33,6 +34,7 @@ class UserRecord:
     preferences_json: str = "{}"
     trust_level: TrustLevel = TrustLevel.USER
     approved: bool = False  # Whether the account has been approved by an admin
+    fluent_languages: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -80,6 +82,7 @@ class Database:
             )
             raise SystemExit(1) from exc
         self._conn.row_factory = sqlite3.Row
+        self._conn.execute("PRAGMA foreign_keys = ON")
         self._create_tables()
 
     def close(self) -> None:
@@ -102,7 +105,18 @@ class Database:
                 locale TEXT DEFAULT 'en',
                 preferences_json TEXT DEFAULT '{}',
                 trust_level INTEGER DEFAULT 1,
-                approved INTEGER DEFAULT 0
+                approved INTEGER DEFAULT 0,
+                fluent_languages TEXT DEFAULT '[]'
+            )
+        """)
+
+        # Transcriber assignments (languages a user is approved to transcribe)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS transcriber_assignments (
+                user_id INTEGER NOT NULL,
+                lang_code TEXT NOT NULL,
+                PRIMARY KEY (user_id, lang_code),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             )
         """)
 
@@ -245,6 +259,25 @@ class Database:
             )
             raise SystemExit(1) from exc
 
+        if "fluent_languages" not in columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN fluent_languages TEXT DEFAULT '[]'")
+            self._conn.commit()
+
+        # Ensure transcriber_assignments table exists for older databases
+        cursor.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='transcriber_assignments'"
+        )
+        if not cursor.fetchone():
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS transcriber_assignments (
+                    user_id INTEGER NOT NULL,
+                    lang_code TEXT NOT NULL,
+                    PRIMARY KEY (user_id, lang_code),
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                )
+            """)
+            self._conn.commit()
+
         # Ensure refresh_tokens table exists for older databases
         cursor.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name='refresh_tokens'"
@@ -273,27 +306,34 @@ class Database:
 
     # User operations
 
+    @staticmethod
+    def _user_from_row(row: sqlite3.Row) -> UserRecord:
+        """Build a UserRecord from a database row."""
+        trust_level_int = row["trust_level"] if row["trust_level"] is not None else 1
+        return UserRecord(
+            id=row["id"],
+            username=row["username"],
+            password_hash=row["password_hash"],
+            uuid=row["uuid"],
+            locale=row["locale"] or "en",
+            preferences_json=row["preferences_json"] or "{}",
+            trust_level=TrustLevel(trust_level_int),
+            approved=bool(row["approved"]) if row["approved"] is not None else False,
+            fluent_languages=json.loads(row["fluent_languages"] or "[]"),
+        )
+
+    _USER_COLUMNS = "id, username, password_hash, uuid, locale, preferences_json, trust_level, approved, fluent_languages"
+
     def get_user(self, username: str) -> UserRecord | None:
         """Get a user by username."""
         cursor = self._conn.cursor()
         cursor.execute(
-            "SELECT id, username, password_hash, uuid, locale, preferences_json, trust_level, approved "
-            "FROM users WHERE lower(username) = lower(?)",
+            f"SELECT {self._USER_COLUMNS} FROM users WHERE lower(username) = lower(?)",
             (username,),
         )
         row = cursor.fetchone()
         if row:
-            trust_level_int = row["trust_level"] if row["trust_level"] is not None else 1
-            return UserRecord(
-                id=row["id"],
-                username=row["username"],
-                password_hash=row["password_hash"],
-                uuid=row["uuid"],
-                locale=row["locale"] or "en",
-                preferences_json=row["preferences_json"] or "{}",
-                trust_level=TrustLevel(trust_level_int),
-                approved=bool(row["approved"]) if row["approved"] is not None else False,
-            )
+            return self._user_from_row(row)
         return None
 
     def create_user(
@@ -463,27 +503,14 @@ class Database:
         cursor = self._conn.cursor()
         if exclude_banned:
             cursor.execute(
-                "SELECT id, username, password_hash, uuid, locale, preferences_json, trust_level, approved FROM users WHERE approved = 0 AND trust_level > ?",
+                f"SELECT {self._USER_COLUMNS} FROM users WHERE approved = 0 AND trust_level > ?",
                 (TrustLevel.BANNED.value,),
             )
         else:
             cursor.execute(
-                "SELECT id, username, password_hash, uuid, locale, preferences_json, trust_level, approved FROM users WHERE approved = 0"
+                f"SELECT {self._USER_COLUMNS} FROM users WHERE approved = 0"
             )
-        users = []
-        for row in cursor.fetchall():
-            trust_level_int = row["trust_level"] if row["trust_level"] is not None else 1
-            users.append(UserRecord(
-                id=row["id"],
-                username=row["username"],
-                password_hash=row["password_hash"],
-                uuid=row["uuid"],
-                locale=row["locale"] or "en",
-                preferences_json=row["preferences_json"] or "{}",
-                trust_level=TrustLevel(trust_level_int),
-                approved=False,
-            ))
-        return users
+        return [self._user_from_row(row) for row in cursor.fetchall()]
 
     def get_banned_users(self) -> list[UserRecord]:
         """Get all banned users.
@@ -493,22 +520,10 @@ class Database:
         """
         cursor = self._conn.cursor()
         cursor.execute(
-            "SELECT id, username, password_hash, uuid, locale, preferences_json, trust_level, approved FROM users WHERE trust_level = ?",
+            f"SELECT {self._USER_COLUMNS} FROM users WHERE trust_level = ?",
             (TrustLevel.BANNED.value,),
         )
-        users = []
-        for row in cursor.fetchall():
-            users.append(UserRecord(
-                id=row["id"],
-                username=row["username"],
-                password_hash=row["password_hash"],
-                uuid=row["uuid"],
-                locale=row["locale"] or "en",
-                preferences_json=row["preferences_json"] or "{}",
-                trust_level=TrustLevel.BANNED,
-                approved=bool(row["approved"]) if row["approved"] is not None else False,
-            ))
-        return users
+        return [self._user_from_row(row) for row in cursor.fetchall()]
 
     def approve_user(self, username: str) -> bool:
         """Approve a user account.
@@ -550,48 +565,26 @@ class Database:
         cursor = self._conn.cursor()
         if exclude_banned:
             cursor.execute(
-                "SELECT id, username, password_hash, uuid, locale, preferences_json, trust_level, approved FROM users WHERE approved = 1 AND trust_level > ? AND trust_level < ? ORDER BY username",
+                f"SELECT {self._USER_COLUMNS} FROM users WHERE approved = 1 AND trust_level > ? AND trust_level < ? ORDER BY username",
                 (TrustLevel.BANNED.value, TrustLevel.ADMIN.value),
             )
         else:
             cursor.execute(
-                "SELECT id, username, password_hash, uuid, locale, preferences_json, trust_level, approved FROM users WHERE approved = 1 AND trust_level < ? ORDER BY username",
+                f"SELECT {self._USER_COLUMNS} FROM users WHERE approved = 1 AND trust_level < ? ORDER BY username",
                 (TrustLevel.ADMIN.value,),
             )
-        users = []
-        for row in cursor.fetchall():
-            trust_level_int = row["trust_level"] if row["trust_level"] is not None else 1
-            users.append(UserRecord(
-                id=row["id"],
-                username=row["username"],
-                password_hash=row["password_hash"],
-                uuid=row["uuid"],
-                locale=row["locale"] or "en",
-                preferences_json=row["preferences_json"] or "{}",
-                trust_level=TrustLevel(trust_level_int),
-                approved=True,
-            ))
-        return users
+        return [self._user_from_row(row) for row in cursor.fetchall()]
 
     def get_server_owner(self) -> UserRecord | None:
         """Get the server owner (there should only be one)."""
         cursor = self._conn.cursor()
         cursor.execute(
-            "SELECT id, username, password_hash, uuid, locale, preferences_json, trust_level, approved FROM users WHERE trust_level = ?",
+            f"SELECT {self._USER_COLUMNS} FROM users WHERE trust_level = ?",
             (TrustLevel.SERVER_OWNER.value,),
         )
         row = cursor.fetchone()
         if row:
-            return UserRecord(
-                id=row["id"],
-                username=row["username"],
-                password_hash=row["password_hash"],
-                uuid=row["uuid"],
-                locale=row["locale"] or "en",
-                preferences_json=row["preferences_json"] or "{}",
-                trust_level=TrustLevel(row["trust_level"]),
-                approved=bool(row["approved"]) if row["approved"] is not None else False,
-            )
+            return self._user_from_row(row)
         return None
 
     def get_admin_users(self, include_server_owner: bool = True) -> list[UserRecord]:
@@ -604,27 +597,158 @@ class Database:
         cursor = self._conn.cursor()
         if include_server_owner:
             cursor.execute(
-                "SELECT id, username, password_hash, uuid, locale, preferences_json, trust_level, approved FROM users WHERE trust_level >= ? ORDER BY username",
+                f"SELECT {self._USER_COLUMNS} FROM users WHERE trust_level >= ? ORDER BY username",
                 (TrustLevel.ADMIN.value,),
             )
         else:
             cursor.execute(
-                "SELECT id, username, password_hash, uuid, locale, preferences_json, trust_level, approved FROM users WHERE trust_level = ? ORDER BY username",
+                f"SELECT {self._USER_COLUMNS} FROM users WHERE trust_level = ? ORDER BY username",
                 (TrustLevel.ADMIN.value,),
             )
-        users = []
+        return [self._user_from_row(row) for row in cursor.fetchall()]
+
+    # Fluent languages operations
+
+    def get_user_fluent_languages(self, username: str) -> list[str]:
+        """Get the languages a user knows.
+
+        Args:
+            username: Username to look up.
+
+        Returns:
+            List of language codes.
+        """
+        cursor = self._conn.cursor()
+        cursor.execute(
+            "SELECT fluent_languages FROM users WHERE lower(username) = lower(?)",
+            (username,),
+        )
+        row = cursor.fetchone()
+        if row:
+            return json.loads(row["fluent_languages"] or "[]")
+        return []
+
+    def set_user_fluent_languages(self, username: str, languages: list[str]) -> None:
+        """Replace a user's fluent languages list.
+
+        Args:
+            username: Username to update.
+            languages: New list of language codes.
+        """
+        cursor = self._conn.cursor()
+        cursor.execute(
+            "UPDATE users SET fluent_languages = ? WHERE lower(username) = lower(?)",
+            (json.dumps(languages), username),
+        )
+        self._conn.commit()
+
+    # Transcriber assignment operations
+
+    def get_transcriber_languages(self, username: str) -> list[str]:
+        """Get languages a user is approved to transcribe.
+
+        Args:
+            username: Username to look up.
+
+        Returns:
+            List of assigned language codes.
+        """
+        cursor = self._conn.cursor()
+        cursor.execute(
+            "SELECT ta.lang_code FROM transcriber_assignments ta "
+            "JOIN users u ON ta.user_id = u.id "
+            "WHERE lower(u.username) = lower(?) ORDER BY ta.lang_code",
+            (username,),
+        )
+        return [row["lang_code"] for row in cursor.fetchall()]
+
+    def add_transcriber_assignment(self, username: str, lang_code: str) -> bool:
+        """Assign a user as transcriber for a language.
+
+        Args:
+            username: Username to assign.
+            lang_code: Language code to assign.
+
+        Returns:
+            True if added, False if the assignment already exists.
+        """
+        cursor = self._conn.cursor()
+        cursor.execute(
+            "SELECT id FROM users WHERE lower(username) = lower(?)", (username,)
+        )
+        row = cursor.fetchone()
+        if not row:
+            return False
+        user_id = row["id"]
+        try:
+            cursor.execute(
+                "INSERT INTO transcriber_assignments (user_id, lang_code) VALUES (?, ?)",
+                (user_id, lang_code),
+            )
+            self._conn.commit()
+            return True
+        except sqlite3.IntegrityError:
+            return False
+
+    def remove_transcriber_assignment(self, username: str, lang_code: str) -> bool:
+        """Remove a transcriber assignment.
+
+        Args:
+            username: Username to remove assignment from.
+            lang_code: Language code to remove.
+
+        Returns:
+            True if removed, False if the assignment was not found.
+        """
+        cursor = self._conn.cursor()
+        cursor.execute(
+            "SELECT id FROM users WHERE lower(username) = lower(?)", (username,)
+        )
+        row = cursor.fetchone()
+        if not row:
+            return False
+        user_id = row["id"]
+        cursor.execute(
+            "DELETE FROM transcriber_assignments WHERE user_id = ? AND lang_code = ?",
+            (user_id, lang_code),
+        )
+        self._conn.commit()
+        return cursor.rowcount > 0
+
+    def get_transcribers_for_language(self, lang_code: str) -> list[str]:
+        """Get all usernames assigned as transcribers for a language.
+
+        Args:
+            lang_code: Language code to look up.
+
+        Returns:
+            List of usernames.
+        """
+        cursor = self._conn.cursor()
+        cursor.execute(
+            "SELECT u.username FROM transcriber_assignments ta "
+            "JOIN users u ON ta.user_id = u.id "
+            "WHERE ta.lang_code = ? ORDER BY u.username",
+            (lang_code,),
+        )
+        return [row["username"] for row in cursor.fetchall()]
+
+    def get_all_transcribers(self) -> dict[str, list[str]]:
+        """Get all transcriber assignments grouped by username.
+
+        Returns:
+            Dict mapping username to list of assigned language codes.
+        """
+        cursor = self._conn.cursor()
+        cursor.execute(
+            "SELECT u.username, ta.lang_code FROM transcriber_assignments ta "
+            "JOIN users u ON ta.user_id = u.id "
+            "ORDER BY u.username, ta.lang_code"
+        )
+        result: dict[str, list[str]] = {}
         for row in cursor.fetchall():
-            users.append(UserRecord(
-                id=row["id"],
-                username=row["username"],
-                password_hash=row["password_hash"],
-                uuid=row["uuid"],
-                locale=row["locale"] or "en",
-                preferences_json=row["preferences_json"] or "{}",
-                trust_level=TrustLevel(row["trust_level"]),
-                approved=bool(row["approved"]) if row["approved"] is not None else False,
-            ))
-        return users
+            result.setdefault(row["username"], []).append(row["lang_code"])
+        return result
 
     # Table operations
 

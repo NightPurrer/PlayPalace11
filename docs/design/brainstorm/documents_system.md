@@ -13,12 +13,14 @@ The user table should have a fluent_languages column, which is a list of lang co
 
 Transcriber assignments should be stored separately, in a transcriber_assignments table (user_id, lang_code). A user may be fluent in a language without being approved as a transcriber for it. This separation also makes queries like "who are the French transcribers?" trivial without parsing JSON arrays.
 
+**Database status: implemented.** The `fluent_languages` column (JSON text on `users`) and `transcriber_assignments` table are in `server/persistence/database.py` with full CRUD methods and migration support. See `server/tests/test_database.py` for coverage.
+
 # Backend folder structure
 server/documents/ folder contains each document folder and a "_metadata.json" file.
 
 ## Document system metadata file
 In the root of the documents folder is a "_metadata.json" file. This file contains:
-- Categories dictionary: maps human-readable category slugs to localized display names.
+- Categories dictionary: maps human-readable category slugs to their settings, including a sort order and localized display names.
 
 The slug is the internal identifier, set once at creation, and never shown to users. Renaming a category only changes the display name for a specific locale, not the slug. If a locale translation is missing, the system falls back to English, or the slug itself as a last resort.
 
@@ -27,11 +29,17 @@ The slug is the internal identifier, set once at creation, and never shown to us
 {
     "categories": {
         "news": {
-            "en": "News and Updates",
-            "es": "Noticias y Actualizaciones"
+            "sort": "alphabetical",
+            "name": {
+                "en": "News and Updates",
+                "es": "Noticias y Actualizaciones"
+            }
         },
         "game_rules": {
-            "en": "Game Rules"
+            "sort": "alphabetical",
+            "name": {
+                "en": "Game Rules"
+            }
         }
     }
 }
@@ -104,9 +112,6 @@ The following areas need further thought before implementation:
 ## Deletion and archival
 How should documents or individual translations be deleted? Can they be recovered? Should there be a soft-delete / archive mechanism, or is git history sufficient for recovery since the project is open source?
 
-## Document ordering within categories
-How are documents ordered when displayed in a category? Options include alphabetical by title, creation date, or a manual sort order field. For game rules, ordering matters -- "How to Play" should appear before "Advanced Strategies."
-
 ## Documents with no categories
 What happens if a document belongs to zero categories? Should there be an "uncategorized" fallback view, or should the system require at least one category?
 
@@ -117,14 +122,15 @@ What if two people edit the same translation at the same time? Even a simple che
 
 ## Documents system UI
 Add a "Documents" action in the main menu. The documents menu has the following items:
-- Category x: display the category name for each category as its own item.
+- Category x: display the category name for each category as its own item. Add an "all documents" item at the top.
 - Manage categories (admins only)
 - New document (admins only)
 - View transcribers by language
 - View transcribers by user
 
 ## Documents in category menu
-- Filter documents by title: type to narrow the list by document title. Full-text content search can be added later if needed.
+- Search documents: type to narrow the list by document title or contents.
+- document x: the document title for each document in this category.
 
 ## Manage categories menu
 Show the list of category names. When clicking on one, ask to rename or delete it.

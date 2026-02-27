@@ -140,6 +140,81 @@ def test_update_user_preferences_and_locale(db):
     assert row[1] == "pl"
 
 
+def test_fluent_languages_default_empty(db):
+    user = db.create_user("alice", "hash", approved=True)
+    assert user.fluent_languages == []
+
+
+def test_set_and_get_fluent_languages(db):
+    db.create_user("alice", "hash", approved=True)
+    db.set_user_fluent_languages("alice", ["en", "fr"])
+    assert db.get_user_fluent_languages("alice") == ["en", "fr"]
+
+    db.set_user_fluent_languages("alice", ["de"])
+    assert db.get_user_fluent_languages("alice") == ["de"]
+
+
+def test_fluent_languages_in_user_record(db):
+    db.create_user("alice", "hash", approved=True)
+    db.set_user_fluent_languages("alice", ["en", "es"])
+    user = db.get_user("alice")
+    assert user.fluent_languages == ["en", "es"]
+
+
+def test_add_and_get_transcriber_assignments(db):
+    db.create_user("alice", "hash", approved=True)
+    assert db.add_transcriber_assignment("alice", "en") is True
+    assert db.add_transcriber_assignment("alice", "fr") is True
+    assert db.get_transcriber_languages("alice") == ["en", "fr"]
+
+
+def test_get_transcribers_for_language(db):
+    db.create_user("alice", "hash", approved=True)
+    db.create_user("bob", "hash", approved=True)
+    db.add_transcriber_assignment("alice", "en")
+    db.add_transcriber_assignment("bob", "en")
+    db.add_transcriber_assignment("alice", "fr")
+
+    assert db.get_transcribers_for_language("en") == ["alice", "bob"]
+    assert db.get_transcribers_for_language("fr") == ["alice"]
+    assert db.get_transcribers_for_language("de") == []
+
+
+def test_remove_transcriber_assignment(db):
+    db.create_user("alice", "hash", approved=True)
+    db.add_transcriber_assignment("alice", "en")
+    assert db.remove_transcriber_assignment("alice", "en") is True
+    assert db.get_transcriber_languages("alice") == []
+    assert db.remove_transcriber_assignment("alice", "en") is False
+
+
+def test_transcriber_cascade_on_user_delete(db):
+    db.create_user("alice", "hash", approved=True)
+    db.add_transcriber_assignment("alice", "en")
+    db.add_transcriber_assignment("alice", "fr")
+    db.delete_user("alice")
+    # Assignments should be gone due to ON DELETE CASCADE
+    cursor = db._conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM transcriber_assignments")
+    assert cursor.fetchone()[0] == 0
+
+
+def test_duplicate_transcriber_assignment(db):
+    db.create_user("alice", "hash", approved=True)
+    assert db.add_transcriber_assignment("alice", "en") is True
+    assert db.add_transcriber_assignment("alice", "en") is False
+
+
+def test_get_all_transcribers(db):
+    db.create_user("alice", "hash", approved=True)
+    db.create_user("bob", "hash", approved=True)
+    db.add_transcriber_assignment("alice", "en")
+    db.add_transcriber_assignment("alice", "fr")
+    db.add_transcriber_assignment("bob", "de")
+    result = db.get_all_transcribers()
+    assert result == {"alice": ["en", "fr"], "bob": ["de"]}
+
+
 def test_approve_and_delete_user(db):
     _insert_user(db, "pending", trust=TrustLevel.USER.value, approved=0)
 
