@@ -47,6 +47,56 @@ _language_menu_callbacks: dict[
 ] = {}
 
 
+def show_yes_no_menu(
+    user: NetworkUser,
+    menu_id: str,
+    question: str,
+    *,
+    include_cancel: bool = False,
+    initial_focus: str | int = "yes",
+    allow_escape: bool = True,
+) -> None:
+    """Show a yes/no confirmation menu.
+
+    The first item is a static label displaying *question*.  Focus is placed
+    on *initial_focus* (``"yes"`` by default) so the label is skipped.
+
+    *initial_focus* accepts an item id string (``"yes"``, ``"no"``,
+    ``"cancel"``, ``"question"``) **or** an integer shorthand:
+    ``1`` = yes, ``2`` = no, ``3`` = cancel, anything else = question label.
+
+    Callers are responsible for setting ``_user_states`` themselves, since they
+    often need to store extra context (e.g. ``target_username``).
+    """
+    items = [
+        MenuItem(text=question, id="question"),
+        MenuItem(text=Localization.get(user.locale, "confirm-yes"), id="yes"),
+        MenuItem(text=Localization.get(user.locale, "confirm-no"), id="no"),
+    ]
+    if include_cancel:
+        items.append(
+            MenuItem(text=Localization.get(user.locale, "cancel"), id="cancel")
+        )
+
+    # Resolve 1-based position from the requested focus target.
+    if isinstance(initial_focus, int):
+        int_to_id = {1: "yes", 2: "no", 3: "cancel"}
+        initial_focus = int_to_id.get(initial_focus, "question")
+    focus_positions = {item.id: i for i, item in enumerate(items, start=1)}
+    position = focus_positions.get(initial_focus, 2)  # fallback to "yes"
+
+    escape = (
+        EscapeBehavior.SELECT_LAST if allow_escape else EscapeBehavior.KEYBIND
+    )
+    user.show_menu(
+        menu_id,
+        items,
+        multiletter=True,
+        escape_behavior=escape,
+        position=position,
+    )
+
+
 def show_language_menu(
     user: NetworkUser,
     highlight_active_locale: bool = True,
