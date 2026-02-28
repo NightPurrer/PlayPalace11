@@ -9,9 +9,9 @@ To account for this, admins can approve people to be transcribers. The transcrib
 Transcribers will be assigned a list of languages. They can only modify translations for the languages they are assigned. For example, a transcriber with Spanish and French would not be allowed to create or edit translations of an English version.
 
 ## Storing transcriber data
-The user table should have a fluent_languages column, which is a list of lang codes (e.g. ["en", "es"]). This tracks what languages a user knows and can be used for purposes beyond translation in the future.
+The user table has a fluent_languages column, which is a list of lang codes (e.g. ["en", "es"]). This tracks what languages a user knows and can be used for purposes beyond translation in the future.
 
-Transcriber assignments should be stored separately, in a transcriber_assignments table (user_id, lang_code). A user may be fluent in a language without being approved as a transcriber for it. This separation also makes queries like "who are the French transcribers?" trivial without parsing JSON arrays.
+Transcriber assignments are stored separately, in a transcriber_assignments table (user_id, lang_code). A user may be fluent in a language without being approved as a transcriber for it. This separation also makes queries like "who are the French transcribers?" trivial without parsing JSON arrays.
 
 **Database status: implemented.** The `fluent_languages` column (JSON text on `users`) and `transcriber_assignments` table are in `server/persistence/database.py` with full CRUD methods and migration support. See `server/tests/test_database.py` for coverage.
 
@@ -106,41 +106,46 @@ When metadata is changed (via the in-app UI or a server command), update both:
 
 When document content (.md) is changed via the in-app editor, write directly to disk. There is no in-memory cache for content.
 
-# Still needs design
-The following areas need further thought before implementation:
+## Edit locks
+When someone opens a translation for editing, the server records (user_id, document, locale) as an active edit session. If a second person tries to edit the same translation, they receive a message: "This translation is currently being edited by [username]. You cannot edit it right now." The lock is released when the editor saves or cancels. A timeout (e.g., 30 minutes of inactivity) auto-releases stale locks in case someone disconnects without saving. Admins have a "force unlock" option if a lock gets stuck.
 
-## Deletion and archival
-How should documents or individual translations be deleted? Can they be recovered? Should there be a soft-delete / archive mechanism, or is git history sufficient for recovery since the project is open source?
-
-## Documents with no categories
-What happens if a document belongs to zero categories? Should there be an "uncategorized" fallback view, or should the system require at least one category?
-
-## Edit conflicts
-What if two people edit the same translation at the same time? Even a simple check -- "the file was modified since you started editing, overwrite?" using the modified_contents timestamp -- would prevent silent data loss.
+## Version history
+When a translation is saved, the previous version is copied to a `_history/` subfolder inside the document folder (e.g., `uno_rules/_history/en_2026-02-28T14-30-00Z.md`). A maximum of 5 versions per locale are kept; the oldest is deleted when the cap is reached. No UI is needed initially — this is a safety net. An admin "view history" menu item can be added later.
 
 # Frontend UI structure
 
 ## Documents system UI
 Add a "Documents" action in the main menu. The documents menu has the following items:
-- Category x: display the category name for each category as its own item. Add an "all documents" item at the top.
-- Manage categories (admins only)
-- New document (admins only)
+- Category x: display the category name for each category as its own item. Add an "all documents" item at the top, and an "uncategorized documents" item at the bottom.
+- New document (admin): create a new document not found in the system.
+- New category (admin): create a new category not found in the system.
 - View transcribers by language
 - View transcribers by user
 
 ## Documents in category menu
-- Search documents: type to narrow the list by document title or contents.
+- Search documents: the user types a query and confirms before the search runs. The search loads .md files on demand, scoped to the user's current locale and the selected category. No content is preloaded or indexed at startup.
 - document x: the document title for each document in this category.
+- Rename category (transcriber): allows for changing the user friendly name for the user's current locale.
+- add documents to category (admin): add 1 or more documents not associated with this category via a boolean list.
+- Remove documents from category (admin): remove 1 or more documents associated with this category via a boolean list.
+- Category settings (admin): edit the settings for this category such as sort method. Available sort options: alphabetical, date created, date modified.
+- Delete category (admin): deletes this category. Documents associated with this category should remove the category slug from the metadata.
 
-## Manage categories menu
-Show the list of category names. When clicking on one, ask to rename or delete it.
-At the bottom of the menu, add an "add category" item. When creating a category, the admin provides a slug (the permanent internal name) and a display name for their current locale.
+Admin actions remain in this menu to ensure everything is accessible without relying on the context menu.
 
-## Add document
-- Choose categories
+## Fallback categoies
+The system will have two dynamic categories that are not real categories: "all documents" and "uncategorized documents".
+Even if the system has 0 categoies or a document has 0 categoies associated, it will still show up in both of these fallback categoies.
+Since these are not user generated or real categories, the labels should be apart of the fluent locale bundle data.
+
+## New document
+- Choose categories. Selecting no categoies is acceptable.
 - Use the "add translation" flow to create the initial translation. Pass the new document folder name and the current user's locale so it knows what document is being created and can skip choosing a locale.
 
-The folder name is auto-generated from the initial title (slugified). It can be manually renamed on the filesystem if needed, but this is not exposed in the UI.
+The folder name is auto-generated from the initial title (slugified). If the slug already exists, the user is warned and asked to choose a different title. The folder can be manually renamed on the filesystem if needed, but this is not exposed in the UI.
+
+## New Category
+Write a slug and a user friendly name for the user's current locale.
 
 ## View transcribers by language
 Shows the standard language menu. Append each item with the number of users assigned to that language.
@@ -155,21 +160,30 @@ Shows the list of transcribers as a menu. Append each item with the number of la
 For example, "Zarvox (4 languages)"
 When clicking on a user, displays the list of assigned languages in a menu. If an admin, clicking on a language asks if you want to remove it.
 If admin, at the bottom is an "add languages" item.
-When clicked, shows the standard language menu excluding the already assigned languages, with on/off status.
+When clicked, shows the standard language menu for the user's fluent languages excluding the already assigned languages, with on/off status.
 
 ## Document actions
 When clicking on a document:
 - Normal users: automatically view the document (no action menu).
 - Transcribers and admins: show a short action menu:
-    - View document
-    - Edit document
+    - View document contents
+    - Edit document contents
     - Document settings...
 
 "Document settings" opens a submenu with:
 - Change title (with language selection)
 - Manage visibility (x/x languages public)
+- Modify category list (admin): changes the list of categories this document is associated with via a boolean list.
 - Add translation
-- Modify category list (admins only)
+- Remove this translation (admin): removes the translation for the user's current locale. This is only available for admins. The source translation can not be removed. Requires confirmation.
+- Delete document (admin): deletes this document completely including the metadata. Requires confirmation, include the number of translations in the prompt. Recovery is not possible.
+
+## Viewing a document
+The document content is displayed in a read-only text field as plain text. No markdown rendering.
+
+## Editing a document
+The editor is a multiline text field for writing plain text. If the translation being edited is not the source language, a second read-only multiline text field displays the source language translation for side-by-side comparison.
+Include save and cancel buttons. Both require confirmation. Pressing escape acts as cancel. If the document has no changes, the save button does nothing.
 
 Note: The platform does not currently support F2 for inline editing or the context menu key on lists. These would be ideal shortcuts (F2 to jump straight to editing, context key for the settings submenu) and are worth considering as platform features in the future. For now, the three-item action menu keeps things simple and discoverable.
 
@@ -190,3 +204,17 @@ Brings up a text field for the title, then a multiline text field for the conten
 
 ## Modifying category list
 Shows a menu with each category name and its current status (included / excluded). Pressing enter on an item toggles the status.
+
+# Options menu addition: Fluent languages
+The options menu gains a "Fluent languages" item, below the active language item. This opens the standard language menu with on/off toggles for each language. The user's active locale is always included and cannot be toggled off. This setting is stored in the `fluent_languages` column on the user table.
+
+Fluent languages live in the options menu because they are a personal profile setting — they describe the user, not a document. Admins use this data when assigning transcribers: only users who have marked a language as fluent can be assigned as transcribers for that language.
+
+# Future plans and considerations
+The following are not part of the initial implementation but are worth adding later:
+
+- **Staleness indication for transcribers**: Append "(needs update)" or similar to translations in the language selection menu when the source locale's `modified_contents` is newer than the translation's. Helps transcribers identify what needs attention without manually comparing timestamps.
+- **Notification system**: Notify transcribers when a source document they are responsible for has been updated. Could be an in-app notification or a simple "pending updates" list.
+- **Version history UI**: An admin "view history" menu item to browse and restore previous versions from the `_history/` folder.
+- **Client-side draft persistence**: If the connection drops mid-edit, the client should hold the draft in memory and allow retrying the save on reconnect. If the client crashes entirely, the draft is lost, which is acceptable given the low frequency of editing.
+- **F2 and context menu key support**: Platform-level shortcuts for inline editing (F2) and settings access (context menu key) on list items.
